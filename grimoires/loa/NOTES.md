@@ -14,10 +14,18 @@
 
 ## Blockers & Dependencies
 <!-- External factors affecting progress -->
-- [ ] [DEPENDENCY] npm publish blocked until crate's API key model lands (locked decision §3). Build/test/tag only.
-- [ ] [FLAG-UPSTREAM] `_links` hypermedia (handoff:51-53) is absent from `IdentityResolution` + `BandcampBulkPage` in the live spec. Designing around it (body fields). Confirm with crate team whether intended.
-- [ ] [FLAG-UPSTREAM] Teaching-error fields (`message/hint/doc_url/next/param`, handoff:46-49) not declared in `Error` schema. Reading defensively. Confirm runtime presence / consider documenting.
-- [ ] [FLAG-UPSTREAM] Beacon issuance gap: `search-events/*` need a `BeaconBearerAuth` JWT + `search_event_id`, but `SearchResponse` exposes neither (no token/event-id field, no 200 response headers). SDK can't auto-wire the beacon flow from the public contract → beacon methods require caller-supplied token. Confirm how the per-search JWT is meant to reach a public consumer.
+### crate response received 2026-06-26 — KEY-FIRST pivot (cycle-C → spec 1.1.0, this week)
+- [ ] [DEPENDENCY] **cycle-C wall (this week)**: data API goes KEY-FIRST (Stripe/Supabase model). After deploy only `GET /api/v1` + `openapi.json` stay anonymous; ALL data endpoints (resolve/artist/bandcamp/search/breakouts/tastemakers/dossier/wayfind-answer) require `X-API-Key` → **401 keyless**. → SDK must make key-required the default (do in the 0.2.0 / 1.1.0-regen cycle). Keyless data calls work TODAY but break post-cycle-C.
+- [ ] [DEPENDENCY] **Regenerate types against spec `info.version` 1.1.0** after cycle-C deploys (per-op ApiKeyAuth security blocks + P1 schema fixes). Nightly drift check will flag; offline gate stays green on the pinned 1.0.0 until we regen.
+- [x] [RESOLVED] Key model CONFIRMED: header `X-API-Key`, `ck_(live|test)_<32-base62>`, API-key path live+verified today; issuance invite-only via operator now (self-serve free tier comes after wall→metering). npm publish = jani's call.
+- [x] [RESOLVED/scheduled 1.1.0] `_links` — runtime emits them (cycle-072); will be declared on `IdentityResolution` + `BandcampBulkPage` rows/next. NOT going away. SDK can adopt hypermedia conveniences later.
+- [x] [RESOLVED/scheduled 1.1.0] Teaching-error fields (`message/hint/doc_url/next/param`) will be declared in `Error` schema → our types will carry them (drop the defensive-only reads at regen).
+- [x] [RESOLVED/scheduled 1.1.0] `/bandcamp` no-param manifest gets its own `BandcampManifest` schema → fix `bandcamp.index()` typing at regen.
+- [x] [RESOLVED] Response headers `Retry-After` (delta-seconds) + `X-RateLimit-Limit/Remaining/Reset` (+ X-Request-Id, confirming) will be declared. Confirmed emitted → add X-RateLimit-* surfacing to the SDK.
+- [x] [RESOLVED — OUT] Beacons stay out of the public SDK (crate first-party telemetry). Keep beacon methods as caller-token thin wrappers or drop; revisit only if a consumer flow appears.
+
+### Confirmed keyed rate limits (crate enforces; SDK reacts)
+- self_serve_49: **60/min, 10k/mo, concurrency 2**; self_serve_99: **300/min, 50k/mo**. 429 → Retry-After + X-RateLimit-* + body `{error:'rate_limited', retry_after_seconds}`. (Anonymous 100/hr/IP is being removed with the wall.)
 
 ## Contract Grounding (live spec, fetched 2026-06-26)
 > Source of truth: `https://crate.0xhoneyjar.xyz/api/v1/openapi.json` (OpenAPI 3.1, info.version 1.0.0, server `https://crate.0xhoneyjar.xyz`). Snapshot in scratchpad; vendor into repo during /implement.
