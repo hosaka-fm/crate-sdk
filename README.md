@@ -12,10 +12,10 @@ automatic retries, cursor pagination, and teaching errors — over crate's publi
 > source_. Access to the crate API is governed separately by crate's Terms of Service and
 > requires a valid API key; MIT grants no right to use the crate service itself. See `NOTICE`.
 
-> **Status: pre-release.** Built and tagged in-repo; **not yet published to npm** — publish
-> is gated until crate's API key model lands. The client already works against the public
-> (anonymous) surface today and gains keyed access by passing an `apiKey` — no code change
-> needed when walling lands.
+> **Status: pre-release (v0.2.0).** crate is **key-first** — every data endpoint requires an
+> `apiKey` (sent as `X-API-Key`); only `crate.index()` is keyless. Keys are invite-only
+> (operator-issued) today; a self-serve free tier lands later. Built + tagged in-repo; npm
+> publish on the next go.
 
 ## Install
 
@@ -31,7 +31,7 @@ dependencies**.
 ```ts
 import { Crate } from '@hosaka/crate';
 
-const crate = new Crate({ apiKey: process.env.CRATE_API_KEY }); // apiKey optional (public today)
+const crate = new Crate({ apiKey: process.env.CRATE_API_KEY }); // required — crate is key-first
 
 const artist = await crate.artist('Four Tet'); // name | slug | cluster_id | discogs:/mbid: → dossier
 const id = await crate.resolve('https://fourtet.bandcamp.com'); // any link/name/id → identity
@@ -58,7 +58,7 @@ object alone — no external docs, no message parsing.
 ```ts
 import { Crate, isCrateError, isRateLimited, CRATE_ERROR_REGISTRY } from '@hosaka/crate';
 
-const crate = new Crate(); // anonymous; pass { apiKey } for key-gated methods
+const crate = new Crate({ apiKey: process.env.CRATE_API_KEY }); // key-first; only crate.index() is keyless
 
 try {
   const artist = await crate.artist('Four Tet');
@@ -85,29 +85,27 @@ try {
 
 > This recipe is mirrored by `examples/agent.ts`, which is type-checked in CI so it can't rot.
 
-Key-gated methods (`facets`, `master`, `masters`, `usage`, `wayfind.interpret`) throw
-`CrateValidationError('api_key_required')` immediately if called without an `apiKey` — no
-confusing runtime 401. Beacon methods (`searchEvents.observed` / `.refined`) require a
-caller-supplied `beaconToken`.
+**Every data method** throws `CrateValidationError('api_key_required')` immediately if called
+without an `apiKey` (only `crate.index()` is keyless) — no confusing runtime 401. Beacon methods
+(`searchEvents.observed` / `.refined`) instead require a caller-supplied `beaconToken`.
 
 ## Client surface
 
 | Call                                                            | Endpoint                                    | Auth           |
 | --------------------------------------------------------------- | ------------------------------------------- | -------------- |
-| `crate.resolve(q)`                                              | `GET /resolve`                              | anon           |
-| `crate.artist(key)` / `crate.artistOrNull(key)`                 | `GET /artist/{key}` (+resolve for locators) | anon           |
-| `crate.bandcamp(artistKey)`                                     | `GET /bandcamp/{artistKey}`                 | anon           |
-| `crate.bandcamp.bulk(params)` / `.bulkAll(params)` / `.index()` | `GET /bandcamp`                             | anon           |
-| `crate.search(params)`                                          | `GET /search`                               | anon           |
-| `crate.breakouts()`                                             | `GET /breakouts`                            | anon           |
-| `crate.tastemakers()` / `.onesToWatch()`                        | `GET /tastemakers[/ones-to-watch]`          | anon           |
-| `crate.dossier.{master,artist,label,festival,manifest}(...)`    | `GET /dossier/...`                          | anon           |
 | `crate.index()`                                                 | `GET /api/v1`                               | anon           |
-| `crate.wayfind(question)`                                       | `POST /wayfind/answer`                      | anon           |
+| `crate.resolve(q)`                                              | `GET /resolve`                              | **key**        |
+| `crate.artist(key)` / `crate.artistOrNull(key)`                 | `GET /artist/{key}` (+resolve for locators) | **key**        |
+| `crate.bandcamp(artistKey)`                                     | `GET /bandcamp/{artistKey}`                 | **key**        |
+| `crate.bandcamp.bulk(params)` / `.bulkAll(params)` / `.index()` | `GET /bandcamp`                             | **key**        |
+| `crate.search(params)`                                          | `GET /search`                               | **key**        |
+| `crate.breakouts()`                                             | `GET /breakouts`                            | **key**        |
+| `crate.tastemakers()` / `.onesToWatch()`                        | `GET /tastemakers[/ones-to-watch]`          | **key**        |
+| `crate.dossier.{master,artist,label,festival,manifest}(...)`    | `GET /dossier/...`                          | **key**        |
+| `crate.wayfind(question)` / `.interpret(q)`                     | `POST /wayfind/{answer,interpret}`          | **key**        |
 | `crate.facets()`                                                | `GET /facets`                               | **key**        |
 | `crate.master(id)` / `crate.masters(ids)`                       | `GET /masters/{id}` · `POST /masters/batch` | **key**        |
 | `crate.usage()`                                                 | `GET /usage`                                | **key**        |
-| `crate.wayfind.interpret(q)`                                    | `POST /wayfind/interpret`                   | **key**        |
 | `crate.searchEvents.observed/refined(...)`                      | `POST /search-events/...`                   | **beacon JWT** |
 
 ## Errors
@@ -121,7 +119,10 @@ All failures throw a `CrateError` subclass with a `kind` discriminant and a `cod
 | `validation` / `not_found` / `parse` / `pagination` | `Crate{Validation,NotFound,Parse,Pagination}Error`            | no                  | client-side; carry `hint` + `next`             |
 
 Auto-retry (429/5xx) uses full-jitter backoff and honors `Retry-After`. Construct with
-`{ maxRetries, timeout, maxBackoffMs, totalDeadlineMs }` or override per call.
+`{ maxRetries, timeout, maxBackoffMs, totalDeadlineMs }` or override per call. On a `429`,
+`CrateAPIError` carries `.retryAfter` and `.rateLimit` (`{ limit, remaining, reset }` from the
+`X-RateLimit-*` headers). Tiers (per key): `self_serve_49` 60/min · 10k/mo · 2 concurrent;
+`self_serve_99` 300/min · 50k/mo; `self_serve_299` 600/min · 250k/mo; `sync` 1000/min · 1M/mo.
 
 ## Development
 
@@ -132,7 +133,7 @@ npm run typecheck  # tsc --noEmit (incl. examples/)
 npm test           # vitest (unit + contract + dual-package + drift)
 npm run build      # tsup → dual ESM + CJS in dist/
 npm run check:exports  # @arethetypeswrong/cli (dual-package safety)
-CRATE_LIVE_SMOKE=1 npm test   # also runs one live anonymous call against the public API
+CRATE_LIVE_SMOKE=1 CRATE_API_KEY=ck_… npm test   # also runs one live keyed call against the API
 ```
 
 ## License

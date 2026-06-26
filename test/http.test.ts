@@ -172,6 +172,23 @@ describe('retry policy', () => {
     const err = await failsWith<CrateAPIError>(request(cfg({ fetchImpl, maxRetries: 0 }), GET()));
     expect(err.requestId).toBe('req_42');
   });
+
+  it('surfaces X-RateLimit-* on CrateAPIError (quota visibility)', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      json(
+        429,
+        { error: 'rate_limited', retry_after_seconds: 1 },
+        {
+          'x-ratelimit-limit': '300',
+          'x-ratelimit-remaining': '0',
+          'x-ratelimit-reset': '1700000000',
+        },
+      ),
+    );
+    const err = await failsWith<CrateAPIError>(request(cfg({ fetchImpl, maxRetries: 0 }), GET()));
+    expect(err.rateLimit).toEqual({ limit: 300, remaining: 0, reset: 1700000000 });
+    expect(JSON.parse(JSON.stringify(err)).rateLimit.remaining).toBe(0); // round-trips in toJSON
+  });
 });
 
 describe('transport failures', () => {

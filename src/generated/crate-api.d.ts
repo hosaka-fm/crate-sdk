@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * Faceted search across the catalogue
-         * @description Public-tier exception: unauthenticated calls are accepted at 100/hour per IP. Authenticated calls bypass the IP limit and use the tier quota instead. New params (cube_quadrant, dj_count_min, exclude_artist, exclude_label) added in cycle-001 sprint-1.
+         * @description Faceted search across the catalogue. Requires an X-API-Key (post-cycle-078 wall); crate's own /explore + /crate search call it server-side via the first-party proxy. New params (cube_quadrant, dj_count_min, exclude_artist, exclude_label) added in cycle-001 sprint-1.
          */
         get: {
             parameters: {
@@ -344,7 +344,7 @@ export interface paths {
         };
         /**
          * Cross-grain dossier field manifest (data dictionary)
-         * @description cycle-023 — every field crate can expose for every entity grain (master/artist/label) with provenance (producer, source table, refresh cadence, tier, honest-gap state), plus unavailable grains (song — no fleet track key, carrefour#71). The machine-readable Swagger-like overview; read it to discover the full surface without hitting every entity endpoint. Public-tier, pure/static.
+         * @description cycle-023 — every field crate can expose for every entity grain (master/artist/label) with provenance (producer, source table, refresh cadence, tier, honest-gap state), plus unavailable grains (song — no fleet track key, carrefour#71). The machine-readable Swagger-like overview; read it to discover the full surface without hitting every entity endpoint. Keyed (X-API-Key), pure/static.
          */
         get: {
             parameters: {
@@ -401,7 +401,7 @@ export interface paths {
         };
         /**
          * Full per-master dossier contract (aggregation gateway)
-         * @description cycle-020 — the canonical exhaustive dossier: every fleet signal for the master in every state (present/absent/blind/pending honest-gap) plus a provenance manifest (producer, source table, refresh cadence, tier). Public-tier (same posture as the public /crate/master page). Distinct from /api/v1/masters/{id} (the older basic enrichment).
+         * @description cycle-020 — the canonical exhaustive dossier: every fleet signal for the master in every state (present/absent/blind/pending honest-gap) plus a provenance manifest (producer, source table, refresh cadence, tier). Keyed (X-API-Key) (same posture as the public /crate/master page). Distinct from /api/v1/masters/{id} (the older basic enrichment).
          */
         get: {
             parameters: {
@@ -496,7 +496,7 @@ export interface paths {
         };
         /**
          * Full per-artist dossier contract (aggregation gateway)
-         * @description cycle-021 — the canonical exhaustive artist dossier: identity (cc0_artists), collector behavior (mirror.artist_signals_v1), editorial/event (seen.artist_dossier), and artist-level "Across the Web" (mirror.master_links_rollup aggregated), each with a classified state, plus a provenance manifest. Public-tier (matches the public /crate/artist page). An unresolved slug returns identity:null (HTTP 200, honest-gap), not 404.
+         * @description cycle-021 — the canonical exhaustive artist dossier: identity (cc0_artists), collector behavior (mirror.artist_signals_v1), editorial/event (seen.artist_dossier), and artist-level "Across the Web" (mirror.master_links_rollup aggregated), each with a classified state, plus a provenance manifest. Keyed (X-API-Key) (matches the public /crate/artist page). An unresolved slug returns identity:null (HTTP 200, honest-gap), not 404.
          */
         get: {
             parameters: {
@@ -582,7 +582,7 @@ export interface paths {
         };
         /**
          * Full per-label dossier contract (aggregation gateway)
-         * @description cycle-022 — the canonical label dossier: identity (cc0_labels: name, sublabel→parent lineage, profile, links) + collector behavior (mirror.label_signals_v1: owner_reach/wantlist_demand k-anon, co-ownership, community footprint, travels-with labels), each with a classified state, plus a provenance manifest. Public-tier. Unresolved slug → identity:null (HTTP 200, honest-gap), not 404.
+         * @description cycle-022 — the canonical label dossier: identity (cc0_labels: name, sublabel→parent lineage, profile, links) + collector behavior (mirror.label_signals_v1: owner_reach/wantlist_demand k-anon, co-ownership, community footprint, travels-with labels), each with a classified state, plus a provenance manifest. Keyed (X-API-Key). Unresolved slug → identity:null (HTTP 200, honest-gap), not 404.
          */
         get: {
             parameters: {
@@ -668,7 +668,7 @@ export interface paths {
         };
         /**
          * Full per-festival dossier contract (aggregation gateway)
-         * @description cycle-060 — the canonical festival dossier: identity (seen.festival_canonical, the de-fragmented grain: display name, country, inclusion tier, year span, source-mix badges) + the consolidated editions⋈lineup across member festivals (seen.festival_editions/festival_lineup_entries), with a classified state, plus a provenance manifest. The {slug} is the canonical_key. Public-tier. Unresolved key → identity:null (HTTP 200, honest-gap), not 404. Lineup is name-only this cycle.
+         * @description cycle-060 — the canonical festival dossier: identity (seen.festival_canonical, the de-fragmented grain: display name, country, inclusion tier, year span, source-mix badges) + the consolidated editions⋈lineup across member festivals (seen.festival_editions/festival_lineup_entries), with a classified state, plus a provenance manifest. The {slug} is the canonical_key. Keyed (X-API-Key). Unresolved key → identity:null (HTTP 200, honest-gap), not 404. Lineup is name-only this cycle.
          */
         get: {
             parameters: {
@@ -754,7 +754,7 @@ export interface paths {
         };
         /**
          * Flat Bandcamp feed for one artist — every granted source, verbatim columns
-         * @description cycle-064 — the maximally-flexible Bandcamp feed: every crate_reader-granted Bandcamp surface (mirror signals/emergence/identity/signals_mbid/early_supporter_quality/scene/travels_with/self_declared_links/lead_time_authority + seen gravity/tastemaker) returned FLAT and source-tagged with ALL columns verbatim (the consumer reshapes). artistKey = <64-hex cluster_id> | discogs:<int> | mbid:<uuid>. Public-tier. Data is k-anon/public-safe; counts arrive already-floored — do NOT re-floor. Unresolved/sparse → 200 with the relevant sources {present:false}. Malformed key → 400.
+         * @description cycle-064 — the maximally-flexible Bandcamp feed: every crate_reader-granted Bandcamp surface (mirror signals/emergence/identity/signals_mbid/early_supporter_quality/scene/travels_with/self_declared_links/lead_time_authority + seen gravity/tastemaker) returned FLAT and source-tagged with ALL columns verbatim (the consumer reshapes). artistKey = <64-hex cluster_id> | discogs:<int> | mbid:<uuid>. Keyed (X-API-Key). Data is k-anon/public-safe; counts arrive already-floored — do NOT re-floor. Unresolved/sparse → 200 with the relevant sources {present:false}. Malformed key → 400.
          */
         get: {
             parameters: {
@@ -840,7 +840,7 @@ export interface paths {
         };
         /**
          * Bandcamp feed index (no params) + keyset-paginated single-source bulk
-         * @description cycle-064/065 — called with NO query params, returns a self-describing MANIFEST (index of everything available: every source + grain/key/k-anon, the per-artist endpoint, and how to paginate) so a keyless consumer can discover the whole surface. With ?source=<name>&cursor=<64hex>&limit=<1..200> (default source=signals_mbid, limit=50) returns keyset-paginated rows of one cluster_id-PK source, all columns verbatim — page the full corpus via next_cursor. Public-tier. Unknown/non-paginable source or malformed cursor → 400.
+         * @description cycle-064/065 — called with NO query params, returns a self-describing MANIFEST (index of everything available: every source + grain/key/k-anon, the per-artist endpoint, and how to paginate) so a keyless consumer can discover the whole surface. With ?source=<name>&cursor=<64hex>&limit=<1..200> (default source=signals_mbid, limit=50) returns keyset-paginated rows of one cluster_id-PK source, all columns verbatim — page the full corpus via next_cursor. Keyed (X-API-Key). Unknown/non-paginable source or malformed cursor → 400.
          */
         get: {
             parameters: {
@@ -967,7 +967,7 @@ export interface paths {
         };
         /**
          * Resolve any identifier (name · pasted link · id) → canonical cluster_id
-         * @description The cluster-first front door (cycle-069/070/071): converts ANY identifier a caller holds into the canonical cluster_id + a human slug + the full locator set, WITHOUT knowing crate internals. Query ONE of: ?url=<any artist link> (discogs/musicbrainz → clean id; bandcamp/soundcloud/instagram/website → reverse-match the granted self-declared-link surface; spotify/youtube/reddit recognized but not yet cross-referenced → honest note + name fallback) | ?q=<artist name> (exact case-insensitive) | ?cluster=<64-hex> | ?discogs=<int> | ?mbid=<uuid>. resolved_from tells you how it matched ('url'|'name'|'locator'), matched_on which surface, note explains an unresolved recognized link. resolved_via = best binding tier ('discogs' verified, else 'cluster' observed, else null). Public-tier; ONE crate_reader checkout; never fetches the pasted URL. Unresolved → 200 with nulls (honest-gap), not 404. Malformed/missing → 400.
+         * @description The cluster-first front door (cycle-069/070/071): converts ANY identifier a caller holds into the canonical cluster_id + a human slug + the full locator set, WITHOUT knowing crate internals. Query ONE of: ?url=<any artist link> (discogs/musicbrainz → clean id; bandcamp/soundcloud/instagram/website → reverse-match the granted self-declared-link surface; spotify/youtube/reddit recognized but not yet cross-referenced → honest note + name fallback) | ?q=<artist name> (exact case-insensitive) | ?cluster=<64-hex> | ?discogs=<int> | ?mbid=<uuid>. resolved_from tells you how it matched ('url'|'name'|'locator'), matched_on which surface, note explains an unresolved recognized link. resolved_via = best binding tier ('discogs' verified, else 'cluster' observed, else null). Keyed (X-API-Key); ONE crate_reader checkout; never fetches the pasted URL. Unresolved → 200 with nulls (honest-gap), not 404. Malformed/missing → 400.
          */
         get: {
             parameters: {
@@ -1057,7 +1057,7 @@ export interface paths {
         };
         /**
          * Cluster-first canonical artist dossier (cluster_id hex OR slug)
-         * @description cycle-069 (API v2 P1) — the same exhaustive artist dossier as /dossier/artist/{slug}, addressed by the canonical cluster_id (64-hex, prime key) OR a human slug. A 64-hex key resolves identity DIRECTLY from the cluster_id (OBSERVED tier), skipping the cc0_artists lookup so a hex entry never re-anchors onto a same-name Discogs row → resolved_via is always 'cluster'. A slug resolves via the name path (resolved_via 'discogs' or 'cluster'). discogs:/mbid: locators are not a canonical address — convert them via /api/v1/resolve first (→ 400 here). Public-tier; unresolved → 200 identity:null (honest-gap), not 404. /dossier/artist/{slug} remains a live alias.
+         * @description cycle-069 (API v2 P1) — the same exhaustive artist dossier as /dossier/artist/{slug}, addressed by the canonical cluster_id (64-hex, prime key) OR a human slug. A 64-hex key resolves identity DIRECTLY from the cluster_id (OBSERVED tier), skipping the cc0_artists lookup so a hex entry never re-anchors onto a same-name Discogs row → resolved_via is always 'cluster'. A slug resolves via the name path (resolved_via 'discogs' or 'cluster'). discogs:/mbid: locators are not a canonical address — convert them via /api/v1/resolve first (→ 400 here). Keyed (X-API-Key); unresolved → 200 identity:null (honest-gap), not 404. /dossier/artist/{slug} remains a live alias.
          */
         get: {
             parameters: {
@@ -1143,7 +1143,7 @@ export interface paths {
         };
         /**
          * Tastemaker leaderboard + ones-to-watch (machine-readable)
-         * @description cycle-048 E1 — crate's richest artist-grain analytics (rank, ownTier, brokerageScore, corroborating axes, lead-times, Bandcamp demand), the SAME derived data the public /crate/tastemakers page renders. Read from the offline-published S3 snapshot (NO DB checkout). Public-tier (no API key). Fail-soft: `state` is `present` (rows), `empty` (derived data present but no rows), or `degraded` (derived data absent/unreadable) — degraded returns HTTP 200 honest-gap, never a 500. `stale=true` flags a snapshot older than 7 days. `?limit=` bounds each array (1..200).
+         * @description cycle-048 E1 — crate's richest artist-grain analytics (rank, ownTier, brokerageScore, corroborating axes, lead-times, Bandcamp demand), the SAME derived data the public /crate/tastemakers page renders. Read from the offline-published S3 snapshot (NO DB checkout). Keyed (X-API-Key). Fail-soft: `state` is `present` (rows), `empty` (derived data present but no rows), or `degraded` (derived data absent/unreadable) — degraded returns HTTP 200 honest-gap, never a 500. `stale=true` flags a snapshot older than 7 days. `?limit=` bounds each array (1..200).
          */
         get: {
             parameters: {
@@ -1229,7 +1229,7 @@ export interface paths {
         };
         /**
          * Ones-to-watch rising artists (machine-readable slice)
-         * @description cycle-048 E1 — the ones-to-watch slice on its own surface (mirrors the /crate/tastemakers page section): rising/breakout artists with emergence + momentum tiers, five-factor score, corroborating axes, and Bandcamp demand. Same derived S3 read as /api/v1/tastemakers, NO DB checkout. Public-tier, fail-soft (degraded → HTTP 200). `?limit=` bounds the array (1..200).
+         * @description cycle-048 E1 — the ones-to-watch slice on its own surface (mirrors the /crate/tastemakers page section): rising/breakout artists with emergence + momentum tiers, five-factor score, corroborating axes, and Bandcamp demand. Same derived S3 read as /api/v1/tastemakers, NO DB checkout. Keyed (X-API-Key), fail-soft (degraded → HTTP 200). `?limit=` bounds the array (1..200).
          */
         get: {
             parameters: {
@@ -1315,7 +1315,7 @@ export interface paths {
         };
         /**
          * Breakouts index — emerging artists (machine-readable)
-         * @description cycle-048 E2 — the breakouts index (booking-momentum "ones to watch" from seen.artist_emergence, cross-validated against ridden press): the SAME single-checkout read the public /crate/breakouts explorer renders. Public-tier (no API key). Fail-soft: `state` is `present`/`empty`/`degraded` — a read failure returns HTTP 200 honest-gap, never a 500. `?limit=` is clamped to 200 (never an unbounded scan). `?tier=breakout|rising` and `?corroboration=corroborated|booking_ahead` filter the returned list (unknown values are ignored).
+         * @description cycle-048 E2 — the breakouts index (booking-momentum "ones to watch" from seen.artist_emergence, cross-validated against ridden press): the SAME single-checkout read the public /crate/breakouts explorer renders. Keyed (X-API-Key). Fail-soft: `state` is `present`/`empty`/`degraded` — a read failure returns HTTP 200 honest-gap, never a 500. `?limit=` is clamped to 200 (never an unbounded scan). `?tier=breakout|rising` and `?corroboration=corroborated|booking_ahead` filter the returned list (unknown values are ignored).
          */
         get: {
             parameters: {
@@ -1585,7 +1585,7 @@ export interface paths {
         put?: never;
         /**
          * Natural-language answer over the catalogue
-         * @description cycle-003 — synthesizes a natural-language answer plus supporting catalogue results for a free-text question. Anonymous-allowed (no API key required; protected by WAF rate rules + a cost-breaker). A supplied key is still authenticated — a payment-blocked customer (past_due/suspended) receives 402. On synthesis/Redis trouble it returns a degraded 200 fallback rather than failing; a hard cost-breaker outage returns 503.
+         * @description cycle-003 — synthesizes a natural-language answer plus supporting catalogue results for a free-text question. Requires an X-API-Key (post-cycle-078 wall); crate's own /crate NL box reaches it server-side via the first-party proxy. A payment-blocked customer (past_due/suspended) receives 402. On synthesis/Redis trouble it returns a degraded 200 fallback rather than failing; a hard cost-breaker outage returns 503. (WAF rate rules + a cost-breaker still bound traffic at the edge.)
          */
         post: {
             parameters: {

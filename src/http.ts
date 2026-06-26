@@ -1,7 +1,13 @@
 // The single transport funnel every public method delegates to (SDD §4–§5).
 // Builds the URL + headers, runs the retry/timeout loop, parses the body, and
 // maps outcomes to typed results or CrateErrors.
-import { CrateAbortError, CrateNetworkError, CrateParseError, CrateTimeoutError } from './errors';
+import {
+  CrateAbortError,
+  CrateNetworkError,
+  CrateParseError,
+  CrateTimeoutError,
+  type RateLimitInfo,
+} from './errors';
 import { apiErrorFromResponse } from './error-mapping';
 import { computeDelay, isRetryableStatus, parseRetryAfter } from './retry';
 
@@ -70,7 +76,8 @@ function buildHeaders(config: HttpConfig, spec: RequestSpec): Headers {
   for (const [k, v] of Object.entries(spec.headers ?? {})) headers.set(k, v);
   headers.set('Accept', 'application/json');
   if (spec.body !== undefined) headers.set('Content-Type', 'application/json');
-  if (config.apiKey) headers.set('X-API-Key', config.apiKey);
+  // Beacon requests are bearer-token gated, NOT X-API-Key — don't send both.
+  if (config.apiKey && !spec.bearerToken) headers.set('X-API-Key', config.apiKey);
   if (spec.bearerToken) headers.set('Authorization', `Bearer ${spec.bearerToken}`);
   return headers;
 }
@@ -108,6 +115,26 @@ async function readErrorBody(res: Response): Promise<{ body: unknown; raw?: stri
   } catch {
     return { body: undefined, raw };
   }
+}
+
+// Parse X-RateLimit-Limit/Remaining/Reset (confirmed emitted by crate; declared in the
+// spec from cycle-079). Surfaced on CrateAPIError for client-side quota visibility.
+function parseRateLimit(headers: Headers): RateLimitInfo | undefined {
+  const num = (h: string): number | undefined => {
+    const v = headers.get(h);
+    if (v == null) return undefined;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const limit = num('x-ratelimit-limit');
+  const remaining = num('x-ratelimit-remaining');
+  const reset = num('x-ratelimit-reset');
+  if (limit === undefined && remaining === undefined && reset === undefined) return undefined;
+  return {
+    ...(limit !== undefined ? { limit } : {}),
+    ...(remaining !== undefined ? { remaining } : {}),
+    ...(reset !== undefined ? { reset } : {}),
+  };
 }
 
 interface FetchInit {
@@ -251,12 +278,14 @@ export async function request<T>(config: HttpConfig, spec: RequestSpec): Promise
     const { body: errBody, raw } = await readErrorBody(response);
     const requestId = response.headers.get('x-request-id') ?? undefined;
     const retryAfterHeaderMs = parseRetryAfter(response.headers.get('retry-after'));
+    const rateLimit = parseRateLimit(response.headers);
     const apiError = apiErrorFromResponse({
       status: response.status,
       body: errBody,
       requestId,
       raw,
       retryAfterHeaderMs,
+      rateLimit,
     });
 
     const canRetry = spec.idempotent && isRetryableStatus(response.status) && attempt < maxRetries;

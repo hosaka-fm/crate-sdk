@@ -11,9 +11,8 @@ import {
 } from '../src/index';
 
 export async function agentRecipe(): Promise<void> {
-  // 1. Zero-config: the public surface is anonymous today. Pass { apiKey } for
-  //    key-gated methods (facets / master / masters / usage / wayfind.interpret).
-  const crate = new Crate();
+  // 1. Key-first: every data endpoint needs an apiKey (only crate.index() is keyless).
+  const crate = new Crate({ apiKey: process.env.CRATE_API_KEY });
 
   // Forgiving inputs: a name, a slug, a 64-hex cluster_id, or a discogs:/mbid: locator.
   const artist = await crate.artist('Four Tet');

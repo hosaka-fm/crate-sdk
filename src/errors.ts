@@ -116,6 +116,13 @@ export const CRATE_ERROR_REGISTRY: Record<CrateErrorKind, ErrorKindInfo> = {
   },
 };
 
+/** Rate-limit headers (`X-RateLimit-Limit/Remaining/Reset`) surfaced on a `CrateAPIError` for client-side quota visibility. */
+export interface RateLimitInfo {
+  limit?: number;
+  remaining?: number;
+  reset?: number;
+}
+
 /** Stable, JSON-safe envelope produced by `CrateError.toJSON()` (ADX-2). Excludes `.raw` and the raw `.cause`. */
 export interface CrateErrorJSON {
   name: string;
@@ -127,6 +134,7 @@ export interface CrateErrorJSON {
   retryAfter?: number;
   requestId?: string;
   masterId?: number;
+  rateLimit?: RateLimitInfo;
   timeoutMs?: number;
   lastCursor?: string | null;
   param?: string;
@@ -210,6 +218,8 @@ export class CrateAPIError extends CrateError {
   readonly retryAfter?: number;
   readonly masterId?: number;
   readonly requestId?: string;
+  /** Rate-limit headers (limit/remaining/reset), when crate sent them. */
+  readonly rateLimit?: RateLimitInfo;
   /** The raw (size-capped) response body — escape hatch for fields the SDK doesn't model. Excluded from `toJSON`. */
   readonly raw?: string;
   readonly #retryable: boolean;
@@ -223,6 +233,7 @@ export class CrateAPIError extends CrateError {
       retryAfter?: number;
       masterId?: number;
       requestId?: string;
+      rateLimit?: RateLimitInfo;
       raw?: string;
     },
   ) {
@@ -234,6 +245,7 @@ export class CrateAPIError extends CrateError {
     if (opts.retryAfter !== undefined) this.retryAfter = opts.retryAfter;
     if (opts.masterId !== undefined) this.masterId = opts.masterId;
     if (opts.requestId !== undefined) this.requestId = opts.requestId;
+    if (opts.rateLimit !== undefined) this.rateLimit = opts.rateLimit;
     if (opts.raw !== undefined) this.raw = opts.raw;
   }
 
@@ -248,6 +260,7 @@ export class CrateAPIError extends CrateError {
     if (this.retryAfter !== undefined) json.retryAfter = this.retryAfter;
     if (this.requestId !== undefined) json.requestId = this.requestId;
     if (this.masterId !== undefined) json.masterId = this.masterId;
+    if (this.rateLimit !== undefined) json.rateLimit = this.rateLimit;
     if (this.details !== undefined) json.details = this.details;
     return json;
   }

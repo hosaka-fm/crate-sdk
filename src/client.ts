@@ -41,7 +41,7 @@ import type {
 const DEFAULT_BASE_URL = 'https://crate.0xhoneyjar.xyz';
 
 export interface CrateOptions {
-  /** Customer API key → `X-API-Key`. Optional (the public surface is anonymous today). */
+  /** Customer API key → `X-API-Key`. Required for every data endpoint (crate is key-first); only `crate.index()` is keyless. */
   apiKey?: string;
   /** API origin (no path). Default `https://crate.0xhoneyjar.xyz`. */
   baseUrl?: string;
@@ -128,14 +128,20 @@ interface BaseSpec {
   body?: unknown;
   idempotent: boolean;
   bearerToken?: string;
+  /** Defaults to true (key-first). Only index() + beacons set false. */
+  requiresKey?: boolean;
 }
 
 /**
  * The official typed client for the crate public API.
  *
+ * crate is **key-first**: every data endpoint requires an `apiKey` (only
+ * {@link Crate.index} is keyless). Calling a data method without a key throws
+ * {@link CrateValidationError} (`api_key_required`) before any network call.
+ *
  * @example
  * import { Crate } from '@hosaka/crate';
- * const crate = new Crate(); // apiKey optional — the public surface is anonymous today
+ * const crate = new Crate({ apiKey: process.env.CRATE_API_KEY });
  * const artist = await crate.artist('Four Tet');
  */
 export class Crate {
@@ -245,13 +251,11 @@ export class Crate {
         { method: 'POST', path: '/wayfind/answer', body: { question }, idempotent: true },
         opts,
       )) as WayfindApi;
-    wayfind.interpret = async (q: string, opts?) => {
-      this.#requireKey('wayfind.interpret');
-      return this.#req<WayfindInterpretResponse>(
+    wayfind.interpret = (q: string, opts?) =>
+      this.#req<WayfindInterpretResponse>(
         { method: 'POST', path: '/wayfind/interpret', body: { q }, idempotent: true },
         opts,
       );
-    };
     this.wayfind = wayfind;
 
     this.dossier = {
@@ -301,6 +305,7 @@ export class Crate {
             body: filled,
             idempotent: false,
             bearerToken: opts.beaconToken,
+            requiresKey: false, // beacon-token gated, not X-API-Key
           },
           opts,
         );
@@ -315,6 +320,7 @@ export class Crate {
             body: filled,
             idempotent: false,
             bearerToken: opts.beaconToken,
+            requiresKey: false, // beacon-token gated, not X-API-Key
           },
           opts,
         );
@@ -323,6 +329,21 @@ export class Crate {
   }
 
   #req<T>(spec: BaseSpec, opts?: RequestOptions): Promise<T> {
+    // Key-first: crate's data API requires X-API-Key by default (post-cycle-078 wall).
+    // Only endpoints that opt out (requiresKey:false — index + beacons) are keyless.
+    if (spec.requiresKey !== false && !this.#config.apiKey) {
+      return Promise.reject(
+        new CrateValidationError(
+          `crate: ${spec.method} ${spec.path || '/api/v1'} requires an API key`,
+          {
+            code: 'api_key_required',
+            param: 'apiKey',
+            hint: 'crate is key-first — construct the client with an apiKey (only crate.index() is keyless)',
+            next: 'new Crate({ apiKey: process.env.CRATE_API_KEY })',
+          },
+        ),
+      );
+    }
     const merged: RequestSpec = {
       method: spec.method,
       path: spec.path,
@@ -339,17 +360,6 @@ export class Crate {
       ...(opts?.headers !== undefined ? { headers: opts.headers } : {}),
     };
     return request<T>(this.#config, merged);
-  }
-
-  #requireKey(method: string): void {
-    if (!this.#config.apiKey) {
-      throw new CrateValidationError(`crate.${method}() requires an API key`, {
-        code: 'api_key_required',
-        param: 'apiKey',
-        hint: `${method}() is a key-gated endpoint; construct Crate with an apiKey`,
-        next: 'new Crate({ apiKey: process.env.CRATE_API_KEY })',
-      });
-    }
   }
 
   /**
@@ -453,13 +463,16 @@ export class Crate {
   }
 
   /**
-   * The self-describing API root index (cold-start recipe + resource map). A good
-   * live discovery entrypoint for agents.
-   * @example const index = await crate.index();
+   * The self-describing API root index (cold-start recipe + resource map) — the one
+   * **keyless** endpoint, and a good live discovery entrypoint for agents.
+   * @example const index = await crate.index(); // works without an apiKey
    * @throws {CrateAPIError} on a non-2xx response.
    */
   index(opts?: RequestOptions): Promise<ApiRootIndex> {
-    return this.#req<ApiRootIndex>({ method: 'GET', path: '', idempotent: true }, opts);
+    return this.#req<ApiRootIndex>(
+      { method: 'GET', path: '', idempotent: true, requiresKey: false },
+      opts,
+    );
   }
 
   /**
@@ -468,8 +481,7 @@ export class Crate {
    * @throws {CrateValidationError} `api_key_required` if constructed without an apiKey.
    * @throws {CrateAPIError} on a non-2xx response (401/402 if the key lacks access).
    */
-  async facets(opts?: RequestOptions): Promise<FacetCounts> {
-    this.#requireKey('facets');
+  facets(opts?: RequestOptions): Promise<FacetCounts> {
     return this.#req<FacetCounts>({ method: 'GET', path: '/facets', idempotent: true }, opts);
   }
 
@@ -479,8 +491,7 @@ export class Crate {
    * @throws {CrateValidationError} `api_key_required` if constructed without an apiKey.
    * @throws {CrateAPIError} on a non-2xx response.
    */
-  async master(id: number, opts?: RequestOptions): Promise<MasterEnrichment> {
-    this.#requireKey('master');
+  master(id: number, opts?: RequestOptions): Promise<MasterEnrichment> {
     return this.#req<MasterEnrichment>(
       { method: 'GET', path: `/masters/${encodeURIComponent(String(id))}`, idempotent: true },
       opts,
@@ -494,7 +505,6 @@ export class Crate {
    * @throws {CrateAPIError} on a non-2xx response.
    */
   async masters(ids: number[], opts?: RequestOptions): Promise<BatchResponse> {
-    this.#requireKey('masters');
     if (!Array.isArray(ids) || ids.length < 1 || ids.length > 100) {
       throw new CrateValidationError(
         `crate.masters() needs 1..100 ids, got ${Array.isArray(ids) ? ids.length : 'a non-array'}`,
@@ -518,8 +528,7 @@ export class Crate {
    * @throws {CrateValidationError} `api_key_required` if constructed without an apiKey.
    * @throws {CrateAPIError} on a non-2xx response.
    */
-  async usage(opts?: RequestOptions): Promise<UsageResponse> {
-    this.#requireKey('usage');
+  usage(opts?: RequestOptions): Promise<UsageResponse> {
     return this.#req<UsageResponse>({ method: 'GET', path: '/usage', idempotent: true }, opts);
   }
 }

@@ -3,7 +3,7 @@
 // Teaching fields (hint/doc_url/next/param) are read DEFENSIVELY: the published
 // Error schema doesn't declare them, but the schema is open and the API owner
 // emits them at runtime, so we surface them only when present + correctly typed.
-import { CrateAPIError, type CrateErrorCode } from './errors';
+import { CrateAPIError, type CrateErrorCode, type RateLimitInfo } from './errors';
 import { isRetryableStatus } from './retry';
 
 const REASON: Record<number, string> = {
@@ -42,10 +42,12 @@ export interface ApiErrorInput {
   raw?: string;
   /** Retry-After header in ms, if present (header takes precedence over body for the field too). */
   retryAfterHeaderMs?: number;
+  /** Parsed X-RateLimit-* headers, if present. */
+  rateLimit?: RateLimitInfo;
 }
 
 export function apiErrorFromResponse(input: ApiErrorInput): CrateAPIError {
-  const { status, body, requestId, raw, retryAfterHeaderMs } = input;
+  const { status, body, requestId, raw, retryAfterHeaderMs, rateLimit } = input;
   const b: Record<string, unknown> =
     body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
   const str = (k: string): string | undefined =>
@@ -77,6 +79,7 @@ export function apiErrorFromResponse(input: ApiErrorInput): CrateAPIError {
     ...(retryAfter !== undefined ? { retryAfter } : {}),
     ...(num('master_id') !== undefined ? { masterId: num('master_id') } : {}),
     ...(requestId !== undefined ? { requestId } : {}),
+    ...(rateLimit !== undefined ? { rateLimit } : {}),
     ...(raw !== undefined ? { raw } : {}),
   });
 }
