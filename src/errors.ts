@@ -354,13 +354,28 @@ export class CratePaginationError extends CrateError {
   }
 }
 
+/**
+ * The discriminated union of every concrete error the SDK throws. Narrowing on
+ * `.kind` (e.g. inside `switch`) selects the right subclass and its fields — so
+ * after `if (isCrateError(err))`, `case 'api'` gives you `err.status` etc.
+ */
+export type AnyCrateError =
+  | CrateAPIError
+  | CrateNetworkError
+  | CrateTimeoutError
+  | CrateAbortError
+  | CrateValidationError
+  | CrateNotFoundError
+  | CrateParseError
+  | CratePaginationError;
+
 // --- Brand-based type guards (survive dual ESM+CJS; prefer over instanceof) ---
 
-function hasBrand(v: unknown): v is CrateError {
+function hasBrand(v: unknown): v is AnyCrateError {
   return typeof v === 'object' && v !== null && (v as Record<symbol, unknown>)[BRAND] === true;
 }
 
-export function isCrateError(v: unknown): v is CrateError {
+export function isCrateError(v: unknown): v is AnyCrateError {
   return hasBrand(v);
 }
 export function isCrateAPIError(v: unknown): v is CrateAPIError {

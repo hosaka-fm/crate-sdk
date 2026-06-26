@@ -1,0 +1,98 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import * as pkg from '../src/index';
+import { CRATE_RESOURCES } from '../src/resources';
+import type {
+  ArtistDossierContract,
+  BandcampRow,
+  IdentityResolution,
+  RateLimited,
+  SearchResponse,
+} from '../src/types';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const spec = JSON.parse(readFileSync(path.join(root, 'spec', 'openapi.json'), 'utf8'));
+const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
+
+describe('version', () => {
+  it('VERSION matches package.json (ADX-7)', () => {
+    expect(pkg.VERSION).toBe(manifest.version);
+  });
+});
+
+describe('public API surface snapshot (ADX-10)', () => {
+  // A committed golden — adding/removing/renaming a public runtime export is a reviewed diff.
+  const GOLDEN = [
+    'Crate',
+    'VERSION',
+    'CRATE_RESOURCES',
+    'CRATE_ERROR_KINDS',
+    'CRATE_ERROR_CODES',
+    'CRATE_ERROR_REGISTRY',
+    'CrateError',
+    'CrateAPIError',
+    'CrateNetworkError',
+    'CrateTimeoutError',
+    'CrateAbortError',
+    'CrateValidationError',
+    'CrateNotFoundError',
+    'CrateParseError',
+    'CratePaginationError',
+    'isCrateError',
+    'isCrateAPIError',
+    'isCrateNetworkError',
+    'isCrateTimeoutError',
+    'isCrateAbortError',
+    'isCrateValidationError',
+    'isCrateNotFoundError',
+    'isCrateParseError',
+    'isCratePaginationError',
+    'isRateLimited',
+    'isRetryable',
+  ].sort();
+
+  it('runtime exports match the golden (public API changed — bump + review if this fails)', () => {
+    expect(Object.keys(pkg).sort()).toEqual(GOLDEN);
+  });
+});
+
+describe('auth-tier contract (anon basis: no global + per-op security)', () => {
+  it('the spec declares NO global security object', () => {
+    expect(spec.security).toBeUndefined();
+  });
+
+  it('every CRATE_RESOURCES auth tier matches the live per-op security', () => {
+    for (const [name, r] of Object.entries(CRATE_RESOURCES)) {
+      const op = spec.paths?.[r.endpoint]?.[r.method.toLowerCase()];
+      expect(op, `${name} → ${r.method} ${r.endpoint} missing in spec`).toBeDefined();
+      const sec = op.security;
+      const secJson = JSON.stringify(sec ?? null);
+      if (r.auth === 'anon') {
+        expect(
+          !sec || (Array.isArray(sec) && sec.length === 0),
+          `${name} should be anon, got ${secJson}`,
+        ).toBe(true);
+      } else if (r.auth === 'key') {
+        expect(secJson, name).toContain('ApiKeyAuth');
+      } else {
+        expect(secJson, name).toContain('BeaconBearerAuth');
+      }
+    }
+  });
+});
+
+describe('type-alias contract (checked by tsc --noEmit)', () => {
+  it('re-exported aliases are non-any with the expected nullability', () => {
+    expectTypeOf<IdentityResolution['cluster_id']>().toEqualTypeOf<string | null>();
+    expectTypeOf<IdentityResolution['slug']>().toEqualTypeOf<string | null>();
+    expectTypeOf<ArtistDossierContract>().not.toBeAny();
+    expectTypeOf<SearchResponse>().not.toBeAny();
+    expectTypeOf<RateLimited['retry_after_seconds']>().toEqualTypeOf<number>();
+    expectTypeOf<BandcampRow>().not.toBeAny();
+    // @ts-expect-error — proves tsc is actually checking this file (engagement guard)
+    const _wrong: number = 'not a number';
+    void _wrong;
+  });
+});

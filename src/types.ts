@@ -43,3 +43,32 @@ export type WayfindInterpretRequest = Schemas['WayfindInterpretRequest'];
  * `bandcamp.bulkAll<T>()` lets a caller supply a narrower row type.
  */
 export type BandcampRow = BandcampBulkPage['rows'][number];
+
+// --- Hand-authored query-param inputs (not named schemas in the spec) ---
+
+/**
+ * Faceted search parameters for {@link "crate.search()"} (`GET /api/v1/search`).
+ * The eight faceted params accept a string or string[] (repeat-key serialized,
+ * per the spec's `anyOf`); the `*_mode` siblings select facet combination.
+ */
+export interface SearchParams {
+  q?: string;
+  genre?: string | string[];
+  style?: string | string[];
+  format?: string | string[];
+  country?: string | string[];
+  label?: string | string[];
+  cube_quadrant?: string | string[];
+  exclude_artist?: string | string[];
+  exclude_label?: string | string[];
+  genre_mode?: 'and' | 'or';
+  style_mode?: 'and' | 'or';
+  format_mode?: 'and' | 'or';
+  country_mode?: 'and' | 'or';
+  label_mode?: 'and' | 'or';
+  year_from?: number;
+  year_to?: number;
+  dj_count_min?: number;
+  limit?: number;
+  offset?: number;
+}
