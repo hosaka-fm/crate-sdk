@@ -1,0 +1,28 @@
+{
+  "consensus_outcome": "consensus",
+  "truncation_waiver_applied": false,
+  "voices_planned": 2,
+  "voices_succeeded": 1,
+  "voices_succeeded_ids": [
+    "gpt-5.3-codex"
+  ],
+  "voices_dropped": [
+    {
+      "voice": "claude-opus-4-8",
+      "reason": "ChainExhausted",
+      "exit_code": 1,
+      "blocker_risk": "high",
+      "chain_walk": [
+        "anthropic:claude-opus-4-8",
+        "anthropic:claude-opus-4-7",
+        "anthropic:claude-sonnet-4-6",
+        "anthropic:claude-headless"
+      ]
+    }
+  ],
+  "chain_health": "degraded",
+  "confidence_floor": "med",
+  "rationale": "multi-voice aggregate (1/2 succeeded); chain_health=degraded; dropped: claude-opus-4-8(ChainExhausted/high)",
+  "single_voice_call": false,
+  "status": "FAILED"
+}

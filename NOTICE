@@ -1,0 +1,11 @@
+@hosaka/crate — NOTICE
+
+The MIT license (see LICENSE) covers the source code of this client library.
+
+Access to the crate API is governed SEPARATELY by crate's Terms of Service and
+requires a valid API key. The MIT license grants no right to use the crate
+service itself. The crate API is a commercial, paid service
+(openapi.json: info.license = "Commercial — see Terms of Service").
+
+See https://crate.0xhoneyjar.xyz/docs and crate's Terms of Service for API
+access terms.

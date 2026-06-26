@@ -1,0 +1,13 @@
+dist
+node_modules
+coverage
+src/generated
+spec
+grimoires
+.loa
+.loa-state
+.claude
+.beads
+.run
+# Loa-provided workflow (framework-owned; not ours to reformat)
+.github/workflows/post-merge.yml

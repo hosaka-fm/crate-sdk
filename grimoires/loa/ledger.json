@@ -1,0 +1,38 @@
+{
+  "version": "1.0.0",
+  "next_sprint_number": 4,
+  "active_cycle": "cycle-001",
+  "cycles": [
+    {
+      "id": "cycle-001",
+      "label": "@hosaka/crate SDK V1",
+      "status": "active",
+      "created_at": "2026-06-26T03:25:45Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 1,
+          "theme": "Foundation — types, drift guard, build & packaging",
+          "scope": "MEDIUM",
+          "status": "planned"
+        },
+        {
+          "local_id": 2,
+          "global_id": 2,
+          "theme": "Transport core — retry, errors, http funnel",
+          "scope": "MEDIUM",
+          "status": "planned"
+        },
+        {
+          "local_id": 3,
+          "global_id": 3,
+          "theme": "Public surface — client, conveniences, resources, E2E",
+          "scope": "LARGE",
+          "status": "planned"
+        }
+      ]
+    }
+  ]
+}

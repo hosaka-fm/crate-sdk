@@ -14,3 +14,15 @@
 .claude/checksums.json
 .loa-state/
 .claude.backup.*
+
+# Node / build
+node_modules/
+dist/
+coverage/
+pack.json
+*.tsbuildinfo
+.DS_Store
+*.tgz
+
+# Run-mode ephemeral state (recovery only; not history)
+.run/

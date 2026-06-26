@@ -1,0 +1,21 @@
+{
+  "phase": "sdd",
+  "document": "grimoires/loa/sdd.md",
+  "timestamp": "2026-06-26T03:10:42Z",
+  "degraded": true,
+  "degraded_model": "both",
+  "confidence": "degraded",
+  "degradation_reason": "no_items_to_score",
+  "note": "Flatline chain-exhausted on both opus and gpt-5.3-codex voices (fleet-wide flakiness, anticipated by user). NOT a clean/approved verdict. Adversarial coverage provided instead by: (1) the 29-agent design-verify workflow wf_176bccea-8a7 (grimoires/loa/design-verify-synthesis.md), and (2) the in-harness SDD adversarial review substitute (see grimoires/loa/a2a/flatline/sdd-substitute-review.json).",
+  "consensus_summary": {
+    "high_consensus_count": 0,
+    "disputed_count": 0,
+    "low_value_count": 0,
+    "blocker_count": 0,
+    "model_agreement_percent": 0
+  },
+  "high_consensus": [],
+  "disputed": [],
+  "blockers": [],
+  "metrics": { "total_latency_ms": 24000, "cost_cents": 0 }
+}

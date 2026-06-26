@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci
+      - run: npm run build
+
+      # Publish is GATED OFF until crate's API keys land: it runs only when the
+      # PUBLISH_ENABLED repo variable is "true" AND an NPM_TOKEN secret exists.
+      # Both are absent today, so this is a documented no-op (build + tag only).
+      - name: Publish to npm (gated)
+        if: ${{ vars.PUBLISH_ENABLED == 'true' && env.NPM_TOKEN != '' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm pkg delete private
+          npm publish --access public
+
+      - name: Publish skipped (gate closed)
+        if: ${{ !(vars.PUBLISH_ENABLED == 'true' && env.NPM_TOKEN != '') }}
+        run: echo "Publish gated OFF (PUBLISH_ENABLED!=true or NPM_TOKEN absent). Build + tag only."

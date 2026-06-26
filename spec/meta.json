@@ -1,0 +1,7 @@
+{
+  "spec_url": "https://crate.0xhoneyjar.xyz/api/v1/openapi.json",
+  "openapi": "3.1.0",
+  "info_version": "1.0.0",
+  "spec_sha256_jcs": "062f99c02cc7cab5a18b121ffa14eb065dd4bb3340fb1cfdeaf1fc7a4039573a",
+  "generated_with": "openapi-typescript@7.13.0"
+}
