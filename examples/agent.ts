@@ -1,7 +1,7 @@
-// "Using @hosaka/crate from an AI agent" — the canonical recipe (ADX-6).
+// "Using @hosaka-fm/crate from an AI agent" — the canonical recipe (ADX-6).
 // This file is type-checked by `npm run typecheck` (it is in tsconfig `include`),
 // so the README snippet it mirrors cannot rot. In real code, import from
-// '@hosaka/crate' instead of '../src/index'.
+// '@hosaka-fm/crate' instead of '../src/index'.
 import {
   CRATE_ERROR_REGISTRY,
   Crate,

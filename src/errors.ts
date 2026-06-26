@@ -1,4 +1,4 @@
-// Typed error model for @hosaka/crate (SDD §7 + agent-ergonomics ADX-2/3/4).
+// Typed error model for @hosaka-fm/crate (SDD §7 + agent-ergonomics ADX-2/3/4).
 //
 // A single abstract `CrateError` root carries a `kind` discriminant so callers
 // (especially AI agents) branch with `switch (err.kind)` — no `instanceof`, no

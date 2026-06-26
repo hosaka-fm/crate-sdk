@@ -153,7 +153,7 @@ interface BaseSpec {
  * {@link CrateValidationError} (`api_key_required`) before any network call.
  *
  * @example
- * import { Crate } from '@hosaka/crate';
+ * import { Crate } from '@hosaka-fm/crate';
  * const crate = new Crate({ apiKey: process.env.CRATE_API_KEY });
  * const artist = await crate.artist('Four Tet');
  */

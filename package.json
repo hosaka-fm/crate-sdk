@@ -1,8 +1,15 @@
 {
-  "name": "@hosaka/crate",
+  "name": "@hosaka-fm/crate",
   "version": "0.3.0",
   "description": "Official typed TypeScript client for the crate public API.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hosaka-fm/crate-sdk.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "private": true,
   "type": "module",
   "engines": {

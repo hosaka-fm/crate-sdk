@@ -1,4 +1,4 @@
-# @hosaka/crate
+# @hosaka-fm/crate
 
 The official, typed TypeScript client for the [crate](https://crate.0xhoneyjar.xyz)
 public API — the hosaka fleet's music-catalogue aggregation gateway (artist / master /
@@ -19,8 +19,13 @@ automatic retries, cursor pagination, and teaching errors — over crate's publi
 
 ## Install
 
+Published to **GitHub Packages** under the `@hosaka-fm` scope. Point the scope at the
+GitHub registry (one-time, in your project's `.npmrc`) and authenticate with a GitHub
+token that has `read:packages`:
+
 ```sh
-npm install @hosaka/crate   # available once published; build from source until then
+echo "@hosaka-fm:registry=https://npm.pkg.github.com" >> .npmrc
+npm install @hosaka-fm/crate
 ```
 
 Requires **Node 18+** (uses the global `fetch`). Ships dual ESM + CJS with **zero runtime
@@ -29,7 +34,7 @@ dependencies**.
 ## Quick start
 
 ```ts
-import { Crate } from '@hosaka/crate';
+import { Crate } from '@hosaka-fm/crate';
 
 const crate = new Crate({ apiKey: process.env.CRATE_API_KEY }); // required — crate is key-first
 
@@ -56,7 +61,7 @@ object alone — no external docs, no message parsing.
   `CRATE_ERROR_REGISTRY` and the surface map from `CRATE_RESOURCES`.
 
 ```ts
-import { Crate, isCrateError, isRateLimited, CRATE_ERROR_REGISTRY } from '@hosaka/crate';
+import { Crate, isCrateError, isRateLimited, CRATE_ERROR_REGISTRY } from '@hosaka-fm/crate';
 
 const crate = new Crate({ apiKey: process.env.CRATE_API_KEY }); // key-first; only crate.index() is keyless
 
