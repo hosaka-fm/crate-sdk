@@ -40,6 +40,7 @@ export const CRATE_ERROR_CODES = [
   'beacon_token_required',
   'masters_arity',
   'base_url_has_path',
+  'empty_key',
   'node_fetch_missing',
   'parse_error',
   'timeout',
@@ -68,7 +69,7 @@ export const CRATE_ERROR_REGISTRY: Record<CrateErrorKind, ErrorKindInfo> = {
   api: {
     retryable: true,
     clientSide: false,
-    carries: ['status', 'retryable', 'retryAfter', 'requestId', 'details', 'raw'],
+    carries: ['status', 'retryable', 'retryAfter', 'requestId', 'masterId', 'details', 'raw'],
     whenThrown: 'a non-2xx HTTP response (retryable iff status ∈ {429,500,503,504})',
   },
   network: {
@@ -125,6 +126,7 @@ export interface CrateErrorJSON {
   retryable?: boolean;
   retryAfter?: number;
   requestId?: string;
+  masterId?: number;
   timeoutMs?: number;
   lastCursor?: string | null;
   param?: string;
@@ -245,6 +247,7 @@ export class CrateAPIError extends CrateError {
     json.retryable = this.retryable;
     if (this.retryAfter !== undefined) json.retryAfter = this.retryAfter;
     if (this.requestId !== undefined) json.requestId = this.requestId;
+    if (this.masterId !== undefined) json.masterId = this.masterId;
     if (this.details !== undefined) json.details = this.details;
     return json;
   }

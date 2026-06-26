@@ -43,6 +43,7 @@ export function makeBulkIterable<T = BandcampRow>(
   async function* pageGen(): AsyncIterableIterator<BandcampBulkPage> {
     const seen = new Set<string>();
     let nextCursor: string | undefined = params.cursor ?? undefined;
+    if (nextCursor !== undefined) seen.add(nextCursor); // also catch a cycle back to the resume cursor
     let pageCount = 0;
 
     for (;;) {
@@ -65,8 +66,8 @@ export function makeBulkIterable<T = BandcampRow>(
         throw new CratePaginationError('crate: bandcamp bulk returned a malformed page', {
           code: 'pagination_malformed_page',
           lastCursor: state.cursor,
-          hint: '`rows` must be an array and `next_cursor` a string or null',
-          next: 'retry the call or report the source to crate support',
+          hint: '`rows` must be an array and `next_cursor` a string or null; retry, or report the source to crate support',
+          next: `crate.bandcamp.bulk({ cursor: ${JSON.stringify(state.cursor)} })`,
         });
       }
 
@@ -81,8 +82,8 @@ export function makeBulkIterable<T = BandcampRow>(
         throw new CratePaginationError('crate: bandcamp bulk cursor did not advance', {
           code: 'pagination_no_progress',
           lastCursor: advanced,
-          hint: 'the server returned a repeating/cycling cursor — pagination cannot make progress',
-          next: `crate.bandcamp.bulk({ cursor: ${JSON.stringify(advanced)} }) to inspect, then report to crate support`,
+          hint: 'the server returned a repeating/cycling cursor — pagination cannot make progress; inspect, then report to crate support',
+          next: `crate.bandcamp.bulk({ cursor: ${JSON.stringify(advanced)} })`,
         });
       }
       seen.add(advanced);

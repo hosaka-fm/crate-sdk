@@ -44,7 +44,7 @@ const instances: Record<CrateErrorKind, CrateError> = {
     code: 'pagination_no_progress',
     lastCursor: 'abc',
     hint: 'the server returned the same cursor twice',
-    next: 'report to crate support or pass a fresh source',
+    next: 'crate.bandcamp.bulk({ cursor: "abc" })',
   }),
   not_found: new CrateNotFoundError('no cluster for that locator', {
     hint: 'the locator did not resolve',
@@ -119,6 +119,7 @@ describe('ADX-3: exported taxonomy', () => {
       'beacon_token_required',
       'masters_arity',
       'base_url_has_path',
+      'empty_key',
       'node_fetch_missing',
       'parse_error',
       'timeout',
@@ -164,10 +165,12 @@ describe('ADX-2: toJSON envelope is JSON-safe', () => {
 });
 
 describe('ADX-4: client-side errors author the fix', () => {
-  it('validation / not_found / pagination carry non-empty hint + next', () => {
+  it('validation / not_found / pagination carry non-empty hint + a runnable .next call', () => {
     for (const e of [instances.validation, instances.not_found, instances.pagination]) {
       expect(e.hint && e.hint.length).toBeGreaterThan(0);
       expect(e.next && e.next.length).toBeGreaterThan(0);
+      // ADX-4: .next is a copy-pasteable corrected call, not prose.
+      expect(e.next).toMatch(/crate\.|new Crate\(/);
     }
   });
 });

@@ -6,6 +6,7 @@
 import { CrateNotFoundError, CrateValidationError } from './errors';
 import { type HttpConfig, type QueryValue, request, type RequestSpec } from './http';
 import {
+  assertNonEmptyKey,
   classifyArtistKey,
   classifyResolveString,
   type ResolveQuery,
@@ -202,11 +203,13 @@ export class Crate {
     };
 
     // Callable function-objects + namespaces (capture `this`).
-    const bandcamp = ((artistKey: string, opts?: RequestOptions) =>
-      this.#req<BandcampFeedContract>(
+    const bandcamp = (async (artistKey: string, opts?: RequestOptions) => {
+      assertNonEmptyKey(artistKey, 'bandcamp');
+      return this.#req<BandcampFeedContract>(
         { method: 'GET', path: `/bandcamp/${encodeURIComponent(artistKey)}`, idempotent: true },
         opts,
-      )) as BandcampApi;
+      );
+    }) as BandcampApi;
     bandcamp.bulk = (params?, opts?) =>
       this.#req<BandcampBulkPage>(
         { method: 'GET', path: '/bandcamp', query: bulkQuery(params), idempotent: true },
@@ -375,6 +378,7 @@ export class Crate {
    * {@link Crate.artistOrNull} to receive `null` instead.
    * @example const a = await crate.artist('Four Tet');     // name → dossier
    * @example const a = await crate.artist('discogs:1234'); // locator → resolve → dossier
+   * @example const a = await crate.artist('1234567');      // bare numeric → discogs:1234567 → resolve → dossier
    * @throws {CrateNotFoundError} `not_found` when a locator/numeric id resolves to no cluster.
    * @throws {CrateAPIError} on a non-2xx response. @see {@link Crate.resolve}, {@link Crate.artistOrNull}
    */

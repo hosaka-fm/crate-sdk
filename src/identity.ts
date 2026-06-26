@@ -67,7 +67,20 @@ export type ArtistKeyKind =
  * locator OR a bare numeric (treated as a discogs id) → resolve-then-fetch;
  * anything else (slug or plain name) → direct one-hop (the endpoint name-resolves).
  */
+/** Throw a teaching CrateValidationError for an empty/whitespace key (parity with resolve()). */
+export function assertNonEmptyKey(input: string, method: 'artist' | 'bandcamp'): void {
+  if (input.trim() === '') {
+    throw new CrateValidationError(`crate.${method}(): key must not be empty`, {
+      code: 'empty_key',
+      param: method === 'bandcamp' ? 'artistKey' : 'key',
+      hint: 'pass a cluster_id, slug, name, or discogs:/mbid: locator',
+      next: method === 'bandcamp' ? "crate.bandcamp('<cluster_id>')" : "crate.artist('Four Tet')",
+    });
+  }
+}
+
 export function classifyArtistKey(input: string): ArtistKeyKind {
+  assertNonEmptyKey(input, 'artist');
   const s = input.trim();
   if (HEX64.test(s)) return { type: 'direct', key: s };
   const loc = LOCATOR.exec(s);

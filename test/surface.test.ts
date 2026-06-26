@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MockAgent, setGlobalDispatcher } from 'undici';
 import { Crate } from '../src/client';
-import { CrateNotFoundError, CrateValidationError, isCrateValidationError } from '../src/errors';
+import {
+  CrateNotFoundError,
+  type CratePaginationError,
+  type CrateValidationError,
+  isCrateValidationError,
+} from '../src/errors';
 
 // Client surface over the REAL default global fetch (undici-backed), intercepted
 // at the dispatcher layer. Error/retry timing is covered in http.test.ts; here we
@@ -145,6 +150,18 @@ describe('artist', () => {
     mock('GET', (p) => p.startsWith('/api/v1/resolve'), 200, { cluster_id: null });
     expect(await new Crate().artistOrNull('discogs:999')).toBeNull();
   });
+
+  it('empty/whitespace key → CrateValidationError(empty_key), no network', async () => {
+    let err: CrateValidationError | undefined;
+    try {
+      await new Crate().artist('   ');
+    } catch (e) {
+      err = e as CrateValidationError;
+    }
+    expect(err?.code).toBe('empty_key');
+    expect(err?.next).toContain('crate.artist');
+    expect(calls).toHaveLength(0);
+  });
 });
 
 describe('bandcamp', () => {
@@ -209,6 +226,57 @@ describe('bandcamp', () => {
       }
     })();
     expect((err as Error).name).toBe('CratePaginationError');
+  });
+
+  it('empty artistKey → CrateValidationError(empty_key)', async () => {
+    let err: CrateValidationError | undefined;
+    try {
+      await new Crate().bandcamp('');
+    } catch (e) {
+      err = e as CrateValidationError;
+    }
+    expect(err?.code).toBe('empty_key');
+  });
+
+  it('malformed page (rows not an array) → CratePaginationError with a runnable .next', async () => {
+    mock('GET', (p) => p.startsWith('/api/v1/bandcamp'), 200, {
+      source: 's',
+      rows: 'nope',
+      next_cursor: 'x',
+      _meta: {},
+    });
+    const err = await (async () => {
+      try {
+        for await (const _ of new Crate().bandcamp.bulkAll({ source: 's' })) void _;
+      } catch (e) {
+        return e as CratePaginationError;
+      }
+    })();
+    expect(err?.code).toBe('pagination_malformed_page');
+    expect(err?.next).toContain('crate.bandcamp.bulk');
+  });
+
+  it('cycle back to the initial resume cursor → CratePaginationError (no infinite loop)', async () => {
+    mock('GET', (p) => p.includes('cursor=c0'), 200, {
+      source: 's',
+      rows: [{}],
+      next_cursor: 'c1',
+      _meta: {},
+    });
+    mock('GET', (p) => p.includes('cursor=c1'), 200, {
+      source: 's',
+      rows: [{}],
+      next_cursor: 'c0',
+      _meta: {},
+    });
+    const err = await (async () => {
+      try {
+        for await (const _ of new Crate().bandcamp.bulkAll({ source: 's', cursor: 'c0' })) void _;
+      } catch (e) {
+        return e as CratePaginationError;
+      }
+    })();
+    expect(err?.code).toBe('pagination_no_progress');
   });
 });
 
