@@ -49,6 +49,7 @@
 | 2026-06-26 | claude | Grounded on handoff + live openapi.json. Mapped endpoints, auth, error/pagination shapes; logged 4 contract-vs-handoff gaps. Validated openapi-typescript. Next: lean PRD → design-verify workflow → SDD. |
 | 2026-06-26 | claude | DONE: lean PRD, 29-agent design-verify (synthesis saved), SDD (full surface, all adversarial fixes), Flatline (degraded→substitute gate APPROVED_WITH_FIXES, fixes integrated). Pending crate-team: beacon JWT issuance, _links, teaching-error fields, /bandcamp manifest mistype. NEXT: /sprint-plan → /run (implement→review→audit). Publish gated OFF. |
 | 2026-06-26 | sprint-planner | DONE: created ledger.json (cycle-001) + sprint.md. 3 dependency-ordered sprints mapped to SDD module order: S1 Foundation (types/drift/build/CI, MEDIUM 6t), S2 Transport core (retry/errors/http, MEDIUM 6t), S3 Public surface + E2E (client/conveniences/resources/types/tests, LARGE 9t). All G1-G5 mapped to tasks; Task 3.E2E validates all goals. Beads DEGRADED (not init'd) — proceeded; create beads from sprint.md before /run. NEXT: /run sprint-plan (or /build). |
+| 2026-06-26 | claude | Agent-DX review folded in (sdd §15 + sprint S2/S3, ADX-1..10). Beads init'd (HEALTHY). On branch feat/crate-sdk-v1-cycle-001. **S1 DONE + committed (ac6a45d)**: all 7 ACs green (zero-dep, drift byte-identical, dual ESM+CJS, attw all-green, lint, pack-clean). attw pinned 0.18.4 (0.17.4 buggy). NEXT: S2 transport (retry/errors+ADX-2/3/4/http + tests), then S3. |
 
 ## Decision Log
 <!-- Major decisions with rationale -->
