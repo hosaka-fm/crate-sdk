@@ -45,3 +45,49 @@ compaction:
 # =============================================================================
 integrations:
   - github
+
+# =============================================================================
+# Run Mode (autonomous implement→review→audit cycle)
+# =============================================================================
+run_mode:
+  enabled: true
+
+# =============================================================================
+# Flatline Protocol (multi-model adversarial review) — fleet standard
+# (matches crate/seen/mirror/ridden). Gates planning (PRD/SDD/sprint) + code review + audit.
+# =============================================================================
+flatline_protocol:
+  enabled: true
+  auto_trigger: true
+  phases:
+    prd: true
+    sdd: true
+    sprint: true
+  code_review:
+    enabled: true
+  security_audit:
+    enabled: true
+  knowledge:
+    local:
+      enabled: true
+    notebooklm:
+      enabled: false
+  autonomous_arbiter:
+    enabled: true
+
+# =============================================================================
+# Red Team (generative adversarial security review) — fleet standard
+# =============================================================================
+red_team:
+  enabled: true
+  mode: standard
+  models:
+    evaluator_multi_model: true
+  safety:
+    prohibited_content: true
+    mandatory_redaction: true
+    ci_artifact_scrubbing: true
+  input_sanitization:
+    injection_detection: true
+    context_isolation: true
+    secret_filtering: true
