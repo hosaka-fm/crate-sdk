@@ -1,7 +1,7 @@
 // @hosaka-fm/crate — the official, typed TypeScript client for the crate public API.
 //
 //   import { Crate } from '@hosaka-fm/crate';
-//   const crate = new Crate();                 // apiKey optional (public surface is anonymous today)
+//   const crate = new Crate({ apiKey: process.env.CRATE_API_KEY }); // key-first; only crate.index() is keyless
 //   const artist = await crate.artist('Four Tet');
 //
 // See the README "Using from an AI agent" section for the error-recovery + pagination recipes.

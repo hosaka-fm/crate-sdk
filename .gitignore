@@ -18,6 +18,7 @@
 # Node / build
 node_modules/
 dist/
+docs/api/
 coverage/
 pack.json
 *.tsbuildinfo

@@ -2,8 +2,31 @@
   "name": "@hosaka-fm/crate",
   "version": "0.3.0",
   "description": "Official typed TypeScript client for the crate public API.",
+  "keywords": [
+    "crate",
+    "hosaka",
+    "music",
+    "music-catalogue",
+    "music-metadata",
+    "discography",
+    "bandcamp",
+    "discogs",
+    "musicbrainz",
+    "api-client",
+    "rest-client",
+    "sdk",
+    "typescript",
+    "ai-agent",
+    "dossier",
+    "festival",
+    "tastemaker"
+  ],
   "license": "MIT",
   "author": "Hosaka FM",
+  "homepage": "https://github.com/hosaka-fm/crate-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/hosaka-fm/crate-sdk/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hosaka-fm/crate-sdk.git"
@@ -36,6 +59,7 @@
   "files": [
     "dist",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE",
     "NOTICE"
   ],
@@ -49,6 +73,7 @@
     "test:watch": "vitest",
     "check:exports": "attw --pack .",
     "check:staleness": "node scripts/check-spec-staleness.mjs",
+    "docs:api": "npx --yes typedoc",
     "prepack": "npm run build"
   },
   "devDependencies": {

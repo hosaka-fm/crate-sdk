@@ -1,0 +1,62 @@
+name: Bug report
+description: Report a defect in the @hosaka-fm/crate client library
+title: '[bug]: '
+labels: ['bug', 'triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. This repo is the **client library** — for problems with the crate
+        API/service (keys, billing, rate limits, data), see https://crate.0xhoneyjar.xyz/docs.
+        Never paste an API key into this issue.
+  - type: input
+    id: version
+    attributes:
+      label: '@hosaka-fm/crate version'
+      placeholder: e.g. 0.3.0
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Runtime
+      options:
+        - Node.js
+        - Deno
+        - Bun
+        - Cloudflare Workers / Edge
+        - Browser
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: runtime-version
+    attributes:
+      label: Runtime & TypeScript version
+      placeholder: e.g. Node 20.11.0, TypeScript 5.7.3
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: The smallest code snippet that triggers the bug. Redact any key.
+      render: ts
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected vs. actual
+      description: What you expected, and what happened (include the full error, with `err.requestId` if present).
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmation
+      options:
+        - label: This is an SDK bug, not an underlying crate API/service issue.
+          required: true
+        - label: I have not included any API key or secret in this report.
+          required: true
