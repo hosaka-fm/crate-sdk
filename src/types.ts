@@ -17,6 +17,14 @@ export type DossierManifest = Schemas['DossierManifest'];
 export type ApiRootIndex = Schemas['ApiRootIndex'];
 export type BandcampBulkPage = Schemas['BandcampBulkPage'];
 export type BandcampFeedContract = Schemas['BandcampFeedContract'];
+/** Per-release Bandcamp dossier (incl. tracklist). `bandcamp_item_id` is an opaque STRING — never numericize. */
+export type BandcampRelease = Schemas['BandcampRelease'];
+/** Summary row from `bandcamp.releases({ clusterId })` (no tracks). */
+export type BandcampReleaseSummary = Schemas['BandcampReleaseSummary'];
+/** The discriminated-union response of `GET /bandcamp/release` (object: bandcamp.release | bandcamp.release_list). */
+export type BandcampReleaseResponse = Schemas['BandcampReleaseResponse'];
+/** A link-only artwork cover (`rehost` always false). `source` includes 'discogs'. */
+export type ArtworkItem = Schemas['ArtworkItem'];
 export type SearchResponse = Schemas['SearchResponse'];
 export type BreakoutsResponse = Schemas['BreakoutsResponse'];
 export type FacetCounts = Schemas['FacetCounts'];
@@ -43,6 +51,8 @@ export type WayfindInterpretRequest = Schemas['WayfindInterpretRequest'];
  * `bandcamp.bulkAll<T>()` lets a caller supply a narrower row type.
  */
 export type BandcampRow = BandcampBulkPage['rows'][number];
+/** One track within a {@link BandcampRelease} (`track_url` is the track PAGE, not a stream — link-only). */
+export type BandcampTrack = BandcampRelease['tracks'][number];
 
 // --- Hand-authored query-param inputs (not named schemas in the spec) ---
 

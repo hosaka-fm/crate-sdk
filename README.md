@@ -12,7 +12,7 @@ automatic retries, cursor pagination, and teaching errors — over crate's publi
 > source_. Access to the crate API is governed separately by crate's Terms of Service and
 > requires a valid API key; MIT grants no right to use the crate service itself. See `NOTICE`.
 
-> **Status: pre-release (v0.2.0).** crate is **key-first** — every data endpoint requires an
+> **Status: pre-release (v0.3.0).** crate is **key-first** — every data endpoint requires an
 > `apiKey` (sent as `X-API-Key`); only `crate.index()` is keyless. Keys are invite-only
 > (operator-issued) today; a self-serve free tier lands later. Built + tagged in-repo; npm
 > publish on the next go.
@@ -91,22 +91,33 @@ without an `apiKey` (only `crate.index()` is keyless) — no confusing runtime 4
 
 ## Client surface
 
-| Call                                                            | Endpoint                                    | Auth           |
-| --------------------------------------------------------------- | ------------------------------------------- | -------------- |
-| `crate.index()`                                                 | `GET /api/v1`                               | anon           |
-| `crate.resolve(q)`                                              | `GET /resolve`                              | **key**        |
-| `crate.artist(key)` / `crate.artistOrNull(key)`                 | `GET /artist/{key}` (+resolve for locators) | **key**        |
-| `crate.bandcamp(artistKey)`                                     | `GET /bandcamp/{artistKey}`                 | **key**        |
-| `crate.bandcamp.bulk(params)` / `.bulkAll(params)` / `.index()` | `GET /bandcamp`                             | **key**        |
-| `crate.search(params)`                                          | `GET /search`                               | **key**        |
-| `crate.breakouts()`                                             | `GET /breakouts`                            | **key**        |
-| `crate.tastemakers()` / `.onesToWatch()`                        | `GET /tastemakers[/ones-to-watch]`          | **key**        |
-| `crate.dossier.{master,artist,label,festival,manifest}(...)`    | `GET /dossier/...`                          | **key**        |
-| `crate.wayfind(question)` / `.interpret(q)`                     | `POST /wayfind/{answer,interpret}`          | **key**        |
-| `crate.facets()`                                                | `GET /facets`                               | **key**        |
-| `crate.master(id)` / `crate.masters(ids)`                       | `GET /masters/{id}` · `POST /masters/batch` | **key**        |
-| `crate.usage()`                                                 | `GET /usage`                                | **key**        |
-| `crate.searchEvents.observed/refined(...)`                      | `POST /search-events/...`                   | **beacon JWT** |
+| Call                                                             | Endpoint                                    | Auth           |
+| ---------------------------------------------------------------- | ------------------------------------------- | -------------- |
+| `crate.index()`                                                  | `GET /api/v1`                               | anon           |
+| `crate.resolve(q)`                                               | `GET /resolve`                              | **key**        |
+| `crate.artist(key)` / `crate.artistOrNull(key)`                  | `GET /artist/{key}` (+resolve for locators) | **key**        |
+| `crate.bandcamp(artistKey)`                                      | `GET /bandcamp/{artistKey}`                 | **key**        |
+| `crate.bandcamp.bulk(params)` / `.bulkAll(params)` / `.index()`  | `GET /bandcamp`                             | **key**        |
+| `crate.bandcamp.release({item\|url})` / `.releases({clusterId})` | `GET /bandcamp/release`                     | **key**        |
+| `crate.search(params)`                                           | `GET /search`                               | **key**        |
+| `crate.breakouts()`                                              | `GET /breakouts`                            | **key**        |
+| `crate.tastemakers()` / `.onesToWatch()`                         | `GET /tastemakers[/ones-to-watch]`          | **key**        |
+| `crate.dossier.{master,artist,label,festival,manifest}(...)`     | `GET /dossier/...`                          | **key**        |
+| `crate.wayfind(question)` / `.interpret(q)`                      | `POST /wayfind/{answer,interpret}`          | **key**        |
+| `crate.facets()`                                                 | `GET /facets`                               | **key**        |
+| `crate.master(id)` / `crate.masters(ids)`                        | `GET /masters/{id}` · `POST /masters/batch` | **key**        |
+| `crate.usage()`                                                  | `GET /usage`                                | **key**        |
+| `crate.searchEvents.observed/refined(...)`                       | `POST /search-events/...`                   | **beacon JWT** |
+
+### Bandcamp releases & honest gaps
+
+`crate.bandcamp.release({ item })` / `({ url })` returns the per-release dossier (incl.
+tracklist) or **`null`** when the release isn't present (an honest gap, HTTP 200 — not an
+error). `crate.bandcamp.releases({ clusterId })` returns an artist's release summaries
+(no tracklists). Known gaps, by design: **no direct audio stream** (`track.track_url` is the
+track _page_; Bandcamp streams are tokenised/ToS-bound), and **no label/catalog** (not crawled).
+`bandcamp_item_id` and `cluster_id` are **opaque strings** — pass them through, never numericize.
+Artwork (`ArtworkItem[]` on releases + dossiers) is **link-only** (`rehost: false`).
 
 ## Errors
 

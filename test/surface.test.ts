@@ -288,6 +288,113 @@ describe('bandcamp', () => {
   });
 });
 
+describe('bandcamp.release', () => {
+  const RELEASE = {
+    bandcamp_item_id: '1234567890', // opaque STRING (bigint) — never numericized
+    cluster_id: HEX,
+    artist: 'Four Tet',
+    title: 'Rounds',
+    release_date: '2003-05-05',
+    source_url: 'https://fourtet.bandcamp.com/album/rounds',
+    tags: ['idm'],
+    artwork: [],
+    tracks: [
+      {
+        track_num: 1,
+        title: 'She Moves She',
+        duration_s: 327,
+        license_type: null,
+        track_url: 'https://x',
+      },
+    ],
+  };
+
+  it('release({ item }) present:true → the dossier; bandcamp_item_id stays a string', async () => {
+    mock('GET', (p) => p.startsWith('/api/v1/bandcamp/release'), 200, {
+      object: 'bandcamp.release',
+      present: true,
+      release: RELEASE,
+    });
+    const r = await kc().bandcamp.release({ item: '1234567890' });
+    expect(r?.title).toBe('Rounds');
+    expect(typeof r?.bandcamp_item_id).toBe('string');
+    expect(calls[0].path).toContain('item=1234567890');
+  });
+
+  it('release({ url }) → ?url=', async () => {
+    mock('GET', (p) => p.startsWith('/api/v1/bandcamp/release'), 200, {
+      object: 'bandcamp.release',
+      present: true,
+      release: RELEASE,
+    });
+    await kc().bandcamp.release({ url: 'https://fourtet.bandcamp.com/album/rounds' });
+    expect(decodeURIComponent(calls[0].path)).toContain(
+      'url=https://fourtet.bandcamp.com/album/rounds',
+    );
+  });
+
+  it('release() honest gap (present:false) → null, not an error', async () => {
+    mock('GET', (p) => p.startsWith('/api/v1/bandcamp/release'), 200, {
+      object: 'bandcamp.release',
+      present: false,
+      note: 'no release for that item',
+    });
+    expect(await kc().bandcamp.release({ item: '404' })).toBeNull();
+  });
+
+  it('release({}) → CrateValidationError(exactly_one_of), no network', async () => {
+    let err: CrateValidationError | undefined;
+    try {
+      await kc().bandcamp.release({} as never);
+    } catch (e) {
+      err = e as CrateValidationError;
+    }
+    expect(err?.code).toBe('exactly_one_of');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('releases({ clusterId }) → summary list', async () => {
+    mock('GET', (p) => p.startsWith('/api/v1/bandcamp/release'), 200, {
+      object: 'bandcamp.release_list',
+      cluster_id: HEX,
+      count: 2,
+      releases: [
+        {
+          bandcamp_item_id: '1',
+          artist: 'Four Tet',
+          title: 'Rounds',
+          release_date: null,
+          source_url: null,
+          tags: [],
+        },
+        {
+          bandcamp_item_id: '2',
+          artist: 'Four Tet',
+          title: 'Pause',
+          release_date: null,
+          source_url: null,
+          tags: [],
+        },
+      ],
+    });
+    const list = await kc().bandcamp.releases({ clusterId: HEX });
+    expect(list).toHaveLength(2);
+    expect(list[0].title).toBe('Rounds');
+    expect(calls[0].path).toContain(`cluster_id=${HEX}`);
+  });
+
+  it('release() without a key → CrateValidationError(api_key_required)', async () => {
+    let err: CrateValidationError | undefined;
+    try {
+      await new Crate().bandcamp.release({ item: '1' });
+    } catch (e) {
+      err = e as CrateValidationError;
+    }
+    expect(err?.code).toBe('api_key_required');
+    expect(calls).toHaveLength(0);
+  });
+});
+
 describe('search', () => {
   it('serializes array facets as repeat-key + numbers as strings', async () => {
     mock('GET', (p) => p.startsWith('/api/v1/search'), 200, {

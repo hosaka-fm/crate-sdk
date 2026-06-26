@@ -919,6 +919,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bandcamp/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-release Bandcamp dossier (title, date, cover, tracklist, tags, album URL)
+         * @description cycle-080 — the Bandcamp release layer, served verbatim from mirror's release-grain VIEWs (bandcamp_release_v1 + bandcamp_release_track_v1, mig 0189) + the per-release cover (bandcamp_artwork_v1). Query ONE of (precedence item → url → cluster): ?item=<bandcamp_item_id> (direct → ONE full dossier with tracks) | ?url=<bandcamp album url> (normalized exact source_url match → ONE dossier) | ?cluster_id=<64-hex> (the artist's releases as a summary LIST, no tracks — discovery; each row carries bandcamp_item_id, fetch ?item= for the full dossier). Honest gaps: per-track DIRECT stream URL is not stored (Bandcamp streams are tokenized/expiring + ToS) — track_url is the track PAGE; label/catalog are not in the crawl. Keyed (X-API-Key); ONE crate_reader checkout; never fetches any URL. Unresolved → 200 present:false / empty releases (honest-gap), NOT 404. Malformed/missing → 400.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    item?: string;
+                    url?: string;
+                    cluster_id?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description A single release dossier (item/url) or the artist release list (cluster_id); honest-gap when unresolved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BandcampReleaseResponse"];
+                    };
+                };
+                /** @description Validation failure (invalid query, malformed body, bad facet name) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RateLimited"];
+                    };
+                };
+                /** @description Internal server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Database pool exhausted — retry after 5s */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Request deadline (15s) or query timeout exceeded */
+                504: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1": {
         parameters: {
             query?: never;
@@ -967,7 +1055,7 @@ export interface paths {
         };
         /**
          * Resolve any identifier (name · pasted link · id) → canonical cluster_id
-         * @description The cluster-first front door (cycle-069/070/071): converts ANY identifier a caller holds into the canonical cluster_id + a human slug + the full locator set, WITHOUT knowing crate internals. Query ONE of: ?url=<any artist link> (discogs/musicbrainz → clean id; bandcamp/soundcloud/instagram/website → reverse-match the granted self-declared-link surface; spotify/youtube/reddit recognized but not yet cross-referenced → honest note + name fallback) | ?q=<artist name> (exact case-insensitive) | ?cluster=<64-hex> | ?discogs=<int> | ?mbid=<uuid>. resolved_from tells you how it matched ('url'|'name'|'locator'), matched_on which surface, note explains an unresolved recognized link. resolved_via = best binding tier ('discogs' verified, else 'cluster' observed, else null). Keyed (X-API-Key); ONE crate_reader checkout; never fetches the pasted URL. Unresolved → 200 with nulls (honest-gap), not 404. Malformed/missing → 400.
+         * @description The cluster-first front door (cycle-069/070/071): converts ANY identifier a caller holds into the canonical cluster_id + a human slug + the full locator set, WITHOUT knowing crate internals. Query ONE of: ?url=<any artist link> (discogs/musicbrainz → clean id; bandcamp/soundcloud/instagram/website/spotify/youtube → reverse-match the indexed seen.artist_link_index; twitter/reddit recognized but not yet cross-referenced → honest note + name fallback) | ?q=<artist name> (exact case-insensitive) | ?cluster=<64-hex> | ?discogs=<int> | ?mbid=<uuid>. On a resolved cluster, locators returns the full public profile-link set per platform (cycle-079, link-only forward read). resolved_from tells you how it matched ('url'|'name'|'locator'), matched_on which surface, note explains an unresolved recognized link. resolved_via = best binding tier ('discogs' verified, else 'cluster' observed, else null). Keyed (X-API-Key); ONE crate_reader checkout; never fetches the pasted URL. Unresolved → 200 with nulls (honest-gap), not 404. Malformed/missing → 400.
          */
         get: {
             parameters: {
@@ -1943,6 +2031,11 @@ export interface components {
         Error: {
             /** @example invalid_query */
             error: string;
+            message?: string;
+            hint?: string;
+            doc_url?: string;
+            param?: string;
+            next?: string;
             details?: unknown[];
             retry_after_seconds?: number;
             master_id?: number;
@@ -1951,6 +2044,17 @@ export interface components {
             /** @enum {string} */
             error: "rate_limited";
             retry_after_seconds: number;
+        };
+        ArtworkItem: {
+            /** @description Hotlink-only artwork URL: a Bandcamp CDN string, a verbatim Discogs catalogue cover URL, or a deterministic Cover Art Archive release-group URL. crate never fetches or re-hosts the bytes; a CAA url is best-effort and may 404 if no cover exists. */
+            url: string;
+            /** @enum {string} */
+            source: "bandcamp" | "coverartarchive" | "discogs";
+            /** @enum {string} */
+            grain: "artist" | "release";
+            license: string;
+            /** @enum {boolean} */
+            rehost: false;
         };
         Freshness: {
             ridden_lag_s: number | null;
@@ -2056,6 +2160,40 @@ export interface components {
             details?: unknown;
             skew_ms?: number;
         };
+        BandcampRelease: {
+            /** @description Bandcamp release id (bigint → string). */
+            bandcamp_item_id: string;
+            /** @description pe-norm-v1 cluster_id hex (nullable — ~0.2% of releases have none). */
+            cluster_id: string | null;
+            artist: string | null;
+            artist_subdomain: string | null;
+            title: string | null;
+            /** @description ISO timestamp (may be a reissue date or a future pre-order). */
+            release_date: string | null;
+            /** @description The Bandcamp album page URL. */
+            source_url: string | null;
+            /** @description Per-release genre/mood/location tags (Bandcamp keywords). */
+            tags: string[];
+            /** @description Link-only cover art (source: bandcamp, grain: release). */
+            artwork: components["schemas"]["ArtworkItem"][];
+            tracks: {
+                track_num: number;
+                title: string | null;
+                /** @description Track length in seconds (from the integer duration_ms). */
+                duration_s: number | null;
+                license_type: string | null;
+                /** @description The Bandcamp track PAGE url — NOT a direct audio stream (Bandcamp streams are tokenized/expiring and are not stored). */
+                track_url: string | null;
+            }[];
+        };
+        BandcampReleaseSummary: {
+            bandcamp_item_id: string;
+            artist: string | null;
+            title: string | null;
+            release_date: string | null;
+            source_url: string | null;
+            tags: string[];
+        };
         DossierManifest: {
             contract_version: string;
             generated_at: string;
@@ -2081,6 +2219,7 @@ export interface components {
                 field: string;
                 state: string;
             }[];
+            artwork: components["schemas"]["ArtworkItem"][];
             freshness: {
                 mirror_lag_s: number | null;
                 seen_lag_s: number | null;
@@ -2261,6 +2400,10 @@ export interface components {
                     earliestWishedAt: string | null;
                 } | null;
             };
+            artwork: {
+                state: string;
+                items: components["schemas"]["ArtworkItem"][];
+            };
             dated_appearance: {
                 state: string;
                 signals: {
@@ -2436,6 +2579,25 @@ export interface components {
                 generated_at: string;
             };
         };
+        BandcampReleaseResponse: {
+            /** @enum {string} */
+            object: "bandcamp.release";
+            /** @enum {boolean} */
+            present: true;
+            release: components["schemas"]["BandcampRelease"];
+        } | {
+            /** @enum {string} */
+            object: "bandcamp.release";
+            /** @enum {boolean} */
+            present: false;
+            note: string;
+        } | {
+            /** @enum {string} */
+            object: "bandcamp.release_list";
+            cluster_id: string;
+            count: number;
+            releases: components["schemas"]["BandcampReleaseSummary"][];
+        };
         ApiRootIndex: {
             /** @enum {string} */
             object: "api_index";
@@ -2474,6 +2636,11 @@ export interface components {
                 discogs: number | null;
                 mbid: string | null;
                 bandcamp: string[];
+                soundcloud: string[];
+                instagram: string[];
+                spotify: string[];
+                youtube: string[];
+                website: string[];
             };
             /** @enum {string|null} */
             resolved_via: "discogs" | "cluster" | null;

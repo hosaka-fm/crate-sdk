@@ -7,7 +7,7 @@
 // See the README "Using from an AI agent" section for the error-recovery + pagination recipes.
 
 /** Package version (kept in sync with package.json; asserted by a test). */
-export const VERSION = '0.2.0';
+export const VERSION = '0.3.0';
 
 export { Crate } from './client';
 export type {

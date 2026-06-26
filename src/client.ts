@@ -18,6 +18,9 @@ import type {
   ArtistDossierContract,
   BandcampBulkPage,
   BandcampFeedContract,
+  BandcampRelease,
+  BandcampReleaseResponse,
+  BandcampReleaseSummary,
   BatchResponse,
   BreakoutsResponse,
   DossierManifest,
@@ -86,6 +89,16 @@ export interface BandcampApi {
   bulkAll(params?: BandcampBulkParams, opts?: RequestOptions): BulkIterable;
   /** The no-param bandcamp index/manifest (discover valid `source` names). */
   index(opts?: RequestOptions): Promise<BandcampBulkPage>;
+  /**
+   * Per-release Bandcamp dossier (incl. tracklist) by item id or album URL.
+   * Returns `null` on the honest gap (HTTP 200 `present: false`) — not an error.
+   */
+  release(
+    query: { item: string } | { url: string },
+    opts?: RequestOptions,
+  ): Promise<BandcampRelease | null>;
+  /** All releases for an artist `cluster_id` (summary rows, no tracklists). */
+  releases(query: { clusterId: string }, opts?: RequestOptions): Promise<BandcampReleaseSummary[]>;
 }
 
 /** `crate.tastemakers` — callable (leaderboard) with the ones-to-watch slice. */
@@ -232,6 +245,45 @@ export class Crate {
           ),
         params,
       );
+    bandcamp.release = async (query, opts?) => {
+      const q: Record<string, QueryValue> = {};
+      if ('item' in query && query.item) q.item = query.item;
+      else if ('url' in query && query.url) q.url = query.url;
+      if (q.item === undefined && q.url === undefined) {
+        throw new CrateValidationError('crate.bandcamp.release() needs exactly one of item | url', {
+          code: 'exactly_one_of',
+          param: 'query',
+          hint: 'pass { item } (bandcamp_item_id) or { url } (album page URL)',
+          next: 'crate.bandcamp.release({ item: "1234567890" })',
+        });
+      }
+      const res = await this.#req<BandcampReleaseResponse>(
+        { method: 'GET', path: '/bandcamp/release', query: q, idempotent: true },
+        opts,
+      );
+      // Honest gap: present:false → null (not an error). A release_list is unexpected for item/url.
+      return res.object === 'bandcamp.release' && res.present ? res.release : null;
+    };
+    bandcamp.releases = async (query, opts?) => {
+      if (!query?.clusterId) {
+        throw new CrateValidationError('crate.bandcamp.releases() needs a clusterId', {
+          code: 'exactly_one_of',
+          param: 'clusterId',
+          hint: 'pass { clusterId } (64-hex cluster_id)',
+          next: 'crate.bandcamp.releases({ clusterId: "<64-hex>" })',
+        });
+      }
+      const res = await this.#req<BandcampReleaseResponse>(
+        {
+          method: 'GET',
+          path: '/bandcamp/release',
+          query: { cluster_id: query.clusterId },
+          idempotent: true,
+        },
+        opts,
+      );
+      return res.object === 'bandcamp.release_list' ? res.releases : [];
+    };
     this.bandcamp = bandcamp;
 
     const tastemakers = ((opts?: RequestOptions) =>

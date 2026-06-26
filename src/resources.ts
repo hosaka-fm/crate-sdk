@@ -60,6 +60,22 @@ export const CRATE_RESOURCES = Object.freeze({
     retryable: true,
     idempotent: true,
   },
+  'bandcamp.release': {
+    method: 'GET',
+    endpoint: '/api/v1/bandcamp/release',
+    returns: 'BandcampRelease | null',
+    auth: 'key',
+    retryable: true,
+    idempotent: true,
+  },
+  'bandcamp.releases': {
+    method: 'GET',
+    endpoint: '/api/v1/bandcamp/release',
+    returns: 'BandcampReleaseSummary[]',
+    auth: 'key',
+    retryable: true,
+    idempotent: true,
+  },
   search: {
     method: 'GET',
     endpoint: '/api/v1/search',
