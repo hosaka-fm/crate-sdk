@@ -19,12 +19,7 @@ automatic retries, cursor pagination, and teaching errors — over crate's publi
 
 ## Install
 
-Published to **GitHub Packages** under the `@hosaka-fm` scope. Point the scope at the
-GitHub registry (one-time, in your project's `.npmrc`) and authenticate with a GitHub
-token that has `read:packages`:
-
 ```sh
-echo "@hosaka-fm:registry=https://npm.pkg.github.com" >> .npmrc
 npm install @hosaka-fm/crate
 ```
 

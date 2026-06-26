@@ -1,0 +1,15 @@
+{"event":"compact_recovery","timestamp":"2026-06-26T22:36:20Z","context":{
+  "timestamp": "2026-06-26T12:26:49Z",
+  "project_root": "/home/merlin/Documents/thj/code/hosaka/crate-sdk",
+  "run_mode": {
+    "active": true,
+    "state": "JACKED_OUT"
+  },
+  "simstim": {
+    "active": false,
+    "phase": ""
+  },
+  "current_skill": "unknown",
+  "current_phase": "unknown",
+  "current_task": "unknown"
+}}

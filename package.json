@@ -3,12 +3,13 @@
   "version": "0.3.0",
   "description": "Official typed TypeScript client for the crate public API.",
   "license": "MIT",
+  "author": "Hosaka FM",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hosaka-fm/crate-sdk.git"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "access": "public"
   },
   "private": true,
   "type": "module",
