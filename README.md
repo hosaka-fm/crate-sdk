@@ -225,35 +225,35 @@ keyless, **beacon** = per-search JWT. All read methods auto-retry on a retryable
 
 <!-- BEGIN GENERATED:surface (npm run docs:gen) -->
 
-| Call                                | Endpoint                         | Auth    | Returns                    |
-| ----------------------------------- | -------------------------------- | ------- | -------------------------- |
-| `crate.resolve(query)`              | `GET /resolve`                   | **key** | `IdentityResolution`       |
-| `crate.artist(key)`                 | `GET /artist/{key}`              | **key** | `ArtistDossierContract`    |
-| `crate.artistOrNull(key)`           | `GET /artist/{key}`              | **key** | `ArtistDossierContract`    |
-| `crate.search(params)`              | `GET /search`                    | **key** | `SearchResponse`           |
-| `crate.breakouts()`                 | `GET /breakouts`                 | **key** | `BreakoutsResponse`        |
-| `crate.index()`                     | `GET /api/v1`                    | anon    | `ApiRootIndex`             |
-| `crate.facets()`                    | `GET /facets`                    | **key** | `FacetCounts`              |
-| `crate.master(id)`                  | `GET /masters/{id}`              | **key** | `MasterEnrichment`         |
-| `crate.masters(ids)`                | `POST /masters/batch`            | **key** | `BatchResponse`            |
-| `crate.usage()`                     | `GET /usage`                     | **key** | `UsageResponse`            |
-| `crate.bandcamp(artistKey)`         | `GET /bandcamp/{artistKey}`      | **key** | `BandcampFeedContract`     |
-| `crate.bandcamp.bulk(params)`       | `GET /bandcamp`                  | **key** | `BandcampBulkPage`         |
-| `crate.bandcamp.bulkAll(params)`    | `GET /bandcamp`                  | **key** | `BandcampBulkPage`         |
-| `crate.bandcamp.index()`            | `GET /bandcamp`                  | **key** | `BandcampBulkPage`         |
-| `crate.bandcamp.release(query)`     | `GET /bandcamp/release`          | **key** | `BandcampRelease \| null`  |
-| `crate.bandcamp.releases(query)`    | `GET /bandcamp/release`          | **key** | `BandcampReleaseSummary[]` |
-| `crate.dossier.master(id)`          | `GET /dossier/master/{id}`       | **key** | `MasterDossierContract`    |
-| `crate.dossier.artist(slug)`        | `GET /dossier/artist/{slug}`     | **key** | `ArtistDossierContract`    |
-| `crate.dossier.label(slug)`         | `GET /dossier/label/{slug}`      | **key** | `LabelDossierContract`     |
-| `crate.dossier.festival(slug)`      | `GET /dossier/festival/{slug}`   | **key** | `FestivalDossierContract`  |
-| `crate.dossier.manifest()`          | `GET /dossier/manifest`          | **key** | `DossierManifest`          |
-| `crate.tastemakers()`               | `GET /tastemakers`               | **key** | `TastemakersResponse`      |
-| `crate.tastemakers.onesToWatch()`   | `GET /tastemakers/ones-to-watch` | **key** | `OnesToWatchResponse`      |
-| `crate.wayfind(question)`           | `POST /wayfind/answer`           | **key** | `WayfindAnswerResponse`    |
-| `crate.wayfind.interpret(q)`        | `POST /wayfind/interpret`        | **key** | `WayfindInterpretResponse` |
-| `crate.searchEvents.observed(body)` | `POST /search-events/observed`   | beacon  | `void`                     |
-| `crate.searchEvents.refined(body)`  | `POST /search-events/refined`    | beacon  | `void`                     |
+| Call                                | Endpoint                         | Auth    | Returns                         |
+| ----------------------------------- | -------------------------------- | ------- | ------------------------------- |
+| `crate.resolve(query)`              | `GET /resolve`                   | **key** | `IdentityResolution`            |
+| `crate.artist(key)`                 | `GET /artist/{key}`              | **key** | `ArtistDossierContract`         |
+| `crate.artistOrNull(key)`           | `GET /artist/{key}`              | **key** | `ArtistDossierContract \| null` |
+| `crate.search(params)`              | `GET /search`                    | **key** | `SearchResponse`                |
+| `crate.breakouts()`                 | `GET /breakouts`                 | **key** | `BreakoutsResponse`             |
+| `crate.index()`                     | `GET /api/v1`                    | anon    | `ApiRootIndex`                  |
+| `crate.facets()`                    | `GET /facets`                    | **key** | `FacetCounts`                   |
+| `crate.master(id)`                  | `GET /masters/{id}`              | **key** | `MasterEnrichment`              |
+| `crate.masters(ids)`                | `POST /masters/batch`            | **key** | `BatchResponse`                 |
+| `crate.usage()`                     | `GET /usage`                     | **key** | `UsageResponse`                 |
+| `crate.bandcamp(artistKey)`         | `GET /bandcamp/{artistKey}`      | **key** | `BandcampFeedContract`          |
+| `crate.bandcamp.bulk(params)`       | `GET /bandcamp`                  | **key** | `BandcampBulkPage`              |
+| `crate.bandcamp.bulkAll(params)`    | `GET /bandcamp`                  | **key** | `BulkIterable`                  |
+| `crate.bandcamp.index()`            | `GET /bandcamp`                  | **key** | `BandcampBulkPage`              |
+| `crate.bandcamp.release(query)`     | `GET /bandcamp/release`          | **key** | `BandcampRelease \| null`       |
+| `crate.bandcamp.releases(query)`    | `GET /bandcamp/release`          | **key** | `BandcampReleaseSummary[]`      |
+| `crate.dossier.master(id)`          | `GET /dossier/master/{id}`       | **key** | `MasterDossierContract`         |
+| `crate.dossier.artist(slug)`        | `GET /dossier/artist/{slug}`     | **key** | `ArtistDossierContract`         |
+| `crate.dossier.label(slug)`         | `GET /dossier/label/{slug}`      | **key** | `LabelDossierContract`          |
+| `crate.dossier.festival(slug)`      | `GET /dossier/festival/{slug}`   | **key** | `FestivalDossierContract`       |
+| `crate.dossier.manifest()`          | `GET /dossier/manifest`          | **key** | `DossierManifest`               |
+| `crate.tastemakers()`               | `GET /tastemakers`               | **key** | `TastemakersResponse`           |
+| `crate.tastemakers.onesToWatch()`   | `GET /tastemakers/ones-to-watch` | **key** | `OnesToWatchResponse`           |
+| `crate.wayfind(question)`           | `POST /wayfind/answer`           | **key** | `WayfindAnswerResponse`         |
+| `crate.wayfind.interpret(q)`        | `POST /wayfind/interpret`        | **key** | `WayfindInterpretResponse`      |
+| `crate.searchEvents.observed(body)` | `POST /search-events/observed`   | beacon  | `void`                          |
+| `crate.searchEvents.refined(body)`  | `POST /search-events/refined`    | beacon  | `void`                          |
 
 <!-- END GENERATED:surface -->
 

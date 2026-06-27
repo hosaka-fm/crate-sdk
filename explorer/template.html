@@ -664,6 +664,8 @@ CRATE_ERROR_REGISTRY.api;           // { retryable, clientSide, carries: [...], 
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
   const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // attribute-safe: also escape " so an @example string literal can't break data-code=""
+  const escAttr = (s) => esc(s).replace(/"/g, '&quot;');
 
   function highlight(code) {
     let s = esc(code);
@@ -820,7 +822,7 @@ CRATE_ERROR_REGISTRY.api;           // { retryable, clientSide, carries: [...], 
       <div class="field-label">Returns</div>
       <div class="ep"><span style="color:var(--teal); font-family:var(--mono)">${esc(m.ret)}</span></div>
       <div class="field-label">Worked example</div>
-      <pre class="code" data-code="${esc(edu.worked || m.ex)}"></pre>
+      <pre class="code" data-code="${escAttr(edu.worked || m.ex)}"></pre>
       <div class="field-label">Throws</div>
       <div class="throws">${throwsHtml}</div>
     `;

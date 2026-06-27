@@ -47,7 +47,7 @@ const collapse = (s) => delink(s.replace(/\s+/g, ' ').trim());
 function parseThrow(tag) {
   const type = tag.typeExpression?.type ? tag.typeExpression.type.getText(sf) : '';
   const comment = textOf(tag.comment);
-  const m = comment.match(/`([^`]+)`\s*(.*)/);
+  const m = comment.match(/`([^`]+)`\s*([\s\S]*)/);
   if (m) return [m[1], collapse((m[2] || '').replace(/^[—-]\s*/, ''))];
   return [type || '', collapse(comment.replace(/^[—-]\s*/, ''))];
 }
@@ -74,24 +74,47 @@ const sigText = (node, displayName) => {
   return `${displayName}(${params}): ${ret}`;
 };
 
+// The method's OWN declared return type, Promise-unwrapped to match the resource style.
+const declaredType = (node) => {
+  if (!node.type) return '';
+  const t = collapse(node.type.getText(sf));
+  const m = t.match(/^Promise<([\s\S]+)>$/);
+  return m ? m[1].trim() : t;
+};
+
 const methods = [];
+const usedResKeys = new Set();
+const missingResource = [];
 function add({ ns, fn, node, isCall }) {
   const { desc, example, throws } = docParts(node);
   const pn = paramNames(node);
   const callPath = ns === 'client' ? `crate.${fn}` : isCall ? `crate.${ns}` : `crate.${ns}.${fn}`;
+  const call = `${callPath}(${pn.join(', ')})`;
   const resKey = ns === 'client' ? fn : isCall ? ns : `${ns}.${fn}`;
-  const r = CRATE_RESOURCES[resKey] || CRATE_RESOURCES[RES_FALLBACK[resKey]] || {};
+  const usedKey = CRATE_RESOURCES[resKey]
+    ? resKey
+    : CRATE_RESOURCES[RES_FALLBACK[resKey]]
+      ? RES_FALLBACK[resKey]
+      : null;
+  if (usedKey === null) {
+    missingResource.push(call);
+    return;
+  }
+  usedResKeys.add(usedKey);
+  const r = CRATE_RESOURCES[usedKey];
   const ep = (r.endpoint || '').replace(/^\/api\/v1/, '') || '/api/v1';
   methods.push({
     ns,
     fn: isCall ? ns : fn,
-    call: `${callPath}(${pn.join(', ')})`,
-    http: r.method || 'GET',
+    call,
+    http: r.method,
     ep,
-    auth: r.auth || 'key',
-    ret: r.returns || (node.type ? collapse(node.type.getText(sf)) : 'void'),
-    retry: r.retryable ?? true,
-    idem: r.idempotent ?? true,
+    auth: r.auth,
+    // Declared type wins over the resource's (handles artistOrNull → "… | null",
+    // bulkAll → "BulkIterable"); a fallback resource still supplies http/ep/auth/etc.
+    ret: declaredType(node) || r.returns || 'void',
+    retry: r.retryable,
+    idem: r.idempotent,
     sig: sigText(node, isCall ? `crate.${ns}` : fn),
     desc,
     example,
@@ -121,6 +144,20 @@ for (const name of IFACE_ORDER) {
     else if (ts.isMethodSignature(m) && ts.isIdentifier(m.name))
       add({ ns, fn: m.name.text, node: m, isCall: false });
   }
+}
+
+// Bijection guards: every method maps to a resource, and every resource has a method.
+if (missingResource.length) {
+  console.error('No CRATE_RESOURCES entry for: ' + missingResource.join(', '));
+  process.exit(1);
+}
+const uncovered = Object.keys(CRATE_RESOURCES).filter((k) => !usedResKeys.has(k));
+if (uncovered.length) {
+  console.error(
+    'CRATE_RESOURCES keys with no documented method (add a method + TSDoc, or a RES_FALLBACK): ' +
+      uncovered.join(', '),
+  );
+  process.exit(1);
 }
 
 const missing = methods.filter((m) => !m.desc || !m.example);
