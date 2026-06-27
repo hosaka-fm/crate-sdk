@@ -533,7 +533,11 @@ export interface components {
             /** @enum {string} */
             grain: "artist" | "release";
             license: string;
-            /** @enum {boolean} */
+            /**
+             * @description A const literal — always the boolean false — declaring crate's link-only artwork posture. WHY IT MATTERS: it is a contractual promise that the `url` on the artwork item is a HOTLINK the caller dereferences directly (a Bandcamp CDN url or a deterministic Cover Art Archive url); crate never fetches, caches, or re-hosts the image bytes. GOTCHA: because crate never dereferences the url, it can be stale or 404 (a CAA url is best-effort and may not exist) — your client must handle a broken image gracefully. Treat rehost:false as a fixed flag, not a toggle; it will never be true.
+             * @example false
+             * @enum {boolean}
+             */
             rehost: false;
         };
         Freshness: {
@@ -658,7 +662,10 @@ export interface components {
             about: string | null;
             /** @description The artist's own credits text. */
             credits: string | null;
-            /** @description Barcode (closest thing Bandcamp has to a catalogue number). */
+            /**
+             * @description The release barcode (UPC/EAN) as Bandcamp records it — the closest thing Bandcamp has to a catalogue number. WHY IT MATTERS: it is a cross-platform release identifier you can use to match the release against other catalogues. GOTCHA: it is a STRING (barcodes carry leading zeros and exceed safe-integer range — numericizing corrupts them) and is nullable (most Bandcamp self-releases have none) — null is an honest gap, not an error.
+             * @example 888002345678
+             */
             upc: string | null;
             is_preorder: boolean | null;
             preorder_count: number | null;
@@ -667,9 +674,15 @@ export interface components {
             packages?: unknown;
         };
         BandcampRelease: {
-            /** @description Bandcamp release id (bigint → string). */
+            /**
+             * @description A Bandcamp release id — the direct address for one release dossier (?item=<id> on /bandcamp/release returns the full tracklist). WHY IT MATTERS: it is the stable per-release key you carry from a release-list row back to the full dossier fetch. GOTCHA: it is a bigint serialized AS A STRING and is OPAQUE — never numericize it (JS numbers lose precision past 2^53 and the value is an identifier, not a quantity), never do arithmetic on it, and pass it back verbatim.
+             * @example 1234567890
+             */
             bandcamp_item_id: string;
-            /** @description pe-norm-v1 cluster_id hex (nullable — ~0.2% of releases have none). */
+            /**
+             * @description crate's CANONICAL artist identity — a pe-norm-v1 hex string. The SAME artist across Discogs, MusicBrainz and Bandcamp collapses to ONE cluster_id, so this is the key you store and the key you address every artist surface off of (/artist/{key} takes a 64-hex cluster_id directly). WHY IT MATTERS: it is crate's prime IP — the non-Discogs long-tail join key; discogs_artist_id / mbid are mere leaf coordinates onto it. GOTCHA: it is an OPAQUE string — pass it through verbatim, NEVER numericize, parse, or compare it as a number. null is an HONEST GAP (the name/link couldn't be resolved to a cluster), NOT an error — you still get HTTP 200. A 64-hex cluster_id always resolves at OBSERVED tier (resolved_via:'cluster'), never re-anchored onto a same-name Discogs row.
+             * @example a3f9c1e84b2d70f6a3f9c1e84b2d70f6a3f9c1e84b2d70f6a3f9c1e84b2d70f6
+             */
             cluster_id: string | null;
             artist: string | null;
             artist_subdomain: string | null;
@@ -686,15 +699,25 @@ export interface components {
             tracks: {
                 track_num: number;
                 title: string | null;
-                /** @description Track length in seconds (from the integer duration_ms). */
+                /**
+                 * @description Track length in SECONDS, derived from Bandcamp's integer duration_ms. WHY IT MATTERS: a uniform per-track length you can sum for a release runtime. GOTCHA: the unit is seconds (the _s suffix), not milliseconds and not minutes — don't re-divide by 1000. It is nullable when Bandcamp exposed no duration (honest gap).
+                 * @example 284
+                 */
                 duration_s: number | null;
                 license_type: string | null;
-                /** @description The Bandcamp track PAGE url — NOT a direct audio stream (Bandcamp streams are tokenized/expiring and are not stored). */
+                /**
+                 * @description The Bandcamp track PAGE url for one track. WHY IT MATTERS: it is the canonical human-visitable link to the track on Bandcamp. GOTCHA: this is NOT a playable/direct audio stream URL — Bandcamp's actual stream URLs are tokenized and expiring and are not stored (both a technical and a ToS constraint). Do not feed track_url to an audio element expecting bytes; it is a page link. It is also nullable (a track may have no stored page url) — an honest gap, not an error.
+                 * @example https://artistname.bandcamp.com/track/the-track-title
+                 */
                 track_url: string | null;
             }[];
             economics: components["schemas"]["BandcampReleaseEconomics"] & (Record<string, never> | null);
         };
         BandcampReleaseSummary: {
+            /**
+             * @description A Bandcamp release id — the direct address for one release dossier (?item=<id> on /bandcamp/release returns the full tracklist). WHY IT MATTERS: it is the stable per-release key you carry from a release-list row back to the full dossier fetch. GOTCHA: it is a bigint serialized AS A STRING and is OPAQUE — never numericize it (JS numbers lose precision past 2^53 and the value is an identifier, not a quantity), never do arithmetic on it, and pass it back verbatim.
+             * @example 1234567890
+             */
             bandcamp_item_id: string;
             artist: string | null;
             title: string | null;
@@ -747,10 +770,14 @@ export interface components {
             slug: string;
             display: string;
             id: number | null;
-            /** @description cycle-051: hex pe-norm-v1 cluster_id when the slug resolved via the seen booking graph (observed tier — no Discogs bind); null for Discogs-resolved or unresolved. The non-Discogs long-tail artist key. */
+            /**
+             * @description crate's CANONICAL artist identity — a pe-norm-v1 hex string. The SAME artist across Discogs, MusicBrainz and Bandcamp collapses to ONE cluster_id, so this is the key you store and the key you address every artist surface off of (/artist/{key} takes a 64-hex cluster_id directly). WHY IT MATTERS: it is crate's prime IP — the non-Discogs long-tail join key; discogs_artist_id / mbid are mere leaf coordinates onto it. GOTCHA: it is an OPAQUE string — pass it through verbatim, NEVER numericize, parse, or compare it as a number. null is an HONEST GAP (the name/link couldn't be resolved to a cluster), NOT an error — you still get HTTP 200. A 64-hex cluster_id always resolves at OBSERVED tier (resolved_via:'cluster'), never re-anchored onto a same-name Discogs row.
+             * @example a3f9c1e84b2d70f6a3f9c1e84b2d70f6a3f9c1e84b2d70f6a3f9c1e84b2d70f6
+             */
             cluster_id: string | null;
             /**
-             * @description cycle-051: resolution tier. 'discogs' = canonical; 'cluster' = OBSERVED/UNVERIFIED (booking graph, no Discogs bind) — surface flagged-unverified, never as canonical; null when the slug did not resolve.
+             * @description The binding TIER — how trustworthy the identity match is. 'discogs' = canonical, Discogs-bound (verified). 'cluster' = OBSERVED/UNVERIFIED identity inferred from the seen booking graph with no Discogs bind. null = the lookup did not resolve at all (honest gap). WHY IT MATTERS: it is a trust signal you must respect — a 'cluster' result is crate showing you what it can SEE in the booking graph, not what it has verified. GOTCHA: surface a 'cluster' result as flagged/unverified, NEVER as canonical truth; do not silently merge a 'cluster' artist with a verified one. A bare 64-hex key always comes back 'cluster' by design (it skips the cc0_artists lookup so a hex address never re-anchors onto a same-name Discogs row).
+             * @example discogs
              * @enum {string|null}
              */
             resolved_via: "discogs" | "cluster" | null;
@@ -1081,6 +1108,10 @@ export interface components {
             rows: {
                 [key: string]: unknown;
             }[];
+            /**
+             * @description An OPAQUE keyset-pagination cursor. To page the full corpus of one Bandcamp source, take the next_cursor from a page and pass it back as ?cursor=<value> on the next request; null means you have reached the last page. WHY IT MATTERS: keyset pagination over a cluster_id-PK source is stable under inserts (unlike offset paging) and is the only way to walk the whole bulk feed. GOTCHA: it is OPAQUE — pass it back verbatim, NEVER construct, decode, or mutate it; a hand-built or stale cursor yields invalid_source_or_cursor (400). It is always a string.
+             * @example a3f9c1e84b2d70f6a3f9c1e84b2d70f6a3f9c1e84b2d70f6a3f9c1e84b2d70f6
+             */
             next_cursor: string | null;
             _meta: {
                 k_anon_floor: number;
@@ -1103,6 +1134,10 @@ export interface components {
         } | {
             /** @enum {string} */
             object: "bandcamp.release_list";
+            /**
+             * @description crate's CANONICAL artist identity — a pe-norm-v1 hex string. The SAME artist across Discogs, MusicBrainz and Bandcamp collapses to ONE cluster_id, so this is the key you store and the key you address every artist surface off of (/artist/{key} takes a 64-hex cluster_id directly). WHY IT MATTERS: it is crate's prime IP — the non-Discogs long-tail join key; discogs_artist_id / mbid are mere leaf coordinates onto it. GOTCHA: it is an OPAQUE string — pass it through verbatim, NEVER numericize, parse, or compare it as a number. null is an HONEST GAP (the name/link couldn't be resolved to a cluster), NOT an error — you still get HTTP 200. A 64-hex cluster_id always resolves at OBSERVED tier (resolved_via:'cluster'), never re-anchored onto a same-name Discogs row.
+             * @example a3f9c1e84b2d70f6a3f9c1e84b2d70f6a3f9c1e84b2d70f6a3f9c1e84b2d70f6
+             */
             cluster_id: string;
             count: number;
             releases: components["schemas"]["BandcampReleaseSummary"][];
@@ -1120,13 +1155,28 @@ export interface components {
                     gives: string;
                 }[];
             };
+            recipes: {
+                task: string;
+                steps: {
+                    call: string;
+                    gives: string;
+                }[];
+            }[];
             resources: {
                 name: string;
                 url: string;
                 /** @enum {string} */
                 auth: "public" | "sync";
+                eli5: string;
                 description: string;
+                example: string;
                 how_to_get_the_key: string | null;
+            }[];
+            errors: {
+                code: string;
+                http_status: number;
+                when: string;
+                fix: string;
             }[];
             links: {
                 openapi: string;
@@ -1138,6 +1188,10 @@ export interface components {
             };
         };
         IdentityResolution: {
+            /**
+             * @description crate's CANONICAL artist identity — a pe-norm-v1 hex string. The SAME artist across Discogs, MusicBrainz and Bandcamp collapses to ONE cluster_id, so this is the key you store and the key you address every artist surface off of (/artist/{key} takes a 64-hex cluster_id directly). WHY IT MATTERS: it is crate's prime IP — the non-Discogs long-tail join key; discogs_artist_id / mbid are mere leaf coordinates onto it. GOTCHA: it is an OPAQUE string — pass it through verbatim, NEVER numericize, parse, or compare it as a number. null is an HONEST GAP (the name/link couldn't be resolved to a cluster), NOT an error — you still get HTTP 200. A 64-hex cluster_id always resolves at OBSERVED tier (resolved_via:'cluster'), never re-anchored onto a same-name Discogs row.
+             * @example a3f9c1e84b2d70f6a3f9c1e84b2d70f6a3f9c1e84b2d70f6a3f9c1e84b2d70f6
+             */
             cluster_id: string | null;
             slug: string | null;
             display: string | null;
@@ -1151,9 +1205,17 @@ export interface components {
                 youtube: string[];
                 website: string[];
             };
-            /** @enum {string|null} */
+            /**
+             * @description The binding TIER — how trustworthy the identity match is. 'discogs' = canonical, Discogs-bound (verified). 'cluster' = OBSERVED/UNVERIFIED identity inferred from the seen booking graph with no Discogs bind. null = the lookup did not resolve at all (honest gap). WHY IT MATTERS: it is a trust signal you must respect — a 'cluster' result is crate showing you what it can SEE in the booking graph, not what it has verified. GOTCHA: surface a 'cluster' result as flagged/unverified, NEVER as canonical truth; do not silently merge a 'cluster' artist with a verified one. A bare 64-hex key always comes back 'cluster' by design (it skips the cc0_artists lookup so a hex address never re-anchors onto a same-name Discogs row).
+             * @example discogs
+             * @enum {string|null}
+             */
             resolved_via: "discogs" | "cluster" | null;
-            /** @enum {string} */
+            /**
+             * @description HOW you addressed the artist on this /resolve call — which input path matched. 'url' = you pasted an artist link (Discogs/MusicBrainz parsed to a clean id, or Bandcamp/SoundCloud/Instagram/etc reverse-matched against the indexed seen.artist_link_index). 'name' = exact case-insensitive ?q= name match. 'locator' = you passed a structured id (?cluster=, ?discogs=, ?mbid=). WHY IT MATTERS: it tells you which branch of the front door produced the answer, so you know how strong the match is (a name match is fuzzier than a locator). GOTCHA: distinct from resolved_via — resolved_from is the INPUT route ('how you asked'), resolved_via is the OUTPUT binding tier ('how good the answer is'). Pair it with `matched_on` (which surface matched) and `note` (why a recognized link didn't resolve).
+             * @example url
+             * @enum {string}
+             */
             resolved_from: "url" | "name" | "locator";
             matched_on?: string;
             note?: string;

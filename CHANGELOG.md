@@ -19,8 +19,9 @@ All notable changes to `@hosaka-fm/crate` are documented here. The format follow
 - New exported types `BandcampLabel` and `BandcampReleaseEconomics`; `BandcampRelease` /
   `BandcampReleaseSummary` now carry `label`, and `BandcampRelease` carries `economics`
   (pricing / download terms) — from crate spec 1.4.0.
-- The README "Client surface" table and the interactive explorer are now generated from the
-  method TSDoc (`npm run docs:build`), drift-guarded in CI.
+- The README "Client surface" table and the interactive explorer are generated from the method
+  TSDoc (`npm run docs:build`); the explorer's "Key concepts" are generated from the spec's
+  `x-concepts` vendor extension (15 entries) — all drift-guarded in CI.
 
 ### Changed
 
@@ -28,10 +29,13 @@ All notable changes to `@hosaka-fm/crate` are documented here. The format follow
   `author` updated accordingly.
 - Publishing target is the **public npm registry** under the `@hosaka-fm` scope (was GitHub
   Packages). Install is a plain `npm install @hosaka-fm/crate`.
-- Regenerated types against the crate spec **1.4.0** — operationIds, a fully-specified `Error`
-  schema, and declared `X-RateLimit-*` response headers. `CRATE_ERROR_CODES` now lists crate's
-  documented machine codes (e.g. `invalid_query`, `master_not_found`, `invalid_locator`); `.code`
-  continues to be taken from the response `error` field (switch on it, never HTTP status).
+- Regenerated types against the crate spec **1.6.0** (the full docs-as-contract arc): 24
+  operationIds, a fully-specified `Error` schema, and declared `X-RateLimit-*` headers (1.4.0);
+  deep field descriptions + examples that now flow into editor hovers / TypeDoc (1.5.0); and
+  `ApiRootIndex` gained `recipes[]` + `errors[]` — the runtime self-teaching index (1.6.0).
+  `CRATE_ERROR_CODES` lists crate's documented machine codes (e.g. `invalid_query`,
+  `master_not_found`); `.code` is taken from the response `error` field (switch on it, never HTTP
+  status). Verified purely additive — no removed/renamed/retyped fields.
 
 ## [0.3.0] - 2026-06-26
 

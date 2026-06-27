@@ -8,6 +8,15 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 const root = new URL('../', import.meta.url);
 const surface = JSON.parse(readFileSync(new URL('meta/surface.json', root), 'utf8'));
+const spec = JSON.parse(readFileSync(new URL('spec/openapi.json', root), 'utf8'));
+
+// Domain concepts come straight from the spec's x-concepts vendor extension (crate-owned,
+// drift-guarded) — the explorer's "Key concepts" section is generated, not hand-written.
+const CONCEPTS = (spec['x-concepts'] || spec.info?.['x-concepts'] || []).map((c) => ({
+  term: c.term,
+  eli5: c.eli5,
+  see: c.see || '',
+}));
 
 // --- explorer/index.html ---
 const METHODS = surface.map((m) => ({
@@ -30,9 +39,24 @@ const EDU = Object.fromEntries(surface.map((m) => [m.call, { eli5: m.desc, worke
 const enc = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
 
 const tpl = readFileSync(new URL('explorer/template.html', root), 'utf8');
-const html = tpl.replace('__METHODS__', () => enc(METHODS)).replace('__EDU__', () => enc(EDU));
-if (html.includes('__METHODS__') || html.includes('__EDU__')) {
+// A MISSING placeholder makes String.replace a silent no-op (would ship a stale section
+// with a clean git status). Assert each is present so a reverted/edited template fails loudly.
+for (const ph of ['__METHODS__', '__EDU__', '__CONCEPTS__']) {
+  if (!tpl.includes(ph)) {
+    console.error(`gen-docs: explorer template is missing the ${ph} placeholder`);
+    process.exit(1);
+  }
+}
+const html = tpl
+  .replace('__METHODS__', () => enc(METHODS))
+  .replace('__EDU__', () => enc(EDU))
+  .replace('__CONCEPTS__', () => enc(CONCEPTS));
+if (html.includes('__METHODS__') || html.includes('__EDU__') || html.includes('__CONCEPTS__')) {
   console.error('gen-docs: explorer template placeholders were not filled');
+  process.exit(1);
+}
+if (!CONCEPTS.length) {
+  console.error('gen-docs: spec x-concepts is empty — concepts section would be blank');
   process.exit(1);
 }
 writeFileSync(new URL('explorer/index.html', root), html);

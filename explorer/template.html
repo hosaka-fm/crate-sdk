@@ -176,6 +176,7 @@
   .concept .term { font-family: var(--mono); font-size: 13px; color: var(--brass); margin-bottom: 6px; }
   .concept p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
   .concept p code { color: var(--text); font-family: var(--mono); font-size: 12px; }
+  .concept .see { margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--faint); line-height: 1.5; }
   .eli5 { background: rgba(224, 162, 60, 0.05); border: 1px solid var(--line); border-radius: 7px; padding: 13px 16px; margin: 2px 0 4px; color: #d6dbe3; font-size: 14px; line-height: 1.62; }
   .eli5-tag { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--brass); opacity: 0.85; margin-bottom: 7px; }
 
@@ -381,14 +382,7 @@
 
       <h3 style="margin:24px 0 12px; font-size:15px;">Key concepts — the catalogue's vocabulary</h3>
       <p style="color:var(--muted); margin:-6px 0 14px; font-size:13.5px; max-width:72ch;">crate isn't a CRUD API — it's an intelligence layer over the world's music metadata. A few ideas unlock everything else, so learn these first.</p>
-      <div class="concepts">
-        <div class="concept"><div class="term">cluster_id</div><p>One artist, many platforms. crate collapses Discogs, MusicBrainz, Bandcamp and socials into a single canonical key — the <code>cluster_id</code>. <code>resolve()</code> turns any messy reference into it; almost everything else is keyed off it.</p></div>
-        <div class="concept"><div class="term">dossier</div><p>Not metadata — a profile. A dossier assembles an artist / master / label / festival from ~24 independent signal facets (emergence, live demand, tastemaker support, journalism…), each one sourced in <code>provenance</code>.</p></div>
-        <div class="concept"><div class="term">honest gaps</div><p>Absence is a real answer. When crate lacks something it returns HTTP 200 with <code>present:false</code> / <code>null</code> / an empty list — surfaced as <code>null</code>, never a faked value or an error. Only 4xx/5xx throw.</p></div>
-        <div class="concept"><div class="term">the cube</div><p>Records (&ldquo;masters&rdquo;) get a taxonomy slot (<code>cube_quadrant</code>) plus collector / DJ / critic reach — the behavioral layer on top of plain discography.</p></div>
-        <div class="concept"><div class="term">tastemakers &amp; breakouts</div><p>Leading indicators, not vanity counts. Find the curators who champion artists <em>early</em>, and the artists breaking out <em>now</em> — corroborated, scored, and tiered.</p></div>
-        <div class="concept"><div class="term">beacons</div><p>It flows both ways. You can report search behavior back (<code>observed</code> / <code>refined</code>) with a per-search JWT, so relevance improves from real usage.</p></div>
-      </div>
+      <div class="concepts" id="concepts"></div>
 
       <h3 style="margin:24px 0 12px; font-size:15px;">Why crate</h3>
       <div class="feat-grid">
@@ -558,6 +552,8 @@ CRATE_ERROR_REGISTRY.api;           // { retryable, clientSide, carries: [...], 
 
   const EDU = __EDU__;
 
+  const CONCEPTS = __CONCEPTS__;
+
   const ERRORS = [
     { kind:'api', cls:'CrateAPIError', retry:'cond', client:false, carries:['status','retryAfter','rateLimit','requestId','details','raw'],
       when:'A non-2xx HTTP response was received.', codes:['bad_request','unauthorized','payment_required','not_found','request_too_large','rate_limited','server_error','api_error'] },
@@ -652,7 +648,7 @@ CRATE_ERROR_REGISTRY.api;           // { retryable, clientSide, carries: [...], 
     { name:'ArtworkItem', kind:'response', desc:'A link-only artwork cover (rehost is always false).',
       fields:[['url','string','hotlink-only CDN URL'],['source',"'bandcamp' | 'coverartarchive' | 'discogs'",''],['grain',"'artist' | 'release'",''],['license','string',''],['rehost','false','crate never re-hosts the bytes']] },
     { name:'ApiRootIndex', kind:'response', desc:'The keyless root from crate.index().',
-      fields:[['object / version',"'api_index' / 'v1'",''],['cold_start','{ problem, steps: { step, call, gives }[] }','a get-started recipe'],['resources','{ name, url, auth, description, how_to_get_the_key }[]','the live resource map'],['links','{ openapi, docs }',''],['types','{ openapi, generate }','']] },
+      fields:[['object / version',"'api_index' / 'v1'",''],['cold_start','{ problem, steps: { step, call, gives }[] }','a get-started recipe'],['resources','{ name, url, auth, description, how_to_get_the_key }[]','the live resource map'],['recipes','{ task, steps }[]','task flows (1.6.0)'],['errors','{ code, http_status, when, fix }[]','runtime error catalogue (1.6.0)'],['links','{ openapi, docs }',''],['types','{ openapi, generate }','']] },
     { name:'UsageResponse', kind:'response', desc:'Your monthly usage + tier.',
       fields:[['tier',"'sync' | 'self_serve_49' | 'self_serve_99' | 'self_serve_299'",''],['month','string',''],['calls_this_month / quota_monthly / remaining_this_month','number',''],['burst_limit_per_minute','number',''],['tier_metadata','{ endpoints_available: string[] }','']] },
     { name:'BreakoutsResponse', kind:'response', desc:'Emerging-artist breakouts.',
@@ -882,6 +878,19 @@ CRATE_ERROR_REGISTRY.api;           // { retryable, clientSide, carries: [...], 
     });
   }
 
+  function renderConcepts() {
+    const wrap = $('#concepts');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    CONCEPTS.forEach((c) => {
+      const card = el('div', 'concept');
+      card.innerHTML =
+        `<div class="term">${esc(c.term)}</div><p>${esc(c.eli5)}</p>` +
+        (c.see ? `<p class="see">see: ${esc(c.see)}</p>` : '');
+      wrap.appendChild(card);
+    });
+  }
+
   // ---------- types ----------
   function renderTypes() {
     const wrap = $('#tylist');
@@ -951,6 +960,7 @@ CRATE_ERROR_REGISTRY.api;           // { retryable, clientSide, carries: [...], 
   buildFilters();
   renderMethods();
   renderErrors();
+  renderConcepts();
   renderTables();
   renderAuth();
   renderTypes();
