@@ -15,91 +15,7 @@ export interface paths {
          * Faceted search across the catalogue
          * @description Faceted search across the catalogue. Requires an X-API-Key (post-cycle-078 wall); crate's own /explore + /crate search call it server-side via the first-party proxy. New params (cube_quadrant, dj_count_min, exclude_artist, exclude_label) added in cycle-001 sprint-1.
          */
-        get: {
-            parameters: {
-                query?: {
-                    q?: string;
-                    genre?: string | string[];
-                    genre_mode?: "and" | "or";
-                    style?: string | string[];
-                    style_mode?: "and" | "or";
-                    format?: string | string[];
-                    format_mode?: "and" | "or";
-                    country?: string | string[];
-                    country_mode?: "and" | "or";
-                    label?: string | string[];
-                    label_mode?: "and" | "or";
-                    year_from?: number;
-                    year_to?: number;
-                    limit?: number;
-                    offset?: number | null;
-                    cube_quadrant?: string | string[];
-                    dj_count_min?: number | null;
-                    exclude_artist?: string | string[];
-                    exclude_label?: string | string[];
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Search results */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SearchResponse"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Request deadline (15s) or query timeout exceeded */
-                504: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["searchCatalogue"];
         put?: never;
         post?: never;
         delete?: never;
@@ -116,100 +32,7 @@ export interface paths {
             cookie?: never;
         };
         /** Single master enrichment */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Master enrichment */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MasterEnrichment"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Authentication failure */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Payment required (past_due customer or suspended key) */
-                402: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Resource not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Request deadline (15s) or query timeout exceeded */
-                504: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["getMaster"];
         put?: never;
         post?: never;
         delete?: never;
@@ -231,104 +54,7 @@ export interface paths {
          * Batch master enrichment (≤100 IDs)
          * @description Counts as ONE request against rate limit (not N). Body size capped at 32 KB.
          */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": {
-                        ids: number[];
-                    };
-                };
-            };
-            responses: {
-                /** @description Batch enrichment results (input-order preserved) */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["BatchResponse"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Authentication failure */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Payment required (past_due customer or suspended key) */
-                402: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Payload too large */
-                413: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Request deadline (15s) or query timeout exceeded */
-                504: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        post: operations["batchMasters"];
         delete?: never;
         options?: never;
         head?: never;
@@ -346,44 +72,7 @@ export interface paths {
          * Cross-grain dossier field manifest (data dictionary)
          * @description cycle-023 — every field crate can expose for every entity grain (master/artist/label) with provenance (producer, source table, refresh cadence, tier, honest-gap state), plus unavailable grains (song — no fleet track key, carrefour#71). The machine-readable Swagger-like overview; read it to discover the full surface without hitting every entity endpoint. Keyed (X-API-Key), pure/static.
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Dossier field manifest */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DossierManifest"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["getDossierManifest"];
         put?: never;
         post?: never;
         delete?: never;
@@ -403,82 +92,7 @@ export interface paths {
          * Full per-master dossier contract (aggregation gateway)
          * @description cycle-020 — the canonical exhaustive dossier: every fleet signal for the master in every state (present/absent/blind/pending honest-gap) plus a provenance manifest (producer, source table, refresh cadence, tier). Keyed (X-API-Key) (same posture as the public /crate/master page). Distinct from /api/v1/masters/{id} (the older basic enrichment).
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Master dossier contract */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MasterDossierContract"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Resource not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Request deadline (15s) or query timeout exceeded */
-                504: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["getMasterDossier"];
         put?: never;
         post?: never;
         delete?: never;
@@ -498,73 +112,7 @@ export interface paths {
          * Full per-artist dossier contract (aggregation gateway)
          * @description cycle-021 — the canonical exhaustive artist dossier: identity (cc0_artists), collector behavior (mirror.artist_signals_v1), editorial/event (seen.artist_dossier), and artist-level "Across the Web" (mirror.master_links_rollup aggregated), each with a classified state, plus a provenance manifest. Keyed (X-API-Key) (matches the public /crate/artist page). An unresolved slug returns identity:null (HTTP 200, honest-gap), not 404.
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    slug: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Artist dossier contract */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ArtistDossierContract"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Request deadline (15s) or query timeout exceeded */
-                504: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["getArtistDossier"];
         put?: never;
         post?: never;
         delete?: never;
@@ -584,73 +132,7 @@ export interface paths {
          * Full per-label dossier contract (aggregation gateway)
          * @description cycle-022 — the canonical label dossier: identity (cc0_labels: name, sublabel→parent lineage, profile, links) + collector behavior (mirror.label_signals_v1: owner_reach/wantlist_demand k-anon, co-ownership, community footprint, travels-with labels), each with a classified state, plus a provenance manifest. Keyed (X-API-Key). Unresolved slug → identity:null (HTTP 200, honest-gap), not 404.
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    slug: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Label dossier contract */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["LabelDossierContract"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Request deadline (15s) or query timeout exceeded */
-                504: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["getLabelDossier"];
         put?: never;
         post?: never;
         delete?: never;
@@ -670,73 +152,7 @@ export interface paths {
          * Full per-festival dossier contract (aggregation gateway)
          * @description cycle-060 — the canonical festival dossier: identity (seen.festival_canonical, the de-fragmented grain: display name, country, inclusion tier, year span, source-mix badges) + the consolidated editions⋈lineup across member festivals (seen.festival_editions/festival_lineup_entries), with a classified state, plus a provenance manifest. The {slug} is the canonical_key. Keyed (X-API-Key). Unresolved key → identity:null (HTTP 200, honest-gap), not 404. Lineup is name-only this cycle.
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    slug: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Festival dossier contract */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["FestivalDossierContract"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Request deadline (15s) or query timeout exceeded */
-                504: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["getFestivalDossier"];
         put?: never;
         post?: never;
         delete?: never;
@@ -756,73 +172,7 @@ export interface paths {
          * Flat Bandcamp feed for one artist — every granted source, verbatim columns
          * @description cycle-064 — the maximally-flexible Bandcamp feed: every crate_reader-granted Bandcamp surface (mirror signals/emergence/identity/signals_mbid/early_supporter_quality/scene/travels_with/self_declared_links/lead_time_authority + seen gravity/tastemaker) returned FLAT and source-tagged with ALL columns verbatim (the consumer reshapes). artistKey = <64-hex cluster_id> | discogs:<int> | mbid:<uuid>. Keyed (X-API-Key). Data is k-anon/public-safe; counts arrive already-floored — do NOT re-floor. Unresolved/sparse → 200 with the relevant sources {present:false}. Malformed key → 400.
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    artistKey: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Flat source-tagged Bandcamp feed */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["BandcampFeedContract"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Request deadline (15s) or query timeout exceeded */
-                504: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["getBandcampArtist"];
         put?: never;
         post?: never;
         delete?: never;
@@ -842,75 +192,7 @@ export interface paths {
          * Bandcamp feed index (no params) + keyset-paginated single-source bulk
          * @description cycle-064/065 — called with NO query params, returns a self-describing MANIFEST (index of everything available: every source + grain/key/k-anon, the per-artist endpoint, and how to paginate) so a keyless consumer can discover the whole surface. With ?source=<name>&cursor=<64hex>&limit=<1..200> (default source=signals_mbid, limit=50) returns keyset-paginated rows of one cluster_id-PK source, all columns verbatim — page the full corpus via next_cursor. Keyed (X-API-Key). Unknown/non-paginable source or malformed cursor → 400.
          */
-        get: {
-            parameters: {
-                query?: {
-                    source?: string;
-                    cursor?: string;
-                    limit?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description One page of a single Bandcamp source */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["BandcampBulkPage"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Request deadline (15s) or query timeout exceeded */
-                504: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["getBandcampFeedIndex"];
         put?: never;
         post?: never;
         delete?: never;
@@ -930,75 +212,7 @@ export interface paths {
          * Per-release Bandcamp dossier (title, date, cover, tracklist, tags, album URL)
          * @description cycle-080 — the Bandcamp release layer, served verbatim from mirror's release-grain VIEWs (bandcamp_release_v1 + bandcamp_release_track_v1, mig 0189) + the per-release cover (bandcamp_artwork_v1). Query ONE of (precedence item → url → cluster): ?item=<bandcamp_item_id> (direct → ONE full dossier with tracks) | ?url=<bandcamp album url> (normalized exact source_url match → ONE dossier) | ?cluster_id=<64-hex> (the artist's releases as a summary LIST, no tracks — discovery; each row carries bandcamp_item_id, fetch ?item= for the full dossier). Honest gaps: per-track DIRECT stream URL is not stored (Bandcamp streams are tokenized/expiring + ToS) — track_url is the track PAGE; label/catalog are not in the crawl. Keyed (X-API-Key); ONE crate_reader checkout; never fetches any URL. Unresolved → 200 present:false / empty releases (honest-gap), NOT 404. Malformed/missing → 400.
          */
-        get: {
-            parameters: {
-                query?: {
-                    item?: string;
-                    url?: string;
-                    cluster_id?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description A single release dossier (item/url) or the artist release list (cluster_id); honest-gap when unresolved */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["BandcampReleaseResponse"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Request deadline (15s) or query timeout exceeded */
-                504: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["getBandcampRelease"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1018,26 +232,7 @@ export interface paths {
          * API root index — start here (cold-start recipe + resource map)
          * @description cycle-072 — a friendly, self-describing root: the cold-start recipe (resolve a name/link → cluster_id → dossier) followed by every product surface with its auth tier + how to get the key. PURE (no DB), edge-cacheable. The human-facing sibling of /api/v1/openapi.json.
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description API root index */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ApiRootIndex"];
-                    };
-                };
-            };
-        };
+        get: operations["getApiIndex"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1057,77 +252,7 @@ export interface paths {
          * Resolve any identifier (name · pasted link · id) → canonical cluster_id
          * @description The cluster-first front door (cycle-069/070/071): converts ANY identifier a caller holds into the canonical cluster_id + a human slug + the full locator set, WITHOUT knowing crate internals. Query ONE of: ?url=<any artist link> (discogs/musicbrainz → clean id; bandcamp/soundcloud/instagram/website/spotify/youtube → reverse-match the indexed seen.artist_link_index; twitter/reddit recognized but not yet cross-referenced → honest note + name fallback) | ?q=<artist name> (exact case-insensitive) | ?cluster=<64-hex> | ?discogs=<int> | ?mbid=<uuid>. On a resolved cluster, locators returns the full public profile-link set per platform (cycle-079, link-only forward read). resolved_from tells you how it matched ('url'|'name'|'locator'), matched_on which surface, note explains an unresolved recognized link. resolved_via = best binding tier ('discogs' verified, else 'cluster' observed, else null). Keyed (X-API-Key); ONE crate_reader checkout; never fetches the pasted URL. Unresolved → 200 with nulls (honest-gap), not 404. Malformed/missing → 400.
          */
-        get: {
-            parameters: {
-                query?: {
-                    url?: string;
-                    q?: string;
-                    cluster?: string;
-                    discogs?: string;
-                    mbid?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Resolved identity (or nulls when unresolved) */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["IdentityResolution"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Request deadline (15s) or query timeout exceeded */
-                504: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["resolveIdentity"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1147,73 +272,7 @@ export interface paths {
          * Cluster-first canonical artist dossier (cluster_id hex OR slug)
          * @description cycle-069 (API v2 P1) — the same exhaustive artist dossier as /dossier/artist/{slug}, addressed by the canonical cluster_id (64-hex, prime key) OR a human slug. A 64-hex key resolves identity DIRECTLY from the cluster_id (OBSERVED tier), skipping the cc0_artists lookup so a hex entry never re-anchors onto a same-name Discogs row → resolved_via is always 'cluster'. A slug resolves via the name path (resolved_via 'discogs' or 'cluster'). discogs:/mbid: locators are not a canonical address — convert them via /api/v1/resolve first (→ 400 here). Keyed (X-API-Key); unresolved → 200 identity:null (honest-gap), not 404. /dossier/artist/{slug} remains a live alias.
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    key: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Artist dossier contract (same shape as /dossier/artist/{slug}) */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ArtistDossierContract"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Request deadline (15s) or query timeout exceeded */
-                504: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["getArtistByKey"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1233,73 +292,7 @@ export interface paths {
          * Tastemaker leaderboard + ones-to-watch (machine-readable)
          * @description cycle-048 E1 — crate's richest artist-grain analytics (rank, ownTier, brokerageScore, corroborating axes, lead-times, Bandcamp demand), the SAME derived data the public /crate/tastemakers page renders. Read from the offline-published S3 snapshot (NO DB checkout). Keyed (X-API-Key). Fail-soft: `state` is `present` (rows), `empty` (derived data present but no rows), or `degraded` (derived data absent/unreadable) — degraded returns HTTP 200 honest-gap, never a 500. `stale=true` flags a snapshot older than 7 days. `?limit=` bounds each array (1..200).
          */
-        get: {
-            parameters: {
-                query?: {
-                    limit?: number;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Tastemaker leaderboard + ones-to-watch (or honest-gap state) */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["TastemakersResponse"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Request deadline (15s) or query timeout exceeded */
-                504: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["getTastemakers"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1319,73 +312,7 @@ export interface paths {
          * Ones-to-watch rising artists (machine-readable slice)
          * @description cycle-048 E1 — the ones-to-watch slice on its own surface (mirrors the /crate/tastemakers page section): rising/breakout artists with emergence + momentum tiers, five-factor score, corroborating axes, and Bandcamp demand. Same derived S3 read as /api/v1/tastemakers, NO DB checkout. Keyed (X-API-Key), fail-soft (degraded → HTTP 200). `?limit=` bounds the array (1..200).
          */
-        get: {
-            parameters: {
-                query?: {
-                    limit?: number;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Ones-to-watch rows (or honest-gap state) */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["OnesToWatchResponse"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Request deadline (15s) or query timeout exceeded */
-                504: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["getOnesToWatch"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1405,75 +332,7 @@ export interface paths {
          * Breakouts index — emerging artists (machine-readable)
          * @description cycle-048 E2 — the breakouts index (booking-momentum "ones to watch" from seen.artist_emergence, cross-validated against ridden press): the SAME single-checkout read the public /crate/breakouts explorer renders. Keyed (X-API-Key). Fail-soft: `state` is `present`/`empty`/`degraded` — a read failure returns HTTP 200 honest-gap, never a 500. `?limit=` is clamped to 200 (never an unbounded scan). `?tier=breakout|rising` and `?corroboration=corroborated|booking_ahead` filter the returned list (unknown values are ignored).
          */
-        get: {
-            parameters: {
-                query?: {
-                    limit?: number;
-                    tier?: "breakout" | "rising";
-                    corroboration?: "corroborated" | "booking_ahead";
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Breakouts index items (or honest-gap state) */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["BreakoutsResponse"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Request deadline (15s) or query timeout exceeded */
-                504: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["getBreakouts"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1493,95 +352,7 @@ export interface paths {
          * Precomputed facet snapshot
          * @description Returns the same shape as `SearchResponse.facets`, narrowed by optional genre/style/country/year_from/year_to. format/label are NOT supported (see SDD §888).
          */
-        get: {
-            parameters: {
-                query?: {
-                    genre?: string | string[];
-                    style?: string | string[];
-                    country?: string | string[];
-                    year_from?: number;
-                    year_to?: number;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Facet counts */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["FacetCounts"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Authentication failure */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Payment required (past_due customer or suspended key) */
-                402: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Request deadline (15s) or query timeout exceeded */
-                504: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["getFacets"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1598,62 +369,7 @@ export interface paths {
             cookie?: never;
         };
         /** Per-customer monthly usage snapshot */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Usage snapshot */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["UsageResponse"];
-                    };
-                };
-                /** @description Authentication failure */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Payment required (past_due customer or suspended key) */
-                402: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["getUsage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1675,84 +391,7 @@ export interface paths {
          * Natural-language answer over the catalogue
          * @description cycle-003 — synthesizes a natural-language answer plus supporting catalogue results for a free-text question. Requires an X-API-Key (post-cycle-078 wall); crate's own /crate NL box reaches it server-side via the first-party proxy. A payment-blocked customer (past_due/suspended) receives 402. On synthesis/Redis trouble it returns a degraded 200 fallback rather than failing; a hard cost-breaker outage returns 503. (WAF rate rules + a cost-breaker still bound traffic at the edge.)
          */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["WayfindAnswerRequest"];
-                };
-            };
-            responses: {
-                /** @description Synthesized answer (or degraded fallback) + supporting results */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["WayfindAnswerResponse"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Authentication failure */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Payment required (past_due customer or suspended key) */
-                402: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Internal server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        post: operations["wayfindAnswer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1772,75 +411,7 @@ export interface paths {
          * Interpret a natural-language query into structured search params
          * @description cycle-003 — parses a free-text query into structured facets/intent. Authenticated AND Sync-tier-only (mirrors the /search?nl=true tier gate); a non-Sync key receives an explicit 401 `tier_not_eligible`.
          */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["WayfindInterpretRequest"];
-                };
-            };
-            responses: {
-                /** @description Structured interpretation (or degraded:null block) */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["WayfindInterpretResponse"];
-                    };
-                };
-                /** @description Validation failure (invalid query, malformed body, bad facet name) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Authentication failure */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Payment required (past_due customer or suspended key) */
-                402: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RateLimited"];
-                    };
-                };
-                /** @description Database pool exhausted — retry after 5s */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        post: operations["wayfindInterpret"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1860,55 +431,7 @@ export interface paths {
          * Beacon: a search result was observed (cache-hit telemetry)
          * @description cycle-002 — client beacon reporting that a search result was observed from cache. Authenticated with the per-search beacon JWT (Authorization: Bearer), NOT the X-API-Key. Body ≤512 bytes; idempotent (duplicate beacons are no-ops). The beacon token MUST match the body search_event_id.
          */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["ObservedBeaconRequest"];
-                };
-            };
-            responses: {
-                /** @description Beacon accepted (idempotent no-op on duplicate) */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Validation failure — `invalid_json`, `invalid_payload` (with `details` = Zod flattened error object), or `timestamp_skew` (with `skew_ms`) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["BeaconError"];
-                    };
-                };
-                /** @description Beacon-token failure — `missing_token`, `invalid_token`, or `token_search_event_mismatch` */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["BeaconError"];
-                    };
-                };
-                /** @description Payload too large (>512 bytes) */
-                413: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["BeaconError"];
-                    };
-                };
-            };
-        };
+        post: operations["recordObservedBeacon"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1928,55 +451,7 @@ export interface paths {
          * Beacon: a search was refined (facet-change telemetry)
          * @description cycle-002 — client beacon reporting facet changes that refined a prior search (≤10 changed facets). Authenticated with the per-search beacon JWT (Authorization: Bearer), NOT the X-API-Key. Body ≤512 bytes; idempotent. The beacon token MUST match the body search_event_id.
          */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["RefinedBeaconRequest"];
-                };
-            };
-            responses: {
-                /** @description Beacon accepted (idempotent no-op on duplicate) */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Validation failure — `invalid_json`, `invalid_payload` (with `details` = Zod flattened error object), or `timestamp_skew` (with `skew_ms`) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["BeaconError"];
-                    };
-                };
-                /** @description Beacon-token failure — `missing_token`, `invalid_token`, or `token_search_event_mismatch` */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["BeaconError"];
-                    };
-                };
-                /** @description Payload too large (>512 bytes) */
-                413: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["BeaconError"];
-                    };
-                };
-            };
-        };
+        post: operations["recordRefinedBeacon"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1994,28 +469,7 @@ export interface paths {
          * OpenAPI 3.1 specification (this document)
          * @description Public endpoint, no auth required.
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OpenAPI 3.1 spec */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            [key: string]: unknown;
-                        };
-                    };
-                };
-            };
-        };
+        get: operations["getOpenApiSpec"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2028,16 +482,42 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description The error envelope for all 4xx/5xx responses. `error` is the only guaranteed field — branch on it, never on HTTP status alone. An unresolved/empty lookup is NOT an error: it returns HTTP 200 with `present:false` / a null field / `state:"honest_gap"`.
+         *
+         *     | code | HTTP | when thrown | fix |
+         *     |---|---|---|---|
+         *     | `invalid_artist_key` | 400 | `/artist/{key}` key is not a 64-hex cluster_id, `discogs:<id>`, or `mbid:<uuid>` | resolve by name first: `GET /api/v1/resolve?q=<name>`, then call `/artist/{cluster_id}` |
+         *     | `use_resolve_for_locator` | 400 | `/artist/{key}` given a `discogs:`/`mbid:` locator (not a canonical address) | `GET /api/v1/resolve?discogs=<id>` (or `?mbid=`), then use the returned cluster_id |
+         *     | `missing_locator` | 400 | `/resolve` called with none of q/cluster/discogs/mbid (or `/bandcamp/release` with none of item/url/cluster_id) | pass exactly one locator |
+         *     | `invalid_locator` | 400 | a `/resolve` (or `/bandcamp/release`) locator is malformed for its type | fix the format, or fall back to `?q=<name>` |
+         *     | `invalid_source_or_cursor` | 400 | `/bandcamp` given an unknown/non-paginable `?source=` or a bad `?cursor=` | `GET /api/v1/bandcamp` (no params) for the manifest; pass `next_cursor` back verbatim |
+         *     | `invalid_query` | 400 | `/search` `?q=` missing/empty, or any Zod validation failure (`details[]` attached) | pass `?q=<text>`; fix each `details` entry |
+         *     | `invalid_facet` | 400 | an unknown facet filter name was supplied | `GET /api/v1/facets` for valid names + values |
+         *     | `master_not_found` | 404 | `/dossier/master/{id}` or `/masters/{id}` given an unknown master id | verify the id (e.g. via `GET /api/v1/search`) |
+         *     | `rate_limited` | 429 | an IP/key/tier rate or concurrency cap was exceeded (`retry_after_seconds` + `Retry-After` + `X-RateLimit-*` set) | back off `retry_after_seconds`, then retry; batch via `POST /api/v1/masters/batch` (≤100 ids = 1 request) |
+         */
         Error: {
-            /** @example invalid_query */
+            /**
+             * @description Machine-readable error code (stable lowercase snake_case). The ONLY field guaranteed on every error body — switch on it programmatically, never on HTTP status alone (several codes share a status). See the code table in this schema's description.
+             * @example invalid_query
+             */
             error: string;
+            /** @description One-sentence human-readable statement of WHAT is wrong (developer-facing). Present only for catalogued codes. Describes the violated rule — not a fix (see hint/next). */
             message?: string;
+            /** @description Actionable remediation in human terms — what to DO next, often naming the exact endpoint (a template with <placeholders>). The human counterpart to the machine-actionable `next`. */
             hint?: string;
+            /** @description Deep link to this code's docs: https://crate.0xhoneyjar.xyz/docs/api#error-<code>. Auto-populated for catalogued codes. */
             doc_url?: string;
+            /** @description The specific request parameter that caused the failure (e.g. "key", "q"), so a client can point at the offending input. Present only when the code declares one. */
             param?: string;
+            /** @description A copy-pasteable, fully-formed corrected call (a concrete URL, NOT a template) an agent can fire verbatim to recover — the machine-actionable counterpart to `hint`. Present only when a handler supplies one. */
             next?: string;
+            /** @description Structured validation breakdown — on Zod 400s (invalid_query), an array of { path, message }, one per failed field. Present only when validation specifics are attached. */
             details?: unknown[];
+            /** @description On a 429 rate_limited response, seconds to wait before retrying (mirrors the Retry-After header). Sleep at least this long, then re-issue the identical request. */
             retry_after_seconds?: number;
+            /** @description Echoed on master_not_found (404) — the master id that did not resolve. */
             master_id?: number;
         };
         RateLimited: {
@@ -2046,10 +526,10 @@ export interface components {
             retry_after_seconds: number;
         };
         ArtworkItem: {
-            /** @description Hotlink-only artwork URL: a Bandcamp CDN string, a verbatim Discogs catalogue cover URL, or a deterministic Cover Art Archive release-group URL. crate never fetches or re-hosts the bytes; a CAA url is best-effort and may 404 if no cover exists. */
+            /** @description Hotlink-only artwork URL: a Bandcamp CDN string, or a deterministic Cover Art Archive release-group URL. crate never fetches or re-hosts the bytes; a CAA url is best-effort and may 404 if no cover exists. */
             url: string;
             /** @enum {string} */
-            source: "bandcamp" | "coverartarchive" | "discogs";
+            source: "bandcamp" | "coverartarchive";
             /** @enum {string} */
             grain: "artist" | "release";
             license: string;
@@ -2160,6 +640,32 @@ export interface components {
             details?: unknown;
             skew_ms?: number;
         };
+        BandcampLabel: {
+            name: string | null;
+            url: string | null;
+        };
+        BandcampReleaseEconomics: {
+            minimum_price: number | null;
+            set_price: number | null;
+            is_set_price: boolean | null;
+            default_price: number | null;
+            currency: string | null;
+            /** @description Bandcamp enum: 1 = free, 2 = name-your-price / paid. */
+            download_pref: number | null;
+            free_download: boolean | null;
+            require_email: boolean | null;
+            /** @description The artist's own release description. */
+            about: string | null;
+            /** @description The artist's own credits text. */
+            credits: string | null;
+            /** @description Barcode (closest thing Bandcamp has to a catalogue number). */
+            upc: string | null;
+            is_preorder: boolean | null;
+            preorder_count: number | null;
+            publish_date: string | null;
+            /** @description Raw physical-format / edition jsonb (verbatim). */
+            packages?: unknown;
+        };
         BandcampRelease: {
             /** @description Bandcamp release id (bigint → string). */
             bandcamp_item_id: string;
@@ -2174,6 +680,7 @@ export interface components {
             source_url: string | null;
             /** @description Per-release genre/mood/location tags (Bandcamp keywords). */
             tags: string[];
+            label: components["schemas"]["BandcampLabel"] & (Record<string, never> | null);
             /** @description Link-only cover art (source: bandcamp, grain: release). */
             artwork: components["schemas"]["ArtworkItem"][];
             tracks: {
@@ -2185,6 +692,7 @@ export interface components {
                 /** @description The Bandcamp track PAGE url — NOT a direct audio stream (Bandcamp streams are tokenized/expiring and are not stored). */
                 track_url: string | null;
             }[];
+            economics: components["schemas"]["BandcampReleaseEconomics"] & (Record<string, never> | null);
         };
         BandcampReleaseSummary: {
             bandcamp_item_id: string;
@@ -2193,6 +701,7 @@ export interface components {
             release_date: string | null;
             source_url: string | null;
             tags: string[];
+            label: components["schemas"]["BandcampLabel"] & (Record<string, never> | null);
         };
         DossierManifest: {
             contract_version: string;
@@ -2783,4 +1292,1707 @@ export interface components {
     pathItems: never;
 }
 export type $defs = Record<string, never>;
-export type operations = Record<string, never>;
+export interface operations {
+    searchCatalogue: {
+        parameters: {
+            query?: {
+                q?: string;
+                genre?: string | string[];
+                genre_mode?: "and" | "or";
+                style?: string | string[];
+                style_mode?: "and" | "or";
+                format?: string | string[];
+                format_mode?: "and" | "or";
+                country?: string | string[];
+                country_mode?: "and" | "or";
+                label?: string | string[];
+                label_mode?: "and" | "or";
+                year_from?: number;
+                year_to?: number;
+                limit?: number;
+                offset?: number | null;
+                cube_quadrant?: string | string[];
+                dj_count_min?: number | null;
+                exclude_artist?: string | string[];
+                exclude_label?: string | string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Search results */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResponse"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getMaster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Master enrichment */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MasterEnrichment"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication failure */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Payment required (past_due customer or suspended key) */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    batchMasters: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    ids: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Batch enrichment results (input-order preserved) */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchResponse"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication failure */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Payment required (past_due customer or suspended key) */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Payload too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getDossierManifest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dossier field manifest */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DossierManifest"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getMasterDossier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Master dossier contract */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MasterDossierContract"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getArtistDossier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Artist dossier contract */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtistDossierContract"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getLabelDossier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Label dossier contract */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelDossierContract"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getFestivalDossier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Festival dossier contract */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FestivalDossierContract"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getBandcampArtist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                artistKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Flat source-tagged Bandcamp feed */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BandcampFeedContract"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getBandcampFeedIndex: {
+        parameters: {
+            query?: {
+                source?: string;
+                cursor?: string;
+                limit?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of a single Bandcamp source */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BandcampBulkPage"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getBandcampRelease: {
+        parameters: {
+            query?: {
+                item?: string;
+                url?: string;
+                cluster_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A single release dossier (item/url) or the artist release list (cluster_id); honest-gap when unresolved */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BandcampReleaseResponse"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getApiIndex: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description API root index */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiRootIndex"];
+                };
+            };
+        };
+    };
+    resolveIdentity: {
+        parameters: {
+            query?: {
+                url?: string;
+                q?: string;
+                cluster?: string;
+                discogs?: string;
+                mbid?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resolved identity (or nulls when unresolved) */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentityResolution"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getArtistByKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Artist dossier contract (same shape as /dossier/artist/{slug}) */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtistDossierContract"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getTastemakers: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tastemaker leaderboard + ones-to-watch (or honest-gap state) */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TastemakersResponse"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getOnesToWatch: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ones-to-watch rows (or honest-gap state) */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnesToWatchResponse"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getBreakouts: {
+        parameters: {
+            query?: {
+                limit?: number;
+                tier?: "breakout" | "rising";
+                corroboration?: "corroborated" | "booking_ahead";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Breakouts index items (or honest-gap state) */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BreakoutsResponse"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getFacets: {
+        parameters: {
+            query?: {
+                genre?: string | string[];
+                style?: string | string[];
+                country?: string | string[];
+                year_from?: number;
+                year_to?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Facet counts */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FacetCounts"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication failure */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Payment required (past_due customer or suspended key) */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getUsage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Usage snapshot */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageResponse"];
+                };
+            };
+            /** @description Authentication failure */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Payment required (past_due customer or suspended key) */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    wayfindAnswer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["WayfindAnswerRequest"];
+            };
+        };
+        responses: {
+            /** @description Synthesized answer (or degraded fallback) + supporting results */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WayfindAnswerResponse"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication failure */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Payment required (past_due customer or suspended key) */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    wayfindInterpret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["WayfindInterpretRequest"];
+            };
+        };
+        responses: {
+            /** @description Structured interpretation (or degraded:null block) */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WayfindInterpretResponse"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication failure */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Payment required (past_due customer or suspended key) */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    recordObservedBeacon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ObservedBeaconRequest"];
+            };
+        };
+        responses: {
+            /** @description Beacon accepted (idempotent no-op on duplicate) */
+            204: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation failure — `invalid_json`, `invalid_payload` (with `details` = Zod flattened error object), or `timestamp_skew` (with `skew_ms`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeaconError"];
+                };
+            };
+            /** @description Beacon-token failure — `missing_token`, `invalid_token`, or `token_search_event_mismatch` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeaconError"];
+                };
+            };
+            /** @description Payload too large (>512 bytes) */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeaconError"];
+                };
+            };
+        };
+    };
+    recordRefinedBeacon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RefinedBeaconRequest"];
+            };
+        };
+        responses: {
+            /** @description Beacon accepted (idempotent no-op on duplicate) */
+            204: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation failure — `invalid_json`, `invalid_payload` (with `details` = Zod flattened error object), or `timestamp_skew` (with `skew_ms`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeaconError"];
+                };
+            };
+            /** @description Beacon-token failure — `missing_token`, `invalid_token`, or `token_search_event_mismatch` */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeaconError"];
+                };
+            };
+            /** @description Payload too large (>512 bytes) */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeaconError"];
+                };
+            };
+        };
+    };
+    getOpenApiSpec: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OpenAPI 3.1 spec */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+}

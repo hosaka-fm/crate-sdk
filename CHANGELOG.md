@@ -16,6 +16,11 @@ All notable changes to `@hosaka-fm/crate` are documented here. The format follow
   ai-agents, recipes, configuration), runnable `examples/` (quickstart, pagination,
   error-handling, cancellation, discovery), and agent-first entrypoints (`AGENTS.md`, `llms.txt`).
 - npm package metadata: `keywords`, `homepage`, `bugs`; `CHANGELOG.md` now ships in the tarball.
+- New exported types `BandcampLabel` and `BandcampReleaseEconomics`; `BandcampRelease` /
+  `BandcampReleaseSummary` now carry `label`, and `BandcampRelease` carries `economics`
+  (pricing / download terms) — from crate spec 1.4.0.
+- The README "Client surface" table and the interactive explorer are now generated from the
+  method TSDoc (`npm run docs:build`), drift-guarded in CI.
 
 ### Changed
 
@@ -23,6 +28,10 @@ All notable changes to `@hosaka-fm/crate` are documented here. The format follow
   `author` updated accordingly.
 - Publishing target is the **public npm registry** under the `@hosaka-fm` scope (was GitHub
   Packages). Install is a plain `npm install @hosaka-fm/crate`.
+- Regenerated types against the crate spec **1.4.0** — operationIds, a fully-specified `Error`
+  schema, and declared `X-RateLimit-*` response headers. `CRATE_ERROR_CODES` now lists crate's
+  documented machine codes (e.g. `invalid_query`, `master_not_found`, `invalid_locator`); `.code`
+  continues to be taken from the response `error` field (switch on it, never HTTP status).
 
 ## [0.3.0] - 2026-06-26
 

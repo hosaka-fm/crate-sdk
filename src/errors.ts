@@ -25,13 +25,22 @@ export type CrateErrorKind = (typeof CRATE_ERROR_KINDS)[number];
 
 /** Known `.code` values. The field is `CrateErrorCode` so novel future server codes still type-check. */
 export const CRATE_ERROR_CODES = [
-  // server-sourced (mapped from HTTP status / body `error`)
+  // server-sourced — the machine `error` codes crate documents (spec 1.4.0); switch on these.
+  'invalid_artist_key',
+  'use_resolve_for_locator',
+  'missing_locator',
+  'invalid_locator',
+  'invalid_source_or_cursor',
+  'invalid_query',
+  'invalid_facet',
+  'master_not_found',
+  'rate_limited',
+  // SDK status fallbacks — synthesized only when an error body carries no `error` field.
   'bad_request',
   'unauthorized',
   'payment_required',
   'not_found',
   'request_too_large',
-  'rate_limited',
   'server_error',
   'api_error',
   // client-minted (the SDK authored the failure)

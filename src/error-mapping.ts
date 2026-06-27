@@ -1,8 +1,10 @@
 // Map a non-2xx HTTP response to a CrateAPIError (SDD §7). Reason phrases come
 // from a table (never trust Response.statusText — empty over HTTP/2 + Cloudflare).
-// Teaching fields (hint/doc_url/next/param) are read DEFENSIVELY: the published
-// Error schema doesn't declare them, but the schema is open and the API owner
-// emits them at runtime, so we surface them only when present + correctly typed.
+// `.code` is the body's `error` field — the stable machine code crate guarantees on
+// every error body; switch on it, never on HTTP status (a status-derived code is only
+// a fallback when a body omits `error`). The teaching fields (message/hint/doc_url/
+// next/param/details/retry_after_seconds/master_id) are declared by the Error schema
+// (spec 1.4.0); we still read them DEFENSIVELY so a malformed body can never throw here.
 import { CrateAPIError, type CrateErrorCode, type RateLimitInfo } from './errors';
 import { isRetryableStatus } from './retry';
 

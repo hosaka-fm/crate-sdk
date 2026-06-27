@@ -1,8 +1,9 @@
 // Public, contract-faithful type re-exports off the generated OpenAPI module.
 // Every public method's request AND return type is nameable from the package
-// (SDD §2). The generated `operations` object is empty (the spec has no
-// operationIds), so these alias `components['schemas']` directly; query-param
-// input types are hand-authored in their owning modules (SDD §3.5).
+// (SDD §2). The spec carries operationIds (since 1.4.0), but we alias
+// `components['schemas']` directly by choice — the schema names are the stable,
+// consumer-facing contract; query-param input types are hand-authored in their
+// owning modules (SDD §3.5).
 import type { components } from './generated/crate-api';
 
 type Schemas = components['schemas'];
@@ -23,6 +24,10 @@ export type BandcampRelease = Schemas['BandcampRelease'];
 export type BandcampReleaseSummary = Schemas['BandcampReleaseSummary'];
 /** The discriminated-union response of `GET /bandcamp/release` (object: bandcamp.release | bandcamp.release_list). */
 export type BandcampReleaseResponse = Schemas['BandcampReleaseResponse'];
+/** A Bandcamp label reference (`{ name, url }`) on a release/summary (spec 1.4.0). */
+export type BandcampLabel = Schemas['BandcampLabel'];
+/** Per-release Bandcamp pricing/economics (spec 1.4.0) — present on `BandcampRelease.economics`. */
+export type BandcampReleaseEconomics = Schemas['BandcampReleaseEconomics'];
 /** A link-only artwork cover (`rehost` always false). `source` includes 'discogs'. */
 export type ArtworkItem = Schemas['ArtworkItem'];
 export type SearchResponse = Schemas['SearchResponse'];
