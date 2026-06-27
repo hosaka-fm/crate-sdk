@@ -79,58 +79,222 @@ export interface RequestOptions {
 export type ObservedBeaconInput = Omit<ObservedBeaconRequest, 'timestamp'> & { timestamp?: string };
 export type RefinedBeaconInput = Omit<RefinedBeaconRequest, 'timestamp'> & { timestamp?: string };
 
-/** `crate.bandcamp` — callable (per-artist feed) with bulk pagination helpers. */
+/**
+ * `crate.bandcamp` — a callable namespace. Bandcamp carries underground signal the
+ * major databases miss. Call it with an artist key for that artist's Bandcamp feed,
+ * or use the helpers to sweep crate's platform-wide feed of release signals.
+ */
 export interface BandcampApi {
-  /** Per-artist Bandcamp feed. `artistKey` = cluster_id / `discogs:<id>` / `mbid:<uuid>`. */
+  /**
+   * The per-artist Bandcamp feed — the bridge from an identity to its Bandcamp
+   * footprint. `artistKey` is a cluster_id, `discogs:<id>`, or `mbid:<uuid>`.
+   * @example
+   * ```ts
+   * const feed = await crate.bandcamp('discogs:1234');
+   * ```
+   */
   (artistKey: string, opts?: RequestOptions): Promise<BandcampFeedContract>;
-  /** One keyset page over a source. */
+  /**
+   * One keyset page of crate's platform-wide Bandcamp signal feed (the whole feed,
+   * not one artist). Each page returns an opaque `next_cursor` you persist to resume —
+   * use this when you manage paging yourself across runs or processes.
+   * @example
+   * ```ts
+   * const page = await crate.bandcamp.bulk({ source: 'signals_mbid' });
+   * // → page.rows: Record<string, unknown>[]; page.next_cursor: 'eyJ…' | null
+   * ```
+   */
   bulk(params?: BandcampBulkParams, opts?: RequestOptions): Promise<BandcampBulkPage>;
-  /** Auto-paginating async iterable (rows by default; `.pages()` for `_meta`). */
+  /**
+   * The same feed, paged for you: an async iterable that follows cursors automatically
+   * until the feed ends. Yields rows by default; call `.pages()` for whole pages (with
+   * `_meta`), and cap the sweep with `maxPages`.
+   * @example
+   * ```ts
+   * for await (const row of crate.bandcamp.bulkAll({ source: 'signals_mbid', maxPages: 5 })) {
+   *   ingest(row);
+   * }
+   * ```
+   */
   bulkAll(params?: BandcampBulkParams, opts?: RequestOptions): BulkIterable;
-  /** The no-param bandcamp index/manifest (discover valid `source` names). */
+  /**
+   * The no-arg Bandcamp index — discover the valid `source` names for `bulk()` /
+   * `bulkAll()` rather than guessing the string.
+   * @example
+   * ```ts
+   * const idx = await crate.bandcamp.index();
+   * ```
+   */
   index(opts?: RequestOptions): Promise<BandcampBulkPage>;
   /**
-   * Per-release Bandcamp dossier (incl. tracklist) by item id or album URL.
-   * Returns `null` on the honest gap (HTTP 200 `present: false`) — not an error.
+   * Zoom into one Bandcamp album and get its dossier, including the full tracklist, by
+   * opaque item id or album URL. Returns `null` on the honest gap (HTTP 200
+   * `present: false`) — not an error. `track.track_url` is the track PAGE, never a
+   * playable stream (those are tokenised/ToS-bound); artwork is link-only.
+   * @example
+   * ```ts
+   * const r = await crate.bandcamp.release({ item: '1234567890' });
+   * if (r) for (const t of r.tracks) console.log(t.track_num, t.title, t.duration_s);
+   * // r === null → honest gap, not an error
+   * ```
    */
   release(
     query: { item: string } | { url: string },
     opts?: RequestOptions,
   ): Promise<BandcampRelease | null>;
-  /** All releases for an artist `cluster_id` (summary rows, no tracklists). */
+  /**
+   * All of an artist's Bandcamp releases for a `cluster_id` (usually from `resolve()`)
+   * as lightweight summary rows — no tracklists. List a discography fast, then
+   * `release()` into the one you want.
+   * @example
+   * ```ts
+   * const releases = await crate.bandcamp.releases({ clusterId });
+   * ```
+   */
   releases(query: { clusterId: string }, opts?: RequestOptions): Promise<BandcampReleaseSummary[]>;
 }
 
-/** `crate.tastemakers` — callable (leaderboard) with the ones-to-watch slice. */
+/**
+ * `crate.tastemakers` — a callable namespace. Not every listener is equal: some DJs and
+ * curators consistently champion artists before they break. Call it for the full
+ * leaderboard, or use `.onesToWatch()` for just the up-and-comers.
+ */
 export interface TastemakersApi {
+  /**
+   * The tastemaker leaderboard — early-moving curators/DJs ranked, with ones-to-watch
+   * and early-spinner slices. Leading indicators, not vanity counts.
+   * @example
+   * ```ts
+   * const t = await crate.tastemakers();
+   * t.leaderboard.forEach((x) => console.log(x.rank, x.name, x.ownTier));
+   * ```
+   */
   (opts?: RequestOptions): Promise<TastemakersResponse>;
+  /**
+   * Just the 'ones to watch' slice — rising names with emergence and momentum tiers.
+   * @example
+   * ```ts
+   * const w = await crate.tastemakers.onesToWatch();
+   * ```
+   */
   onesToWatch(opts?: RequestOptions): Promise<OnesToWatchResponse>;
 }
 
-/** `crate.wayfind` — callable (NL answer) with the key-gated interpret. */
+/**
+ * `crate.wayfind` — a callable namespace for natural-language access to the catalogue.
+ * Call it to get an answer; use `.interpret()` to get structured search params back.
+ */
 export interface WayfindApi {
+  /**
+   * Ask the catalogue a question in plain English and get an answer — the NL front
+   * door, handy when wiring crate into a chat or an agent.
+   * @example
+   * ```ts
+   * const a = await crate.wayfind('breakout dub techno artists from 2023');
+   * ```
+   */
   (question: string, opts?: RequestOptions): Promise<WayfindAnswerResponse>;
-  /** Key-gated. Interpret a query into structured params. @throws CrateValidationError (`api_key_required`) without an apiKey. */
+  /**
+   * The 'show your work' twin of `wayfind()`: returns the structured search params it
+   * understood from your text, ready to hand to {@link Crate.search}. **Key-gated.**
+   * @example
+   * ```ts
+   * const params = await crate.wayfind.interpret('ambient from japan, 90s');
+   * ```
+   * @throws {CrateValidationError} `api_key_required` without an apiKey.
+   */
   interpret(q: string, opts?: RequestOptions): Promise<WayfindInterpretResponse>;
 }
 
-/** `crate.dossier.*` — per-grain dossier contracts. */
+/**
+ * `crate.dossier.*` — the full, contract-versioned dossier grains. A dossier isn't
+ * metadata; it's a profile assembled from many independent signal facets, each one
+ * sourced in `provenance`, with honest-gap `state` per section.
+ */
 export interface DossierApi {
+  /**
+   * The full master (record) dossier — richer than {@link Crate.master}'s flat
+   * enrichment: a structured header, per-field sections, artwork, freshness, provenance.
+   * @example
+   * ```ts
+   * const d = await crate.dossier.master(1234567);
+   * ```
+   */
   master(id: number, opts?: RequestOptions): Promise<MasterDossierContract>;
+  /**
+   * The deepest grain crate offers: an artist profile from ~24 independent facets
+   * (emergence, live demand, tastemaker support, journalism, network position…), each
+   * section present-with-signals or honestly marked absent. crate's flagship.
+   * @example
+   * ```ts
+   * const d = await crate.dossier.artist('four-tet');
+   * // → d.emergence.signals?.emergenceTier, d.live_demand.signals?.demandTier, …
+   * ```
+   */
   artist(slug: string, opts?: RequestOptions): Promise<ArtistDossierContract>;
+  /**
+   * The label-grain dossier by slug.
+   * @example
+   * ```ts
+   * const d = await crate.dossier.label('warp-records');
+   * ```
+   */
   label(slug: string, opts?: RequestOptions): Promise<LabelDossierContract>;
+  /**
+   * The festival-grain dossier by slug (identity + lineup signals) — useful for tying
+   * artists to the events that book them.
+   * @example
+   * ```ts
+   * const d = await crate.dossier.festival('dekmantel');
+   * ```
+   */
   festival(slug: string, opts?: RequestOptions): Promise<FestivalDossierContract>;
+  /**
+   * A table of contents for the dossier system — which grains exist, which are
+   * available, and the contract version you're coding against.
+   * @example
+   * ```ts
+   * const m = await crate.dossier.manifest();
+   * console.log(m.contract_version, m.grains);
+   * ```
+   */
   manifest(opts?: RequestOptions): Promise<DossierManifest>;
 }
 
-/** `crate.searchEvents.*` — beacon telemetry. Each REQUIRES a per-search `beaconToken`. */
+/**
+ * `crate.searchEvents.*` — beacons that flow telemetry *back* to crate so relevance
+ * improves from real usage. Each REQUIRES a per-search `beaconToken` (a short-lived JWT
+ * issued with the search response, distinct from your API key).
+ */
 export interface SearchEventsApi {
-  /** @throws CrateValidationError (`beacon_token_required`) when `beaconToken` is missing. */
+  /**
+   * Report an observed search event (e.g. a cache hit). Returns nothing on success —
+   * fire-and-acknowledge telemetry.
+   * @example
+   * ```ts
+   * await crate.searchEvents.observed(
+   *   { search_event_id: id, source: 'swr-cache-hit' },
+   *   { beaconToken },
+   * );
+   * ```
+   * @throws {CrateValidationError} `beacon_token_required` when `beaconToken` is missing.
+   */
   observed(
     body: ObservedBeaconInput,
     opts: RequestOptions & { beaconToken: string },
   ): Promise<void>;
-  /** @throws CrateValidationError (`beacon_token_required`) when `beaconToken` is missing. */
+  /**
+   * Report a refined search — which facets changed (from → to) — so crate learns how
+   * people narrow results.
+   * @example
+   * ```ts
+   * await crate.searchEvents.refined(
+   *   { search_event_id: id, changed_facets: [{ name: 'genre', to: 'idm' }] },
+   *   { beaconToken },
+   * );
+   * ```
+   * @throws {CrateValidationError} `beacon_token_required` when `beaconToken` is missing.
+   */
   refined(body: RefinedBeaconInput, opts: RequestOptions & { beaconToken: string }): Promise<void>;
 }
 
@@ -415,12 +579,21 @@ export class Crate {
   }
 
   /**
-   * Resolve any identifier to a canonical {@link IdentityResolution}. Accepts a bare
-   * string (inferred: URL → `url`, `discogs:`/`mbid:` → locator, 64-hex → `cluster`,
-   * else → `q`) or an explicit one-of object. Returns honest gaps verbatim (a 200
-   * with `cluster_id: null` is NOT an error).
-   * @example await crate.resolve('Four Tet');
-   * @example await crate.resolve({ url: 'https://artist.bandcamp.com' });
+   * Resolve any identifier to a canonical {@link IdentityResolution}. Identity is the
+   * hard problem in music data — the same artist is a Bandcamp subdomain, a Discogs id,
+   * an MBID and five spellings. This collapses any of them to crate's single canonical
+   * `cluster_id`, plus every other place that artist lives online. It's the first call
+   * in most workflows, because almost everything else is keyed on `cluster_id`. Accepts
+   * a bare string (inferred: URL → `url`, `discogs:`/`mbid:` → locator, 64-hex →
+   * `cluster`, else → `q`) or an explicit one-of object. A 200 with `cluster_id: null`
+   * is an honest gap, not an error.
+   * @example
+   * ```ts
+   * const id = await crate.resolve('https://fourtet.bandcamp.com');
+   * // → { cluster_id: '9f2c…', display: 'Four Tet', resolved_from: 'url',
+   * //     locators: { discogs: 1234, bandcamp: ['fourtet'], … } }
+   * await crate.resolve({ discogs: 1234 }); // or an explicit one-of
+   * ```
    * @throws {CrateValidationError} `exactly_one_of` if zero/multiple identifiers are given.
    * @throws {CrateAPIError} on a non-2xx response. @see {@link Crate.artist}
    */
@@ -434,13 +607,17 @@ export class Crate {
   }
 
   /**
-   * Fetch an artist dossier in one call. A 64-hex cluster_id or a slug/name hits
-   * `/artist/{key}` directly; a `discogs:`/`mbid:` locator or a bare numeric id is
-   * resolved first. An unresolved locator throws {@link CrateNotFoundError} — use
-   * {@link Crate.artistOrNull} to receive `null` instead.
-   * @example const a = await crate.artist('Four Tet');     // name → dossier
-   * @example const a = await crate.artist('discogs:1234'); // locator → resolve → dossier
-   * @example const a = await crate.artist('1234567');      // bare numeric → discogs:1234567 → resolve → dossier
+   * Fetch an artist dossier in one call — the shortcut when you already mean a specific
+   * artist. Hand it almost anything (a name, slug, 64-hex `cluster_id`, or
+   * `discogs:`/`mbid:` locator): a direct key hits `/artist/{key}`, while a locator or
+   * bare numeric id is resolved first. An unresolved locator throws
+   * {@link CrateNotFoundError} — use {@link Crate.artistOrNull} to receive `null`.
+   * @example
+   * ```ts
+   * const a = await crate.artist('Four Tet');     // name → dossier
+   * await crate.artist('discogs:1234');           // locator → resolve → dossier
+   * // → a.display, a.resolved_via, a.emergence.signals, a.across_the_web, …
+   * ```
    * @throws {CrateNotFoundError} `not_found` when a locator/numeric id resolves to no cluster.
    * @throws {CrateAPIError} on a non-2xx response. @see {@link Crate.resolve}, {@link Crate.artistOrNull}
    */
@@ -449,9 +626,15 @@ export class Crate {
   }
 
   /**
-   * Like {@link Crate.artist}, but returns `null` for the honest-gap case (a locator
-   * or numeric id that resolves to no cluster) instead of throwing.
-   * @example const a = await crate.artistOrNull('discogs:999999'); // → null if unresolved
+   * Like {@link Crate.artist}, but returns `null` for the honest-gap case (a locator or
+   * numeric id that resolves to no cluster) instead of throwing. crate is honest about
+   * absence — reach for this in pipelines and agent loops where 'not found' is a normal
+   * branch, not an exception to catch.
+   * @example
+   * ```ts
+   * const a = await crate.artistOrNull('discogs:999999'); // → null if unresolved
+   * if (a) console.log(a.display);
+   * ```
    * @throws {CrateAPIError} on a non-2xx response. @see {@link Crate.artist}
    */
   artistOrNull(key: string, opts?: RequestOptions): Promise<ArtistDossierContract | null> {
@@ -491,8 +674,15 @@ export class Crate {
   }
 
   /**
-   * Faceted catalogue search.
-   * @example await crate.search({ genre: ['idm', 'ambient'], year_from: 2000, limit: 20 });
+   * Faceted discovery across the whole catalogue. Filter by genre, style, format,
+   * country, label and year range — each multi-value facet combines with AND or OR via
+   * its `*_mode` sibling. The response also tells you whether the total count is exact
+   * or estimated from a sample.
+   * @example
+   * ```ts
+   * const hits = await crate.search({ genre: ['idm', 'ambient'], genre_mode: 'or', year_from: 2000, limit: 20 });
+   * // → hits.results: ResultRow[]; hits.pagination.total_results / total_results_mode
+   * ```
    * @throws {CrateAPIError} on a non-2xx response.
    */
   search(params?: SearchParams, opts?: RequestOptions): Promise<SearchResponse> {
@@ -503,8 +693,14 @@ export class Crate {
   }
 
   /**
-   * Emerging-artists breakouts index.
-   * @example await crate.breakouts();
+   * The emerging-artists breakouts index — artists breaking out now, backed by
+   * corroborating evidence (press, bookings) rather than a single noisy signal. Each
+   * item carries an emergence tier, a score, and how it was corroborated.
+   * @example
+   * ```ts
+   * const b = await crate.breakouts();
+   * b.items.forEach((i) => console.log(i.name, i.emergenceTier, i.corroboration));
+   * ```
    * @throws {CrateAPIError} on a non-2xx response.
    */
   breakouts(opts?: RequestOptions): Promise<BreakoutsResponse> {
@@ -515,9 +711,15 @@ export class Crate {
   }
 
   /**
-   * The self-describing API root index (cold-start recipe + resource map) — the one
-   * **keyless** endpoint, and a good live discovery entrypoint for agents.
-   * @example const index = await crate.index(); // works without an apiKey
+   * The self-describing API root — a machine-readable map of every resource plus a
+   * 'cold start' recipe. The one **keyless** endpoint, so a new integration or an agent
+   * can discover what's possible before committing to anything.
+   * @example
+   * ```ts
+   * const root = await crate.index(); // works without an apiKey
+   * console.log(root.cold_start.problem);
+   * root.resources.forEach((r) => console.log(r.name, r.auth));
+   * ```
    * @throws {CrateAPIError} on a non-2xx response.
    */
   index(opts?: RequestOptions): Promise<ApiRootIndex> {
@@ -528,8 +730,13 @@ export class Crate {
   }
 
   /**
-   * Precomputed facet snapshot. **Key-gated.**
-   * @example const facets = await crate.facets(); // requires apiKey
+   * A precomputed facet snapshot — the available filter values and their counts. Call
+   * it before building a search UI (or an agent query) so you filter by values that
+   * actually return results. **Key-gated.**
+   * @example
+   * ```ts
+   * const facets = await crate.facets(); // requires apiKey
+   * ```
    * @throws {CrateValidationError} `api_key_required` if constructed without an apiKey.
    * @throws {CrateAPIError} on a non-2xx response (401/402 if the key lacks access).
    */
@@ -538,8 +745,15 @@ export class Crate {
   }
 
   /**
-   * Single master enrichment. **Key-gated.** `id` is a positive integer (server-validated).
-   * @example const m = await crate.master(1234567); // requires apiKey
+   * Enrich one 'master' (a record/album in the Discogs sense) with crate's behavioral
+   * signals: collector ownership, DJ play counts, critic attention, formats, and its
+   * slot in the cube taxonomy — the per-record intelligence layer over plain
+   * discography. **Key-gated.** `id` is a positive integer (server-validated).
+   * @example
+   * ```ts
+   * const m = await crate.master(1234567); // requires apiKey
+   * // → m.owner_count, m.dj_count, m.cube_quadrant, …
+   * ```
    * @throws {CrateValidationError} `api_key_required` if constructed without an apiKey.
    * @throws {CrateAPIError} on a non-2xx response.
    */
@@ -551,8 +765,15 @@ export class Crate {
   }
 
   /**
-   * Batch master enrichment (1..100 ids). **Key-gated.**
-   * @example const batch = await crate.masters([12345, 67890]); // requires apiKey
+   * Batch master enrichment — up to 100 records in one round-trip. Returns the rows it
+   * found plus an explicit `not_found` list, so a partial result is first-class rather
+   * than all-or-nothing. Use it to hydrate a page of search results in one call instead
+   * of N. **Key-gated.**
+   * @example
+   * ```ts
+   * const batch = await crate.masters([12345, 67890]); // requires apiKey
+   * // → batch.results: MasterEnrichment[]; batch.not_found: number[]
+   * ```
    * @throws {CrateValidationError} `api_key_required` (no key) or `masters_arity` (not 1..100 ids).
    * @throws {CrateAPIError} on a non-2xx response.
    */
@@ -575,8 +796,14 @@ export class Crate {
   }
 
   /**
-   * Per-customer monthly usage snapshot. **Key-gated.**
-   * @example const usage = await crate.usage(); // requires apiKey
+   * Your meter — plan tier, calls made this month, quota and remaining, and the
+   * per-minute burst limit. Poll it to render a usage bar or back off before a wall.
+   * **Key-gated.**
+   * @example
+   * ```ts
+   * const u = await crate.usage(); // requires apiKey
+   * console.log(`${u.calls_this_month}/${u.quota_monthly} on ${u.tier}`);
+   * ```
    * @throws {CrateValidationError} `api_key_required` if constructed without an apiKey.
    * @throws {CrateAPIError} on a non-2xx response.
    */
