@@ -74,6 +74,10 @@
     "check:exports": "attw --pack .",
     "check:staleness": "node scripts/check-spec-staleness.mjs",
     "docs:api": "npx --yes typedoc",
+    "docs:surface": "node scripts/extract-surface.mjs",
+    "docs:gen": "node scripts/gen-docs.mjs",
+    "docs:build": "npm run build && npm run docs:surface && npm run docs:gen && prettier --write README.md",
+    "docs:check": "npm run docs:build && git diff --exit-code -- README.md meta explorer",
     "prepack": "npm run build"
   },
   "devDependencies": {

@@ -35,6 +35,9 @@ jobs:
       - name: Test (drift + dual-package + contract + jsdoc gates)
         run: npm test
 
+      - name: Docs drift (explorer + README generated from TSDoc)
+        run: npm run docs:check
+
       - name: Assert zero runtime dependencies
         run: |
           node -e "const p=require('./package.json'); const d=Object.keys(p.dependencies||{}); if(d.length){console.error('runtime deps present:',d);process.exit(1)} console.log('zero runtime deps OK')"

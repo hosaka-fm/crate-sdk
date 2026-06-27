@@ -223,23 +223,39 @@ try {
 One row per public method (mirrors `CRATE_RESOURCES`). `Auth`: **key** = `X-API-Key`, **anon** =
 keyless, **beacon** = per-search JWT. All read methods auto-retry on a retryable status.
 
-| Call                                                             | Endpoint                                    | Auth       | Returns                                                |
-| ---------------------------------------------------------------- | ------------------------------------------- | ---------- | ------------------------------------------------------ |
-| `crate.index()`                                                  | `GET /api/v1`                               | anon       | `ApiRootIndex`                                         |
-| `crate.resolve(q)`                                               | `GET /resolve`                              | **key**    | `IdentityResolution`                                   |
-| `crate.artist(key)` · `crate.artistOrNull(key)`                  | `GET /artist/{key}` (+resolve for locators) | **key**    | `ArtistDossierContract` ( `\| null`)                   |
-| `crate.bandcamp(artistKey)`                                      | `GET /bandcamp/{artistKey}`                 | **key**    | `BandcampFeedContract`                                 |
-| `crate.bandcamp.bulk(p)` · `.bulkAll(p)` · `.index()`            | `GET /bandcamp`                             | **key**    | `BandcampBulkPage` / `BulkIterable`                    |
-| `crate.bandcamp.release({item\|url})` · `.releases({clusterId})` | `GET /bandcamp/release`                     | **key**    | `BandcampRelease \| null` / `BandcampReleaseSummary[]` |
-| `crate.search(p)`                                                | `GET /search`                               | **key**    | `SearchResponse`                                       |
-| `crate.breakouts()`                                              | `GET /breakouts`                            | **key**    | `BreakoutsResponse`                                    |
-| `crate.tastemakers()` · `.onesToWatch()`                         | `GET /tastemakers[/ones-to-watch]`          | **key**    | `TastemakersResponse` / `OnesToWatchResponse`          |
-| `crate.dossier.{master,artist,label,festival,manifest}(…)`       | `GET /dossier/…`                            | **key**    | per-grain `*DossierContract`                           |
-| `crate.wayfind(q)` · `.interpret(q)`                             | `POST /wayfind/{answer,interpret}`          | **key**    | `WayfindAnswerResponse` / `WayfindInterpretResponse`   |
-| `crate.facets()`                                                 | `GET /facets`                               | **key**    | `FacetCounts`                                          |
-| `crate.master(id)` · `crate.masters(ids)`                        | `GET /masters/{id}` · `POST /masters/batch` | **key**    | `MasterEnrichment` / `BatchResponse`                   |
-| `crate.usage()`                                                  | `GET /usage`                                | **key**    | `UsageResponse`                                        |
-| `crate.searchEvents.observed(…)` · `.refined(…)`                 | `POST /search-events/…`                     | **beacon** | `void`                                                 |
+<!-- BEGIN GENERATED:surface (npm run docs:gen) -->
+
+| Call                                | Endpoint                         | Auth    | Returns                    |
+| ----------------------------------- | -------------------------------- | ------- | -------------------------- |
+| `crate.resolve(query)`              | `GET /resolve`                   | **key** | `IdentityResolution`       |
+| `crate.artist(key)`                 | `GET /artist/{key}`              | **key** | `ArtistDossierContract`    |
+| `crate.artistOrNull(key)`           | `GET /artist/{key}`              | **key** | `ArtistDossierContract`    |
+| `crate.search(params)`              | `GET /search`                    | **key** | `SearchResponse`           |
+| `crate.breakouts()`                 | `GET /breakouts`                 | **key** | `BreakoutsResponse`        |
+| `crate.index()`                     | `GET /api/v1`                    | anon    | `ApiRootIndex`             |
+| `crate.facets()`                    | `GET /facets`                    | **key** | `FacetCounts`              |
+| `crate.master(id)`                  | `GET /masters/{id}`              | **key** | `MasterEnrichment`         |
+| `crate.masters(ids)`                | `POST /masters/batch`            | **key** | `BatchResponse`            |
+| `crate.usage()`                     | `GET /usage`                     | **key** | `UsageResponse`            |
+| `crate.bandcamp(artistKey)`         | `GET /bandcamp/{artistKey}`      | **key** | `BandcampFeedContract`     |
+| `crate.bandcamp.bulk(params)`       | `GET /bandcamp`                  | **key** | `BandcampBulkPage`         |
+| `crate.bandcamp.bulkAll(params)`    | `GET /bandcamp`                  | **key** | `BandcampBulkPage`         |
+| `crate.bandcamp.index()`            | `GET /bandcamp`                  | **key** | `BandcampBulkPage`         |
+| `crate.bandcamp.release(query)`     | `GET /bandcamp/release`          | **key** | `BandcampRelease \| null`  |
+| `crate.bandcamp.releases(query)`    | `GET /bandcamp/release`          | **key** | `BandcampReleaseSummary[]` |
+| `crate.dossier.master(id)`          | `GET /dossier/master/{id}`       | **key** | `MasterDossierContract`    |
+| `crate.dossier.artist(slug)`        | `GET /dossier/artist/{slug}`     | **key** | `ArtistDossierContract`    |
+| `crate.dossier.label(slug)`         | `GET /dossier/label/{slug}`      | **key** | `LabelDossierContract`     |
+| `crate.dossier.festival(slug)`      | `GET /dossier/festival/{slug}`   | **key** | `FestivalDossierContract`  |
+| `crate.dossier.manifest()`          | `GET /dossier/manifest`          | **key** | `DossierManifest`          |
+| `crate.tastemakers()`               | `GET /tastemakers`               | **key** | `TastemakersResponse`      |
+| `crate.tastemakers.onesToWatch()`   | `GET /tastemakers/ones-to-watch` | **key** | `OnesToWatchResponse`      |
+| `crate.wayfind(question)`           | `POST /wayfind/answer`           | **key** | `WayfindAnswerResponse`    |
+| `crate.wayfind.interpret(q)`        | `POST /wayfind/interpret`        | **key** | `WayfindInterpretResponse` |
+| `crate.searchEvents.observed(body)` | `POST /search-events/observed`   | beacon  | `void`                     |
+| `crate.searchEvents.refined(body)`  | `POST /search-events/refined`    | beacon  | `void`                     |
+
+<!-- END GENERATED:surface -->
 
 ### Bandcamp releases & honest gaps
 
