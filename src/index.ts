@@ -4,14 +4,13 @@
 //   const crate = new Crate({ apiKey: process.env.CRATE_API_KEY }); // key-first; only crate.index() is keyless
 //   const artist = await crate.artist('Four Tet');
 //
-// See the README "Using from an AI agent" section for the error-recovery + pagination recipes.
+// See the README "Using from an AI agent" section for the error-recovery recipes.
 
 /** Package version (kept in sync with package.json; asserted by a test). */
-export const VERSION = '0.3.0';
+export const VERSION = '1.0.0';
 
 export { Crate } from './client';
 export type {
-  BandcampApi,
   CrateOptions,
   DossierApi,
   ObservedBeaconInput,
@@ -19,9 +18,7 @@ export type {
   RequestOptions,
   SearchEventsApi,
   TastemakersApi,
-  WayfindApi,
 } from './client';
-export type { BandcampBulkParams, BulkIterable } from './pagination';
 export type { ResolveQuery } from './identity';
 export { CRATE_RESOURCES } from './resources';
 export type { CrateResource, CrateResourceName } from './resources';

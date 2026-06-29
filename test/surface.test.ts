@@ -3,14 +3,13 @@ import { MockAgent, setGlobalDispatcher } from 'undici';
 import { Crate } from '../src/client';
 import {
   CrateNotFoundError,
-  type CratePaginationError,
   type CrateValidationError,
   isCrateValidationError,
 } from '../src/errors';
 
 // Client surface over the REAL default global fetch (undici-backed), intercepted at
-// the dispatcher layer. crate is KEY-FIRST: data calls go through a keyed client
-// (`kc()`); `new Crate()` (keyless) is used only to test the guards. Error/retry
+// the dispatcher layer. Targets crate /api/v2. crate is KEY-FIRST: data calls go
+// through a keyed client (`kc()`); `new Crate()` (keyless) tests the guards. Error/retry
 // timing is covered in http.test.ts.
 const KEY = 'ck_test_0123456789abcdef0123456789abcd';
 const kc = () => new Crate({ apiKey: KEY });
@@ -69,20 +68,20 @@ const HEX = 'a'.repeat(64);
 
 describe('resolve', () => {
   it('bare string "Four Tet" → ?q=Four Tet', async () => {
-    mock('GET', (p) => p.startsWith('/api/v1/resolve'), 200, { cluster_id: HEX, slug: 'four-tet' });
+    mock('GET', (p) => p.startsWith('/api/v2/resolve'), 200, { cluster_id: HEX, slug: 'four-tet' });
     const r = await kc().resolve('Four Tet');
     expect(r.cluster_id).toBe(HEX);
     expect(calls[0].path).toContain('q=Four+Tet');
   });
 
   it('bare locator "discogs:123" → ?discogs=123', async () => {
-    mock('GET', (p) => p.startsWith('/api/v1/resolve'), 200, { cluster_id: HEX });
+    mock('GET', (p) => p.startsWith('/api/v2/resolve'), 200, { cluster_id: HEX });
     await kc().resolve('discogs:123');
     expect(calls[0].path).toContain('discogs=123');
   });
 
   it('object { url } → ?url=', async () => {
-    mock('GET', (p) => p.startsWith('/api/v1/resolve'), 200, { cluster_id: HEX });
+    mock('GET', (p) => p.startsWith('/api/v2/resolve'), 200, { cluster_id: HEX });
     await kc().resolve({ url: 'https://x.bandcamp.com' });
     expect(decodeURIComponent(calls[0].path)).toContain('url=https://x.bandcamp.com');
   });
@@ -105,7 +104,7 @@ describe('resolve', () => {
   });
 
   it('honest gap (200 + null cluster_id) passes through, does not throw', async () => {
-    mock('GET', (p) => p.startsWith('/api/v1/resolve'), 200, {
+    mock('GET', (p) => p.startsWith('/api/v2/resolve'), 200, {
       cluster_id: null,
       slug: null,
       note: 'unmappable',
@@ -118,34 +117,34 @@ describe('resolve', () => {
 
 describe('artist', () => {
   it('64-hex → direct /artist/{hex}', async () => {
-    mock('GET', (p) => p.startsWith(`/api/v1/artist/${HEX}`), 200, { display: 'Four Tet' });
+    mock('GET', (p) => p.startsWith(`/api/v2/artist/${HEX}`), 200, { display: 'Four Tet' });
     await kc().artist(HEX);
-    expect(calls[0].path).toBe(`/api/v1/artist/${HEX}`);
+    expect(calls[0].path).toBe(`/api/v2/artist/${HEX}`);
   });
 
   it('plain name → one-hop direct /artist/{name}', async () => {
-    mock('GET', (p) => p.startsWith('/api/v1/artist/'), 200, { display: 'Four Tet' });
+    mock('GET', (p) => p.startsWith('/api/v2/artist/'), 200, { display: 'Four Tet' });
     await kc().artist('Four Tet');
-    expect(calls[0].path).toBe('/api/v1/artist/Four%20Tet');
+    expect(calls[0].path).toBe('/api/v2/artist/Four%20Tet');
   });
 
   it('locator → resolve then /artist/{cluster}', async () => {
-    mock('GET', (p) => p.startsWith('/api/v1/resolve'), 200, { cluster_id: HEX });
-    mock('GET', (p) => p.startsWith(`/api/v1/artist/${HEX}`), 200, { display: 'Four Tet' });
+    mock('GET', (p) => p.startsWith('/api/v2/resolve'), 200, { cluster_id: HEX });
+    mock('GET', (p) => p.startsWith(`/api/v2/artist/${HEX}`), 200, { display: 'Four Tet' });
     await kc().artist('discogs:123');
     expect(calls[0].path).toContain('/resolve?discogs=123');
-    expect(calls[1].path).toBe(`/api/v1/artist/${HEX}`);
+    expect(calls[1].path).toBe(`/api/v2/artist/${HEX}`);
   });
 
   it('bare numeric → discogs resolve path (ADX-9)', async () => {
-    mock('GET', (p) => p.startsWith('/api/v1/resolve'), 200, { cluster_id: HEX });
-    mock('GET', (p) => p.startsWith(`/api/v1/artist/${HEX}`), 200, {});
+    mock('GET', (p) => p.startsWith('/api/v2/resolve'), 200, { cluster_id: HEX });
+    mock('GET', (p) => p.startsWith(`/api/v2/artist/${HEX}`), 200, {});
     await kc().artist('1234567');
     expect(calls[0].path).toContain('discogs=1234567');
   });
 
   it('locator miss → CrateNotFoundError for artist(); null for artistOrNull()', async () => {
-    mock('GET', (p) => p.startsWith('/api/v1/resolve'), 200, {
+    mock('GET', (p) => p.startsWith('/api/v2/resolve'), 200, {
       cluster_id: null,
       note: 'no match',
     });
@@ -156,248 +155,65 @@ describe('artist', () => {
     expect(err.hint).toBe('no match');
     expect(err.next).toContain('artistOrNull');
 
-    mock('GET', (p) => p.startsWith('/api/v1/resolve'), 200, { cluster_id: null });
+    mock('GET', (p) => p.startsWith('/api/v2/resolve'), 200, { cluster_id: null });
     expect(await kc().artistOrNull('discogs:999')).toBeNull();
   });
 
-  it('empty/whitespace key → CrateValidationError(empty_key) before the key check, no network', async () => {
-    let err: CrateValidationError | undefined;
-    try {
-      await kc().artist('   ');
-    } catch (e) {
-      err = e as CrateValidationError;
-    }
-    expect(err?.code).toBe('empty_key');
-    expect(err?.next).toContain('crate.artist');
+  it('empty/whitespace key → CrateValidationError(empty_key) before any network', async () => {
+    const err = await kc()
+      .artist('   ')
+      .catch((e) => e);
+    expect(err.code).toBe('empty_key');
+    expect(err.next).toContain('crate.artist');
     expect(calls).toHaveLength(0);
   });
-});
 
-describe('bandcamp', () => {
-  it('callable → /bandcamp/{artistKey}', async () => {
-    mock('GET', (p) => p.startsWith(`/api/v1/bandcamp/${HEX}`), 200, {
-      key: HEX,
-      sources: [],
-      _meta: {},
-    });
-    await kc().bandcamp(HEX);
-    expect(calls[0].path).toBe(`/api/v1/bandcamp/${HEX}`);
-  });
-
-  it('bulkAll paginates rows across pages, terminates on null next_cursor', async () => {
-    mock('GET', (p) => p.startsWith('/api/v1/bandcamp') && !p.includes('cursor='), 200, {
-      source: 's',
-      rows: [{ a: 1 }, { a: 2 }],
-      next_cursor: 'c1',
-      _meta: {},
-    });
-    mock('GET', (p) => p.includes('cursor=c1'), 200, {
-      source: 's',
-      rows: [{ a: 3 }],
-      next_cursor: null,
-      _meta: {},
-    });
-    const rows = [];
-    for await (const row of kc().bandcamp.bulkAll({ source: 's' })) rows.push(row);
-    expect(rows).toEqual([{ a: 1 }, { a: 2 }, { a: 3 }]);
-  });
-
-  it('maxPages stops cleanly (truncated, no throw) and exposes a resumable cursor', async () => {
-    mock('GET', (p) => p.startsWith('/api/v1/bandcamp'), 200, {
-      source: 's',
-      rows: [{ a: 1 }],
-      next_cursor: 'c1',
-      _meta: {},
-    });
-    const handle = kc().bandcamp.bulkAll({ source: 's', maxPages: 1 });
-    const rows = [];
-    for await (const row of handle) rows.push(row);
-    expect(rows).toEqual([{ a: 1 }]);
-    expect(handle.truncated).toBe(true);
-    expect(handle.cursor).toBe('c1'); // re-passable to bulk({ cursor })
-  });
-
-  it('non-advancing cursor → CratePaginationError', async () => {
+  it('?fields= trims (comma-joined); omitted by default → full dossier', async () => {
     mock(
       'GET',
-      () => true,
+      (p) => p.startsWith(`/api/v2/artist/${HEX}`),
       200,
-      { source: 's', rows: [{ a: 1 }], next_cursor: 'loop', _meta: {} },
+      { display: 'Four Tet' },
       {},
       true,
     );
-    const err = await (async () => {
-      try {
-        for await (const _ of kc().bandcamp.bulkAll({ source: 's' })) void _;
-      } catch (e) {
-        return e;
-      }
-    })();
-    expect((err as Error).name).toBe('CratePaginationError');
-  });
-
-  it('empty artistKey → CrateValidationError(empty_key)', async () => {
-    let err: CrateValidationError | undefined;
-    try {
-      await kc().bandcamp('');
-    } catch (e) {
-      err = e as CrateValidationError;
-    }
-    expect(err?.code).toBe('empty_key');
-  });
-
-  it('malformed page (rows not an array) → CratePaginationError with a runnable .next', async () => {
-    mock('GET', (p) => p.startsWith('/api/v1/bandcamp'), 200, {
-      source: 's',
-      rows: 'nope',
-      next_cursor: 'x',
-      _meta: {},
-    });
-    const err = await (async () => {
-      try {
-        for await (const _ of kc().bandcamp.bulkAll({ source: 's' })) void _;
-      } catch (e) {
-        return e as CratePaginationError;
-      }
-    })();
-    expect(err?.code).toBe('pagination_malformed_page');
-    expect(err?.next).toContain('crate.bandcamp.bulk');
-  });
-
-  it('cycle back to the initial resume cursor → CratePaginationError (no infinite loop)', async () => {
-    mock('GET', (p) => p.includes('cursor=c0'), 200, {
-      source: 's',
-      rows: [{}],
-      next_cursor: 'c1',
-      _meta: {},
-    });
-    mock('GET', (p) => p.includes('cursor=c1'), 200, {
-      source: 's',
-      rows: [{}],
-      next_cursor: 'c0',
-      _meta: {},
-    });
-    const err = await (async () => {
-      try {
-        for await (const _ of kc().bandcamp.bulkAll({ source: 's', cursor: 'c0' })) void _;
-      } catch (e) {
-        return e as CratePaginationError;
-      }
-    })();
-    expect(err?.code).toBe('pagination_no_progress');
+    await kc().artist(HEX, { fields: ['discography', 'bandcamp_emergence'] });
+    expect(decodeURIComponent(calls[0].path)).toContain('fields=discography,bandcamp_emergence');
+    await kc().artist(HEX);
+    expect(calls[1].path).not.toContain('fields=');
   });
 });
 
-describe('bandcamp.release', () => {
-  const RELEASE = {
-    bandcamp_item_id: '1234567890', // opaque STRING (bigint) — never numericized
-    cluster_id: HEX,
-    artist: 'Four Tet',
-    title: 'Rounds',
-    release_date: '2003-05-05',
-    source_url: 'https://fourtet.bandcamp.com/album/rounds',
-    tags: ['idm'],
-    artwork: [],
-    tracks: [
-      {
-        track_num: 1,
-        title: 'She Moves She',
-        duration_s: 327,
-        license_type: null,
-        track_url: 'https://x',
-      },
-    ],
-  };
-
-  it('release({ item }) present:true → the dossier; bandcamp_item_id stays a string', async () => {
-    mock('GET', (p) => p.startsWith('/api/v1/bandcamp/release'), 200, {
-      object: 'bandcamp.release',
-      present: true,
-      release: RELEASE,
+describe('label', () => {
+  it('label(key) → /api/v2/label/{key}', async () => {
+    mock('GET', (p) => p.startsWith(`/api/v2/label/${HEX}`), 200, {
+      grain: 'label',
+      display: 'Warp',
     });
-    const r = await kc().bandcamp.release({ item: '1234567890' });
-    expect(r?.title).toBe('Rounds');
-    expect(typeof r?.bandcamp_item_id).toBe('string');
-    expect(calls[0].path).toContain('item=1234567890');
+    const l = await kc().label(HEX);
+    expect(l.display).toBe('Warp');
+    expect(calls[0].path).toBe(`/api/v2/label/${HEX}`);
   });
 
-  it('release({ url }) → ?url=', async () => {
-    mock('GET', (p) => p.startsWith('/api/v1/bandcamp/release'), 200, {
-      object: 'bandcamp.release',
-      present: true,
-      release: RELEASE,
-    });
-    await kc().bandcamp.release({ url: 'https://fourtet.bandcamp.com/album/rounds' });
-    expect(decodeURIComponent(calls[0].path)).toContain(
-      'url=https://fourtet.bandcamp.com/album/rounds',
-    );
-  });
-
-  it('release() honest gap (present:false) → null, not an error', async () => {
-    mock('GET', (p) => p.startsWith('/api/v1/bandcamp/release'), 200, {
-      object: 'bandcamp.release',
-      present: false,
-      note: 'no release for that item',
-    });
-    expect(await kc().bandcamp.release({ item: '404' })).toBeNull();
-  });
-
-  it('release({}) → CrateValidationError(exactly_one_of), no network', async () => {
-    let err: CrateValidationError | undefined;
-    try {
-      await kc().bandcamp.release({} as never);
-    } catch (e) {
-      err = e as CrateValidationError;
-    }
-    expect(err?.code).toBe('exactly_one_of');
+  it('empty key → CrateValidationError(empty_key), no network', async () => {
+    const err = await kc()
+      .label('  ')
+      .catch((e) => e);
+    expect(err.code).toBe('empty_key');
+    expect(err.next).toContain('crate.label');
     expect(calls).toHaveLength(0);
   });
 
-  it('releases({ clusterId }) → summary list', async () => {
-    mock('GET', (p) => p.startsWith('/api/v1/bandcamp/release'), 200, {
-      object: 'bandcamp.release_list',
-      cluster_id: HEX,
-      count: 2,
-      releases: [
-        {
-          bandcamp_item_id: '1',
-          artist: 'Four Tet',
-          title: 'Rounds',
-          release_date: null,
-          source_url: null,
-          tags: [],
-        },
-        {
-          bandcamp_item_id: '2',
-          artist: 'Four Tet',
-          title: 'Pause',
-          release_date: null,
-          source_url: null,
-          tags: [],
-        },
-      ],
-    });
-    const list = await kc().bandcamp.releases({ clusterId: HEX });
-    expect(list).toHaveLength(2);
-    expect(list[0].title).toBe('Rounds');
-    expect(calls[0].path).toContain(`cluster_id=${HEX}`);
-  });
-
-  it('release() without a key → CrateValidationError(api_key_required)', async () => {
-    let err: CrateValidationError | undefined;
-    try {
-      await new Crate().bandcamp.release({ item: '1' });
-    } catch (e) {
-      err = e as CrateValidationError;
-    }
-    expect(err?.code).toBe('api_key_required');
+  it('without a key → CrateValidationError(api_key_required), no network', async () => {
+    const err = await new Crate().label('warp-records').catch((e) => e);
+    expect(err.code).toBe('api_key_required');
     expect(calls).toHaveLength(0);
   });
 });
 
 describe('search', () => {
   it('serializes array facets as repeat-key + numbers as strings', async () => {
-    mock('GET', (p) => p.startsWith('/api/v1/search'), 200, {
+    mock('GET', (p) => p.startsWith('/api/v2/search'), 200, {
       query: '',
       pagination: {},
       facets: {},
@@ -429,22 +245,16 @@ describe('key-first auth', () => {
   });
 
   it('index() is the one keyless endpoint — works without an apiKey', async () => {
-    mock('GET', (p) => p === '/api/v1', 200, { object: 'api_index', version: 'v1' });
+    mock('GET', (p) => p === '/api/v2', 200, { object: 'api_index', version: 'v2' });
     const idx = await new Crate().index();
     expect(idx.object).toBe('api_index');
     expect(hget(calls[0].headers, 'x-api-key')).toBeUndefined();
   });
 
   it('sends X-API-Key on data calls when constructed with apiKey', async () => {
-    mock('GET', (p) => p.startsWith('/api/v1/facets'), 200, {});
+    mock('GET', (p) => p.startsWith('/api/v2/facets'), 200, {});
     await new Crate({ apiKey: 'ck_test_abc' }).facets();
     expect(hget(calls[0].headers, 'x-api-key')).toBe('ck_test_abc');
-  });
-
-  it('masters() arity guard (empty / >100)', async () => {
-    const crate = new Crate({ apiKey: 'ck_test_abc' });
-    expect((await crate.masters([]).catch((e) => e)).code).toBe('masters_arity');
-    expect((await crate.masters(Array(101).fill(1)).catch((e) => e)).code).toBe('masters_arity');
   });
 });
 
@@ -464,7 +274,7 @@ describe('beacon', () => {
   });
 
   it('observed() sends Authorization: Bearer (not X-API-Key), injects timestamp — even with an apiKey set', async () => {
-    mock('POST', (p) => p.startsWith('/api/v1/search-events/observed'), 204, '');
+    mock('POST', (p) => p.startsWith('/api/v2/search-events/observed'), 204, '');
     await new Crate({ apiKey: KEY }).searchEvents.observed(
       { search_event_id: 'evt-1', source: 'swr-cache-hit' },
       { beaconToken: 'jwt-123' },

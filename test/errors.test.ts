@@ -44,7 +44,7 @@ const instances: Record<CrateErrorKind, CrateError> = {
     code: 'pagination_no_progress',
     lastCursor: 'abc',
     hint: 'the server returned the same cursor twice',
-    next: 'crate.bandcamp.bulk({ cursor: "abc" })',
+    next: 'crate.search({ offset: 20 })',
   }),
   not_found: new CrateNotFoundError('no cluster for that locator', {
     hint: 'the locator did not resolve',

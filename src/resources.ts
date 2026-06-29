@@ -4,8 +4,9 @@
 // SDD §3 surface table; a contract test asserts it matches the live spec's
 // effective security (doc-level ApiKeyAuth default; only index + openapi are public).
 //
-// crate is KEY-FIRST as of cycle-078 (spec 1.1.0): every data endpoint requires
-// X-API-Key; only `index` is anonymous; beacons use a per-search bearer token.
+// crate is KEY-FIRST and cluster-first: targets /api/v2 (2.0.0). Every data endpoint
+// requires X-API-Key; only `index` is anonymous; beacons use a per-search bearer token.
+// master/bandcamp/wayfind/usage are demoted in v2 (see the v2 migration notes).
 
 export interface CrateResource {
   readonly method: 'GET' | 'POST';
@@ -22,7 +23,7 @@ export interface CrateResource {
 export const CRATE_RESOURCES = Object.freeze({
   resolve: {
     method: 'GET',
-    endpoint: '/api/v1/resolve',
+    endpoint: '/api/v2/resolve',
     returns: 'IdentityResolution',
     auth: 'key',
     retryable: true,
@@ -30,63 +31,39 @@ export const CRATE_RESOURCES = Object.freeze({
   },
   artist: {
     method: 'GET',
-    endpoint: '/api/v1/artist/{key}',
+    endpoint: '/api/v2/artist/{key}',
     returns: 'ArtistDossierContract',
     auth: 'key',
     retryable: true,
     idempotent: true,
   },
-  bandcamp: {
+  label: {
     method: 'GET',
-    endpoint: '/api/v1/bandcamp/{artistKey}',
-    returns: 'BandcampFeedContract',
-    auth: 'key',
-    retryable: true,
-    idempotent: true,
-  },
-  'bandcamp.bulk': {
-    method: 'GET',
-    endpoint: '/api/v1/bandcamp',
-    returns: 'BandcampBulkPage',
-    auth: 'key',
-    retryable: true,
-    idempotent: true,
-  },
-  'bandcamp.index': {
-    method: 'GET',
-    endpoint: '/api/v1/bandcamp',
-    returns: 'BandcampBulkPage',
-    auth: 'key',
-    retryable: true,
-    idempotent: true,
-  },
-  'bandcamp.release': {
-    method: 'GET',
-    endpoint: '/api/v1/bandcamp/release',
-    returns: 'BandcampRelease | null',
-    auth: 'key',
-    retryable: true,
-    idempotent: true,
-  },
-  'bandcamp.releases': {
-    method: 'GET',
-    endpoint: '/api/v1/bandcamp/release',
-    returns: 'BandcampReleaseSummary[]',
+    endpoint: '/api/v2/label/{key}',
+    returns: 'LabelDossierContract',
     auth: 'key',
     retryable: true,
     idempotent: true,
   },
   search: {
     method: 'GET',
-    endpoint: '/api/v1/search',
+    endpoint: '/api/v2/search',
     returns: 'SearchResponse',
+    auth: 'key',
+    retryable: true,
+    idempotent: true,
+  },
+  facets: {
+    method: 'GET',
+    endpoint: '/api/v2/facets',
+    returns: 'FacetCounts',
     auth: 'key',
     retryable: true,
     idempotent: true,
   },
   breakouts: {
     method: 'GET',
-    endpoint: '/api/v1/breakouts',
+    endpoint: '/api/v2/breakouts',
     returns: 'BreakoutsResponse',
     auth: 'key',
     retryable: true,
@@ -94,7 +71,7 @@ export const CRATE_RESOURCES = Object.freeze({
   },
   tastemakers: {
     method: 'GET',
-    endpoint: '/api/v1/tastemakers',
+    endpoint: '/api/v2/tastemakers',
     returns: 'TastemakersResponse',
     auth: 'key',
     retryable: true,
@@ -102,23 +79,15 @@ export const CRATE_RESOURCES = Object.freeze({
   },
   'tastemakers.onesToWatch': {
     method: 'GET',
-    endpoint: '/api/v1/tastemakers/ones-to-watch',
+    endpoint: '/api/v2/tastemakers/ones-to-watch',
     returns: 'OnesToWatchResponse',
-    auth: 'key',
-    retryable: true,
-    idempotent: true,
-  },
-  'dossier.master': {
-    method: 'GET',
-    endpoint: '/api/v1/dossier/master/{id}',
-    returns: 'MasterDossierContract',
     auth: 'key',
     retryable: true,
     idempotent: true,
   },
   'dossier.artist': {
     method: 'GET',
-    endpoint: '/api/v1/dossier/artist/{slug}',
+    endpoint: '/api/v2/dossier/artist/{slug}',
     returns: 'ArtistDossierContract',
     auth: 'key',
     retryable: true,
@@ -126,7 +95,7 @@ export const CRATE_RESOURCES = Object.freeze({
   },
   'dossier.label': {
     method: 'GET',
-    endpoint: '/api/v1/dossier/label/{slug}',
+    endpoint: '/api/v2/dossier/label/{slug}',
     returns: 'LabelDossierContract',
     auth: 'key',
     retryable: true,
@@ -134,7 +103,7 @@ export const CRATE_RESOURCES = Object.freeze({
   },
   'dossier.festival': {
     method: 'GET',
-    endpoint: '/api/v1/dossier/festival/{slug}',
+    endpoint: '/api/v2/dossier/festival/{slug}',
     returns: 'FestivalDossierContract',
     auth: 'key',
     retryable: true,
@@ -142,7 +111,7 @@ export const CRATE_RESOURCES = Object.freeze({
   },
   'dossier.manifest': {
     method: 'GET',
-    endpoint: '/api/v1/dossier/manifest',
+    endpoint: '/api/v2/dossier/manifest',
     returns: 'DossierManifest',
     auth: 'key',
     retryable: true,
@@ -150,63 +119,15 @@ export const CRATE_RESOURCES = Object.freeze({
   },
   index: {
     method: 'GET',
-    endpoint: '/api/v1',
+    endpoint: '/api/v2',
     returns: 'ApiRootIndex',
     auth: 'anon',
     retryable: true,
     idempotent: true,
   },
-  wayfind: {
-    method: 'POST',
-    endpoint: '/api/v1/wayfind/answer',
-    returns: 'WayfindAnswerResponse',
-    auth: 'key',
-    retryable: true,
-    idempotent: true,
-  },
-  facets: {
-    method: 'GET',
-    endpoint: '/api/v1/facets',
-    returns: 'FacetCounts',
-    auth: 'key',
-    retryable: true,
-    idempotent: true,
-  },
-  master: {
-    method: 'GET',
-    endpoint: '/api/v1/masters/{id}',
-    returns: 'MasterEnrichment',
-    auth: 'key',
-    retryable: true,
-    idempotent: true,
-  },
-  masters: {
-    method: 'POST',
-    endpoint: '/api/v1/masters/batch',
-    returns: 'BatchResponse',
-    auth: 'key',
-    retryable: true,
-    idempotent: true,
-  },
-  usage: {
-    method: 'GET',
-    endpoint: '/api/v1/usage',
-    returns: 'UsageResponse',
-    auth: 'key',
-    retryable: true,
-    idempotent: true,
-  },
-  'wayfind.interpret': {
-    method: 'POST',
-    endpoint: '/api/v1/wayfind/interpret',
-    returns: 'WayfindInterpretResponse',
-    auth: 'key',
-    retryable: true,
-    idempotent: true,
-  },
   'searchEvents.observed': {
     method: 'POST',
-    endpoint: '/api/v1/search-events/observed',
+    endpoint: '/api/v2/search-events/observed',
     returns: 'void',
     auth: 'beacon',
     retryable: false,
@@ -214,7 +135,7 @@ export const CRATE_RESOURCES = Object.freeze({
   },
   'searchEvents.refined': {
     method: 'POST',
-    endpoint: '/api/v1/search-events/refined',
+    endpoint: '/api/v2/search-events/refined',
     returns: 'void',
     auth: 'beacon',
     retryable: false,

@@ -33,6 +33,7 @@ export const CRATE_ERROR_CODES = [
   'invalid_source_or_cursor',
   'invalid_query',
   'invalid_facet',
+  'invalid_fields',
   'master_not_found',
   'rate_limited',
   // SDK status fallbacks — synthesized only when an error body carries no `error` field.
