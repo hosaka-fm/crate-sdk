@@ -36,13 +36,14 @@ Responses are fully typed off crate's OpenAPI spec — your editor autocompletes
 high-traffic returns:
 
 - `crate.resolve(q)` → `IdentityResolution` (`cluster_id`, `slug`, `display`, `locators`, …)
-- `crate.artist(key)` → `ArtistDossierContract`
+- `crate.artist(key)` → `ArtistDossierContract` (cluster-first: carries `discography`,
+  `bandcamp_emergence`, `bandcamp_tastemaker`)
+- `crate.label(key)` → `LabelDossierContract`
 - `crate.search(params)` → `SearchResponse`
-- `crate.bandcamp.release({ item })` → `BandcampRelease | null`
 
 ## Next steps
 
 - [Authentication](./authentication.md) — the three auth tiers and the fail-fast key guard.
 - [Errors](./errors.md) — how failures are typed and how to branch on them.
-- [Pagination](./pagination.md) — stream large feeds with an async iterator.
+- [Recipes](./recipes.md) — copy-paste snippets for every method.
 - Runnable: [`examples/quickstart.ts`](../examples/quickstart.ts).

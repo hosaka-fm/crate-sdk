@@ -85,6 +85,6 @@ the SDK doesn't model.
 ## Honest gaps are not errors
 
 A `200` with `present: false` / `cluster_id: null` / an empty list is an **honest gap**, surfaced as
-`null` (or an empty array), not an exception. `crate.artistOrNull(...)` and
-`crate.bandcamp.release(...)` return `null` in that case. Only `4xx`/`5xx` throw. Runnable:
+`null` (or an empty array), not an exception. `crate.artistOrNull(...)` returns `null`, and
+`crate.resolve(...)` returns a null `cluster_id`, in that case. Only `4xx`/`5xx` throw. Runnable:
 [`examples/error-handling.ts`](../examples/error-handling.ts).

@@ -11,22 +11,14 @@ const SRC = new URL('../src/client.ts', import.meta.url);
 const code = readFileSync(SRC, 'utf8');
 const sf = ts.createSourceFile('client.ts', code, ts.ScriptTarget.Latest, true);
 
-const IFACE_ORDER = [
-  'BandcampApi',
-  'DossierApi',
-  'TastemakersApi',
-  'WayfindApi',
-  'SearchEventsApi',
-];
+const IFACE_ORDER = ['DossierApi', 'TastemakersApi', 'SearchEventsApi'];
 const IFACE_NS = {
-  BandcampApi: 'bandcamp',
   DossierApi: 'dossier',
   TastemakersApi: 'tastemakers',
-  WayfindApi: 'wayfind',
   SearchEventsApi: 'searchEvents',
 };
 // method → CRATE_RESOURCES key, where the SDK method isn't a 1:1 resource.
-const RES_FALLBACK = { artistOrNull: 'artist', 'bandcamp.bulkAll': 'bandcamp.bulk' };
+const RES_FALLBACK = { artistOrNull: 'artist' };
 
 function getJsDoc(node) {
   if (node.jsDoc && node.jsDoc.length) return node.jsDoc[node.jsDoc.length - 1];

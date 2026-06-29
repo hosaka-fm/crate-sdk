@@ -12,6 +12,10 @@ const crate = new Crate({ apiKey: process.env.CRATE_API_KEY }); // required; onl
 const artist = await crate.artist('Four Tet'); // name | slug | 64-hex cluster_id | discogs:/mbid: locator
 ```
 
+crate is **cluster-first**: `cluster_id` is the prime key, the artist is the root, and
+`master`/`bandcamp` are _dimensions_ of the artist dossier (`discography`, `bandcamp_emergence`,
+`bandcamp_tastemaker`) — not standalone resources. Labels are first-class: `crate.label(key)`.
+
 ## The contract
 
 - **Forgiving inputs.** `resolve(...)` / `artist(...)` accept a bare string (URL → `url`,
@@ -22,11 +26,12 @@ const artist = await crate.artist('Four Tet'); // name | slug | 64-hex cluster_i
   `{}`). It omits `.raw` and reduces `.cause` to `{name,message}`.
 - **Do not double-retry.** The SDK already retries `429/5xx` with full-jitter backoff. On a `429`,
   read `err.retryAfter` / `err.rateLimit`; don't add your own retry loop.
-- **`null` is an honest gap, not an error.** `artistOrNull(...)` and `bandcamp.release(...)` return
-  `null` (HTTP 200, `present:false`) when data is genuinely absent. Only `4xx`/`5xx` throw.
+- **`null` is an honest gap, not an error.** `artistOrNull(...)` and `resolve(...)` return `null` /
+  a null `cluster_id` (HTTP 200, `present:false`) when data is genuinely absent. Only `4xx`/`5xx` throw.
+- **Default-rich, opt-out trim.** `artist(...)` returns the full dossier in one call. Pass
+  `{ fields: ['discography', ...] }` only to _trim_ it; an unknown field → `400 invalid_fields`.
 - **Prefer `isCrate*` guards over `instanceof`** (they survive the ESM/CJS boundary).
-- **Opaque ids.** `cluster_id`, `bandcamp_item_id`, and pagination cursors are strings — pass
-  through verbatim, never numericize.
+- **Opaque ids.** `cluster_id` and `discogs_master_id` are strings — pass through verbatim, never numericize.
 
 ## Discover at runtime (no external docs)
 

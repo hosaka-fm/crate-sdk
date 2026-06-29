@@ -1,10 +1,12 @@
 # @hosaka-fm/crate
 
-> Official typed TypeScript client for the crate public API — a music-catalogue aggregation
-> gateway (artist / master / label / festival dossiers + a Bandcamp feed, keyed on `cluster_id`).
-> Key-first: every data endpoint needs an `apiKey` (`X-API-Key`); only `crate.index()` is keyless.
-> Auto-retry on 429/5xx, async-iterator pagination, typed teaching errors. Node 18+, dual ESM+CJS,
-> zero runtime deps.
+> Official typed TypeScript client for the crate public API — a cluster-first music-catalogue
+> aggregation gateway keyed on `cluster_id`. The artist is the root; `master` and `bandcamp` are
+> dimensions of the artist dossier (`discography`, `bandcamp_emergence`, `bandcamp_tastemaker`).
+> Artist / label / festival dossiers, resolve, search, breakouts, tastemakers. Key-first: every
+> data endpoint needs an `apiKey` (`X-API-Key`); only `crate.index()` is keyless. Auto-retry on
+> 429/5xx, typed teaching errors, sparse `?fields=`. Node 18+, dual ESM+CJS, zero runtime deps.
+> Targets crate `/api/v2`.
 
 ## Start here
 
@@ -15,7 +17,6 @@
 
 - [Getting started](./docs/getting-started.md): first call in 60 seconds.
 - [Authentication](./docs/authentication.md): the three auth tiers (anon / key / beacon).
-- [Pagination](./docs/pagination.md): `bulkAll` async iterator, `pages()`, resume.
 - [Errors](./docs/errors.md): typed exceptions, `kind`/`code`, the HTTP-status map, `toJSON`.
 - [AI agents](./docs/ai-agents.md): forgiving inputs, branch-on-code, runtime discovery.
 - [Recipes](./docs/recipes.md): copy-paste, single-capability snippets.
@@ -23,13 +24,16 @@
 
 ## Runnable examples (type-checked in CI)
 
-- [quickstart](./examples/quickstart.ts), [pagination](./examples/pagination.ts),
-  [error-handling](./examples/error-handling.ts), [cancellation](./examples/cancellation.ts),
-  [discovery](./examples/discovery.ts), [agent](./examples/agent.ts).
+- [quickstart](./examples/quickstart.ts), [error-handling](./examples/error-handling.ts),
+  [cancellation](./examples/cancellation.ts), [discovery](./examples/discovery.ts),
+  [agent](./examples/agent.ts).
 
 ## Runtime contract
 
+- Cluster-first: `cluster_id` is the prime key. The artist dossier carries `discography` (a pointer
+  index of masters), `bandcamp_emergence`, and `bandcamp_tastemaker`. Labels are first-class.
 - Branch on `err.kind` then `err.code`; never parse messages. `err.hint` + `err.next` carry the fix.
 - `JSON.stringify(err)` is lossless for handoff. The SDK already retries 429/5xx — do not double-retry.
-- `null` (HTTP 200 `present:false`) is an honest gap, not an error. Opaque ids/cursors are strings.
+- `null` (HTTP 200 `present:false`) is an honest gap, not an error. Opaque ids are strings.
+- `artist()` is default-rich; pass `{ fields: [...] }` only to trim. Unknown field → `400 invalid_fields`.
 - Discover the surface from `crate.index()`, `CRATE_RESOURCES`, and `CRATE_ERROR_REGISTRY`.
