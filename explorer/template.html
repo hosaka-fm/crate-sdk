@@ -388,7 +388,7 @@
       <div class="feat-grid">
         <div class="feat"><h4>Typed off the live spec</h4><p>Every parameter and response is generated from crate's OpenAPI contract — full autocomplete, no <code>any</code>, no hand-written drift.</p></div>
         <div class="feat"><h4>Resilient by default</h4><p>Auto-retry on 429/5xx with full-jitter backoff that honours <code>Retry-After</code>, a per-attempt timeout, and a whole-call deadline.</p></div>
-        <div class="feat"><h4>Pagination that disappears</h4><p><code>for await</code> over an async iterator; keyset cursors are followed for you, with a clean resume path.</p></div>
+        <div class="feat"><h4>Default-rich, opt-out</h4><p>One call returns the full dossier; pass <code>{ fields }</code> to trim it. <code>Deprecation</code>/<code>Sunset</code> headers are surfaced and <code>308</code> redirects are followed for you.</p></div>
         <div class="feat"><h4>Errors that teach</h4><p>Typed exceptions carry <code>.kind</code> / <code>.code</code>, a human <code>.hint</code>, and a copy-pasteable <code>.next</code> — and they're JSON-safe.</p></div>
         <div class="feat"><h4>Agent-native</h4><p>Forgiving inputs, branch-on-code handling, and a runtime-discoverable surface via <code>index()</code>, <code>CRATE_RESOURCES</code>, <code>CRATE_ERROR_REGISTRY</code>.</p></div>
         <div class="feat"><h4>Lean</h4><p>Dual ESM + CJS, <b>zero runtime dependencies</b>, tree-shakeable, types bundled. Node 18+.</p></div>
@@ -561,13 +561,11 @@ CRATE_ERROR_REGISTRY.api;           // { retryable, clientSide, carries: [...], 
     { kind:'abort', cls:'CrateAbortError', retry:'no', client:false, carries:['cause'],
       when:'The caller aborted via their AbortSignal. Never retried.', codes:['aborted'] },
     { kind:'validation', cls:'CrateValidationError', retry:'no', client:true, carries:['code','hint','next','param'],
-      when:'A client-side argument guard failed — thrown before any network call.', codes:['exactly_one_of','api_key_required','beacon_token_required','masters_arity','base_url_has_path','empty_key','node_fetch_missing'] },
+      when:'A client-side argument guard failed — thrown before any network call.', codes:['exactly_one_of','api_key_required','beacon_token_required','base_url_has_path','empty_key','node_fetch_missing'] },
     { kind:'not_found', cls:'CrateNotFoundError', retry:'no', client:true, carries:['hint','next'],
       when:'artist() resolved a locator/name to a null cluster_id (an honest gap).', codes:['not_found'] },
     { kind:'parse', cls:'CrateParseError', retry:'no', client:false, carries:['status','raw'],
       when:'A response body was not valid JSON (2xx or error).', codes:['parse_error'] },
-    { kind:'pagination', cls:'CratePaginationError', retry:'no', client:true, carries:['lastCursor','hint','next'],
-      when:'Bulk pagination hit a non-advancing/cycling cursor or a malformed page.', codes:['pagination_no_progress','pagination_malformed_page'] },
   ];
 
   const GUARDS = [
@@ -579,7 +577,6 @@ CRATE_ERROR_REGISTRY.api;           // { retryable, clientSide, carries: [...], 
     ['isCrateValidationError(v)', 'CrateValidationError'],
     ['isCrateNotFoundError(v)', 'CrateNotFoundError'],
     ['isCrateParseError(v)', 'CrateParseError'],
-    ['isCratePaginationError(v)', 'CratePaginationError'],
     ['isRateLimited(v)', 'CrateAPIError (HTTP 429, carries retryAfter)'],
     ['isRetryable(v)', "CrateError the default policy would retry"],
   ];
@@ -643,7 +640,7 @@ CRATE_ERROR_REGISTRY.api;           // { retryable, clientSide, carries: [...], 
     { name:'OnesToWatchResponse', kind:'response', desc:'The standalone ones-to-watch board from tastemakers.onesToWatch().',
       fields:[['onesToWatch','{ rank, name, emergenceTier, momentumTier, emergenceScore, profile, degree, … }[]',''],['snapshotDate','string | null',''],['state',"'present' | 'empty' | 'degraded'",''],['stale','boolean','']] },
     { name:'CrateErrorJSON', kind:'util', desc:'The stable, JSON-safe envelope from CrateError.toJSON(). Excludes .raw and the raw .cause.',
-      fields:[['name / kind / code','string','always present'],['message','string',''],['status / retryAfter / requestId','number / number / string','(api)'],['rateLimit','{ limit, remaining, reset }','(api, 429)'],['timeoutMs','number','(timeout)'],['lastCursor','string | null','(pagination)'],['hint / next / param / docUrl','string','client-side teaching fields'],['cause','{ name, message }','reduced — never leaks bodies']] },
+      fields:[['name / kind / code','string','always present'],['message','string',''],['status / retryAfter / requestId','number / number / string','(api)'],['rateLimit','{ limit, remaining, reset }','(api, 429)'],['timeoutMs','number','(timeout)'],['hint / next / param / docUrl','string','client-side teaching fields'],['cause','{ name, message }','reduced — never leaks bodies']] },
   ];
 
   // ---------- helpers ----------

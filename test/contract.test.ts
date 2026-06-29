@@ -39,7 +39,6 @@ describe('public API surface snapshot (ADX-10)', () => {
     'CrateValidationError',
     'CrateNotFoundError',
     'CrateParseError',
-    'CratePaginationError',
     'isCrateError',
     'isCrateAPIError',
     'isCrateNetworkError',
@@ -48,7 +47,6 @@ describe('public API surface snapshot (ADX-10)', () => {
     'isCrateValidationError',
     'isCrateNotFoundError',
     'isCrateParseError',
-    'isCratePaginationError',
     'isRateLimited',
     'isRetryable',
   ].sort();
