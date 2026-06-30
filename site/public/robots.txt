@@ -2,7 +2,7 @@ User-agent: *
 Allow: /
 
 # Human + crawler sitemap
-Sitemap: https://docs.crate.0xhoneyjar.xyz/sitemap-index.xml
+Sitemap: https://crate-sdk.0xhoneyjar.xyz/sitemap-index.xml
 
 # Agent surfaces (llms.txt convention)
 # /llms.txt        — curated index
