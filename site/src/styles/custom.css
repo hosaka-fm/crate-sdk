@@ -1,0 +1,54 @@
+/* Inherit hosaka's sole typeface — ABC Schengen (Dinamo) — from crate's web app.
+ * Two VARIABLE woff2 (full weight axis) self-hosted under public/fonts/abc-schengen/:
+ *   - 'ABC Schengen'      = ABC Schengen A (the grotesque cut) — sans + headings
+ *   - 'ABC Schengen Mono' = ABC Schengen A-Mono — code / tabular
+ * Mirrors crate/apps/web/app/globals.css. font-display: swap paints the fallback then swaps.
+ * NOTE: trial (evaluation-only) binaries are gitignored + local — production needs the licensed
+ * files (acquired pre-launch). Until they load, the Helvetica-class fallback stack shows. */
+
+@font-face {
+  font-family: 'ABC Schengen';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/abc-schengen/ABCSchengenA-Variable.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'ABC Schengen Mono';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/abc-schengen/ABCSchengenAMono-Variable.woff2') format('woff2');
+}
+
+/* Route Starlight's font tokens to ABC Schengen — metric-similar grotesque fallbacks until the
+ * file loads. Headings already use --sl-font in Starlight, so this covers body + headings. */
+:root {
+  --sl-font: 'ABC Schengen', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --sl-font-mono: 'ABC Schengen Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* Headings: the grotesque cut, slightly tighter — crate's heading feel. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.site-title {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+/* Brass accent ramp (--brass #e0a23c). Dark is default; light darkens for contrast. */
+:root {
+  --sl-color-accent-low: #3a2e12;
+  --sl-color-accent: #e0a23c;
+  --sl-color-accent-high: #f2d39a;
+}
+:root[data-theme='light'] {
+  --sl-color-accent-low: #f7e7c5;
+  --sl-color-accent: #9a6a16;
+  --sl-color-accent-high: #4e370c;
+}

@@ -1,0 +1,6 @@
+# ABC Schengen TRIAL fonts are evaluation-only — do NOT commit or redistribute.
+# Production deploys use the licensed files (acquired pre-launch). Keep binaries local.
+*.woff2
+*.woff
+*.otf
+*.ttf

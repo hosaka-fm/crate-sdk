@@ -25,5 +25,8 @@ pack.json
 .DS_Store
 *.tgz
 
+# Docs site (Astro Starlight) — build-only (node_modules/ + dist/ already covered above)
+.astro/
+
 # Run-mode ephemeral state (recovery only; not history)
 .run/

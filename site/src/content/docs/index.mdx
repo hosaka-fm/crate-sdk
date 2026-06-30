@@ -1,0 +1,35 @@
+---
+title: '@hosaka-fm/crate'
+description: Typed TypeScript client for the crate cluster-first music-catalogue API (/api/v2).
+template: splash
+hero:
+  tagline: The crate catalogue, typed end-to-end. Cluster-first, agent-native, zero runtime deps.
+  actions:
+    - text: Quickstart
+      link: /get-started/quickstart/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/hosaka-fm/crate-sdk
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid stagger>
+  <Card title="Cluster-first">
+    `cluster_id` is the prime key; the artist is the root, and `master` / `bandcamp` are
+    dimensions of the artist dossier.
+  </Card>
+  <Card title="Agent-native">
+    Teaching errors (`hint` / `next`), a keyless self-describing `crate.index()`, and a
+    runtime-discoverable surface — plus `llms.txt` for agents.
+  </Card>
+  <Card title="Honest by construction">
+    Every reference page is generated from a single source of truth and drift-guarded in CI.
+    `null` is an honest gap, never a lie.
+  </Card>
+  <Card title="Lean">
+    Dual ESM + CJS, zero runtime dependencies, types bundled. Node 18+.
+  </Card>
+</CardGrid>
