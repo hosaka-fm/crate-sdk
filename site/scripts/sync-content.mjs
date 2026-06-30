@@ -2,7 +2,16 @@
 // (npm `prebuild`/`predev`). Outputs are git-ignored and regenerated every build; never hand-edit.
 //   - Guides:        ../../docs/*.md      → src/content/docs/guides/<name>.md (add frontmatter, fix links)
 //   - SDK reference:  ../../meta/surface.json → src/content/docs/sdk/<slug>.md (one page per method)
-import { readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs';
+//   - Changelog:      ../../CHANGELOG.md    → src/content/docs/changelog.md
+//   - Explorer:       ../../explorer/index.html → public/explorer/index.html (standalone, at /explorer/)
+import {
+  readFileSync,
+  writeFileSync,
+  readdirSync,
+  mkdirSync,
+  copyFileSync,
+  existsSync,
+} from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -10,8 +19,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(here, '..', '..'); // repo root
 const DOCS = path.join(ROOT, 'docs');
 const SURFACE = path.join(ROOT, 'meta', 'surface.json');
-const OUT_GUIDES = path.join(here, '..', 'src', 'content', 'docs', 'guides');
-const OUT_SDK = path.join(here, '..', 'src', 'content', 'docs', 'sdk');
+const SITE = path.join(here, '..');
+const OUT_GUIDES = path.join(SITE, 'src', 'content', 'docs', 'guides');
+const OUT_SDK = path.join(SITE, 'src', 'content', 'docs', 'sdk');
 const GH = 'https://github.com/hosaka-fm/crate-sdk';
 
 const yaml = (s) => `"${String(s).replace(/"/g, "'").replace(/\s+/g, ' ').trim()}"`;
@@ -74,4 +84,25 @@ for (const m of methods) {
   writeFileSync(path.join(OUT_SDK, `${slugOf(m)}.md`), md);
 }
 
-console.log(`sync-content: ${guideCount} guides + ${methods.length} SDK pages generated`);
+// ---- Changelog: CHANGELOG.md → changelog.md ----
+let changelog = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8')
+  .replace(/^#\s+.+$/m, '')
+  .replace(/^\s+/, '');
+writeFileSync(
+  path.join(SITE, 'src', 'content', 'docs', 'changelog.md'),
+  `---\ntitle: "Changelog"\ndescription: "Release history for @hosaka-fm/crate."\n---\n\n${changelog}`,
+);
+
+// ---- Explorer: copy the standalone generated SPA → public/explorer/ (served at /explorer/) ----
+let explorerCopied = false;
+const explorerSrc = path.join(ROOT, 'explorer', 'index.html');
+if (existsSync(explorerSrc)) {
+  const dir = path.join(SITE, 'public', 'explorer');
+  mkdirSync(dir, { recursive: true });
+  copyFileSync(explorerSrc, path.join(dir, 'index.html'));
+  explorerCopied = true;
+}
+
+console.log(
+  `sync-content: ${guideCount} guides + ${methods.length} SDK pages + changelog${explorerCopied ? ' + explorer' : ''} generated`,
+);
