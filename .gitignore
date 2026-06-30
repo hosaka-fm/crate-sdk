@@ -30,6 +30,8 @@ pack.json
 # Generated docs content (single-source: regenerated each build by site/scripts/sync-content.mjs)
 site/src/content/docs/guides/
 site/src/content/docs/sdk/
+site/src/content/docs/changelog.md
+site/public/explorer/
 
 # Run-mode ephemeral state (recovery only; not history)
 .run/
