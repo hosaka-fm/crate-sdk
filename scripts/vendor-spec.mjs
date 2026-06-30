@@ -15,5 +15,18 @@ if (!res.ok) {
   process.exit(1);
 }
 const spec = await res.json();
+// Structural sanity before we vendor it — a malformed / non-OpenAPI body must not silently
+// overwrite the vendored spec (the human still reviews the PR, but fail loud + early here).
+if (
+  !spec ||
+  typeof spec !== 'object' ||
+  typeof spec.openapi !== 'string' ||
+  typeof spec.info?.version !== 'string' ||
+  !spec.paths ||
+  Object.keys(spec.paths).length === 0
+) {
+  console.error('vendor-spec: fetched document is not a valid OpenAPI spec — refusing to vendor');
+  process.exit(1);
+}
 writeFileSync(path.join(root, 'spec', 'openapi.json'), `${JSON.stringify(spec, null, 2)}\n`);
 console.log(`vendor-spec: ${url} → spec/openapi.json (info.version ${spec.info.version})`);
