@@ -19,14 +19,14 @@ npm run preview  # serve the built site
 
 ## Sources of truth (this site renders, never authors)
 
-| Section | Rendered from | Owner |
-|---|---|---|
-| API reference (`/api/*`) | `../spec/openapi.json` via `starlight-openapi` | **crate API team** |
-| Concepts (`/concepts/*`) | spec `x-concepts` | crate API team |
-| SDK reference (`/sdk/*`) | `../meta/surface.json` (from TSDoc) | SDK team |
-| Guides (`/guides/*`) | `../docs/*.md` | SDK team (hand-authored) |
-| Changelog | `../CHANGELOG.md` | generated |
-| `llms.txt` / `llms-full.txt` / `llms-small.txt` | whole corpus, via `starlight-llms-txt` | generated |
+| Section                                         | Rendered from                                  | Owner                    |
+| ----------------------------------------------- | ---------------------------------------------- | ------------------------ |
+| API reference (`/api/*`)                        | `../spec/openapi.json` via `starlight-openapi` | **crate API team**       |
+| Concepts (`/concepts/*`)                        | spec `x-concepts`                              | crate API team           |
+| SDK reference (`/sdk/*`)                        | `../meta/surface.json` (from TSDoc)            | SDK team                 |
+| Guides (`/guides/*`)                            | `../docs/*.md`                                 | SDK team (hand-authored) |
+| Changelog                                       | `../CHANGELOG.md`                              | generated                |
+| `llms.txt` / `llms-full.txt` / `llms-small.txt` | whole corpus, via `starlight-llms-txt`         | generated                |
 
 ## Wired now (scaffold)
 

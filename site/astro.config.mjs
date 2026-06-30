@@ -21,9 +21,7 @@ export default defineConfig({
         'Typed TypeScript client for the crate cluster-first music-catalogue API (/api/v2).',
       // Inherit hosaka's sole typeface (ABC Schengen) + brass accent from crate.
       customCss: ['./src/styles/custom.css'],
-      social: [
-        { icon: 'github', label: 'GitHub', href: 'https://github.com/hosaka-fm/crate-sdk' },
-      ],
+      social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/hosaka-fm/crate-sdk' }],
       plugins: [
         // API reference, rendered live from the API team's OpenAPI spec (the source of truth).
         starlightOpenAPI([

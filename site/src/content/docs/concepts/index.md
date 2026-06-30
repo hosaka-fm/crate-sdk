@@ -4,7 +4,7 @@ description: The cluster-first model — cluster_id, dossier, grain — and how 
 ---
 
 crate is **cluster-first**: the same artist across Discogs, MusicBrainz, and Bandcamp collapses
-to one canonical `cluster_id`. The artist is the root; `master` and `bandcamp` are *dimensions*
+to one canonical `cluster_id`. The artist is the root; `master` and `bandcamp` are _dimensions_
 of the artist dossier (`discography`, `bandcamp_emergence`, `bandcamp_tastemaker`), not separate
 top-level resources.
 
