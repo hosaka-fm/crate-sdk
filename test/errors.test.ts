@@ -10,7 +10,6 @@ import {
   CrateNetworkError,
   CrateNotFoundError,
   CrateParseError,
-  CratePaginationError,
   CrateTimeoutError,
   CrateValidationError,
   isCrateAPIError,
@@ -40,12 +39,6 @@ const instances: Record<CrateErrorKind, CrateError> = {
     param: 'query',
   }),
   parse: new CrateParseError('bad json', { status: 200, raw: '<html>' }),
-  pagination: new CratePaginationError('cursor did not advance', {
-    code: 'pagination_no_progress',
-    lastCursor: 'abc',
-    hint: 'the server returned the same cursor twice',
-    next: 'crate.bandcamp.bulk({ cursor: "abc" })',
-  }),
   not_found: new CrateNotFoundError('no cluster for that locator', {
     hint: 'the locator did not resolve',
     next: 'use crate.artistOrNull() to get null instead of a throw',
@@ -60,7 +53,6 @@ describe('kind discriminant + guards', () => {
     expect(instances.abort.name).toBe('CrateAbortError');
     expect(instances.validation.name).toBe('CrateValidationError');
     expect(instances.parse.name).toBe('CrateParseError');
-    expect(instances.pagination.name).toBe('CratePaginationError');
     expect(instances.not_found.name).toBe('CrateNotFoundError');
     for (const kind of CRATE_ERROR_KINDS) {
       expect(instances[kind].kind).toBe(kind);
@@ -117,7 +109,6 @@ describe('ADX-3: exported taxonomy', () => {
       'exactly_one_of',
       'api_key_required',
       'beacon_token_required',
-      'masters_arity',
       'base_url_has_path',
       'empty_key',
       'node_fetch_missing',
@@ -125,8 +116,6 @@ describe('ADX-3: exported taxonomy', () => {
       'timeout',
       'aborted',
       'network_error',
-      'pagination_no_progress',
-      'pagination_malformed_page',
     ];
     for (const c of clientCodes) expect(CRATE_ERROR_CODES).toContain(c);
   });
@@ -148,7 +137,6 @@ describe('ADX-2: toJSON envelope is JSON-safe', () => {
   it('round-trips kind + class-specific fields for every class', () => {
     expect(JSON.parse(JSON.stringify(instances.timeout)).timeoutMs).toBe(30000);
     expect(JSON.parse(JSON.stringify(instances.parse)).status).toBe(200);
-    expect(JSON.parse(JSON.stringify(instances.pagination)).lastCursor).toBe('abc');
     const v = JSON.parse(JSON.stringify(instances.validation));
     expect(v.hint).toBeTruthy();
     expect(v.next).toBeTruthy();
@@ -165,8 +153,8 @@ describe('ADX-2: toJSON envelope is JSON-safe', () => {
 });
 
 describe('ADX-4: client-side errors author the fix', () => {
-  it('validation / not_found / pagination carry non-empty hint + a runnable .next call', () => {
-    for (const e of [instances.validation, instances.not_found, instances.pagination]) {
+  it('validation / not_found carry non-empty hint + a runnable .next call', () => {
+    for (const e of [instances.validation, instances.not_found]) {
       expect(e.hint && e.hint.length).toBeGreaterThan(0);
       expect(e.next && e.next.length).toBeGreaterThan(0);
       // ADX-4: .next is a copy-pasteable corrected call, not prose.

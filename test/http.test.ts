@@ -64,7 +64,7 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
 describe('happy path + request building', () => {
-  it('returns parsed JSON, builds the /api/v1 URL + query, sends X-API-Key when set', async () => {
+  it('returns parsed JSON, builds the /api/v2 URL + query, sends X-API-Key when set', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(json(200, { cluster_id: 'abc' }));
     const result = await request<{ cluster_id: string }>(
       cfg({ fetchImpl, apiKey: 'ck_test_x' }),
@@ -72,7 +72,7 @@ describe('happy path + request building', () => {
     );
     expect(result).toEqual({ cluster_id: 'abc' });
     const url = fetchImpl.mock.calls[0][0] as URL;
-    expect(url.pathname).toBe('/api/v1/resolve');
+    expect(url.pathname).toBe('/api/v2/resolve');
     expect(url.searchParams.get('q')).toBe('Four Tet');
     expect(url.searchParams.get('limit')).toBe('5'); // number → string
     expect(url.searchParams.getAll('genre')).toEqual(['idm', 'ambient']); // array repeat-key

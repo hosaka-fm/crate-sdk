@@ -3,8 +3,9 @@
 # @hosaka-fm/crate
 
 **The official, typed TypeScript client for the [crate](https://crate.0xhoneyjar.xyz) public API** —
-a music-catalogue aggregation gateway (artist / master / label / festival dossiers + a Bandcamp
-data feed, keyed on the canonical `cluster_id`).
+a **cluster-first** music-catalogue gateway: artist / label / festival dossiers keyed on the
+canonical `cluster_id`, with release/master detail and Bandcamp standing carried as dimensions of
+the artist dossier.
 
 [![npm version](https://img.shields.io/npm/v/@hosaka-fm/crate.svg)](https://www.npmjs.com/package/@hosaka-fm/crate)
 [![CI](https://github.com/hosaka-fm/crate-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/hosaka-fm/crate-sdk/actions/workflows/ci.yml)
@@ -16,9 +17,9 @@ data feed, keyed on the canonical `cluster_id`).
 
 </div>
 
-Think `stripe-node` / `@supabase/supabase-js`: **typed methods, automatic retries, cursor
-pagination, and teaching errors** over crate's public contract. Built so a human reaches a
-green result in 60 seconds — and so an **AI agent succeeds first-try and recovers from
+Think `stripe-node` / `@supabase/supabase-js`: **typed methods, automatic retries, default-rich
+one-round-trip dossiers, and teaching errors** over crate's public contract. Built so a human
+reaches a green result in 60 seconds — and so an **AI agent succeeds first-try and recovers from
 failures using the error object alone**.
 
 ```ts
@@ -30,10 +31,14 @@ const artist = await crate.artist('Four Tet'); // name | slug | cluster_id | dis
 ```
 
 - 🧭 **Typed end to end.** Every parameter and response is generated from crate's live OpenAPI
-  spec — full autocomplete, no `any`, no hand-written drift.
+  spec (v2, 2.0.0) — full autocomplete, no `any`, no hand-written drift.
+- 🪪 **Cluster-first.** `resolve()` collapses any reference to a canonical `cluster_id`; everything
+  else keys off it. Release/master detail and Bandcamp standing are **dimensions of the artist
+  dossier**, not separate calls.
 - 🔁 **Resilient by default.** Auto-retry on `429/5xx` with full-jitter backoff that honours
   `Retry-After`; per-attempt timeouts and a whole-call deadline. The SDK already retried — you don't.
-- 📑 **Pagination that disappears.** `for await` over an async iterator; cursors are followed for you.
+- 📑 **Default-rich.** `artist()` returns the full dossier in one round-trip; `?fields=` only
+  _trims_ — never a forced second call for the obvious thing.
 - 🧯 **Errors that teach.** Typed exceptions carry `.kind` / `.code`, a human `.hint`, and a
   copy-pasteable `.next` — and they're `JSON.stringify`-safe for logging and agent handoff.
 - 🤖 **Agent-native.** Forgiving inputs, branch-on-code error handling, and a runtime-discoverable
@@ -45,10 +50,11 @@ const artist = await crate.artist('Four Tet'); // name | slug | cluster_id | dis
 > and requires a valid API key; MIT grants no right to use the crate service itself. See
 > [`NOTICE`](./NOTICE).
 
-> **Status — pre-release (`v0.3.0`).** crate is **key-first**: every data endpoint requires an
-> `apiKey` (sent as `X-API-Key`); only `crate.index()` is keyless. Keys are invite-only
-> (operator-issued) today; a self-serve tier lands later. Pre-`1.0`, minor versions may include
-> breaking changes — see [Versioning](#versioning--stability).
+> **Status — `v1.0.0`, targeting crate `/api/v2`.** This is the first stable major, cut against
+> crate's cluster-first v2 (2.0.0). crate is **key-first**: every data endpoint requires an
+> `apiKey` (sent as `X-API-Key`); only `crate.index()` is keyless. **Upgrading from 0.x?** v2
+> drops `master`/`masters`, the standalone `bandcamp.*`, `wayfind.*`, and `usage()` — see
+> [Migrating from v1 (0.x)](#migrating-from-v1-0x).
 
 ## Contents
 
@@ -61,9 +67,9 @@ const artist = await crate.artist('Four Tet'); // name | slug | cluster_id | dis
 - [Client surface](#client-surface)
 - [Errors](#errors)
 - [Configuration & retries](#configuration--retries)
-- [Pagination](#pagination)
 - [TypeScript](#typescript)
 - [Compatibility](#compatibility)
+- [Migrating from v1 (0.x)](#migrating-from-v1-0x)
 - [Versioning & stability](#versioning--stability)
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
@@ -89,7 +95,7 @@ import { Crate } from '@hosaka-fm/crate';
 // crate is key-first — every data endpoint needs a key (only crate.index() is keyless).
 const crate = new Crate({ apiKey: process.env.CRATE_API_KEY });
 
-// 1. Fetch an artist dossier from a name (or slug, cluster_id, or discogs:/mbid: locator).
+// 1. Full artist dossier from a name (or slug, cluster_id, or discogs:/mbid: locator).
 const artist = await crate.artist('Four Tet');
 console.log(artist.display, '→', artist.resolved_via); // "Four Tet" → "discogs"
 
@@ -97,10 +103,9 @@ console.log(artist.display, '→', artist.resolved_via); // "Four Tet" → "disc
 const id = await crate.resolve('https://fourtet.bandcamp.com');
 console.log(id.cluster_id, id.locators.bandcamp);
 
-// 3. Stream every row of a Bandcamp bulk feed — pagination is automatic.
-for await (const row of crate.bandcamp.bulkAll({ source: 'signals_mbid', maxPages: 3 })) {
-  handle(row);
-}
+// 3. A label dossier (cluster-first), and a trimmed artist dossier via ?fields=.
+const label = await crate.label('warp-records');
+const slim = await crate.artist('Four Tet', { fields: ['discography'] });
 ```
 
 That's the whole loop: **construct once, call methods, await typed results.**
@@ -132,15 +137,19 @@ There is **one object**. Construct it once, and every capability hangs off it:
 ```ts
 const crate = new Crate({ apiKey });
 
-crate.artist(key); // top-level conveniences: resolve, search, breakouts, master(s), facets, usage, index
-crate.bandcamp(artistKey); // callable namespace + .bulk / .bulkAll / .index / .release / .releases
-crate.dossier.master(id); // per-grain dossiers: master, artist, label, festival, manifest
+crate.resolve(query); // any link/name/id → a canonical cluster_id (the front door)
+crate.artist(key); // the full artist dossier (+ artistOrNull; + { fields } to trim)
+crate.label(key); // the full label dossier (cluster-first)
+crate.search(params); // faceted catalogue search · crate.facets() · crate.breakouts()
 crate.tastemakers(); // callable + .onesToWatch()
-crate.wayfind(question); // callable + .interpret()
-crate.searchEvents.observed(body, { beaconToken });
+crate.dossier.{ artist, label, festival, manifest }(slug); // per-grain dossiers (slug aliases)
+crate.searchEvents.observed(body, { beaconToken }); // + .refined() — relevance beacons
+crate.index(); // the keyless, self-describing root (resources + recipes + error catalogue)
 ```
 
-Every example below starts from a constructed `crate`.
+**Cluster-first:** in v2 there are no standalone `master` / `bandcamp` calls — release/master
+detail rides on `artist().discography` and Bandcamp standing on `artist().bandcamp_emergence` /
+`bandcamp_tastemaker`. Every example below starts from a constructed `crate`.
 
 ## Recipes
 
@@ -154,12 +163,11 @@ const id = await crate.resolve('Four Tet');
 const a = await crate.artist('discogs:1234');
 const maybe = await crate.artistOrNull('discogs:999999'); // → null if unresolved
 
-// A Bandcamp release with its tracklist (null = honest gap, HTTP 200, not an error).
-const release = await crate.bandcamp.release({ item: '1234567890' });
-if (release) for (const t of release.tracks) console.log(t.track_num, t.title);
+// Trim the dossier to just the facets you need (default = the full dossier, one round-trip).
+const slim = await crate.artist('Four Tet', { fields: ['discography', 'bandcamp_emergence'] });
 
-// All of an artist's releases (summaries, no tracklists).
-const releases = await crate.bandcamp.releases({ clusterId: id.cluster_id! });
+// A label dossier (cluster-first).
+const label = await crate.label('warp-records');
 
 // Faceted search + breakouts.
 const hits = await crate.search({ genre: ['idm', 'ambient'], year_from: 2000, limit: 20 });
@@ -182,11 +190,13 @@ object alone** — no external docs, no message parsing.
   `err.hint` (what's wrong) and `err.next` (a copy-pasteable corrected call).
 - **Errors are JSON-safe.** `JSON.stringify(err)` preserves the teaching payload for logs and
   agent-to-agent handoff (a plain `Error` serializes to `{}`).
-- **Don't double-retry.** The SDK already retries `429/5xx` with backoff — wrapping calls in your
-  own retry loop multiplies the wait. On a `429`, read `err.retryAfter` / `err.rateLimit`.
+- **Default-rich, then trim.** `artist()` returns the full dossier; pass `{ fields }` only to trim
+  — never a forced second call. An unknown field returns a teaching `400 invalid_fields`.
+- **Don't double-retry.** The SDK already retries `429/5xx` with backoff. On a `429`, read
+  `err.retryAfter` / `err.rateLimit`.
 - **Prefer the `isCrate*` guards over `instanceof`** (they survive the ESM/CJS boundary).
-- **Discover at runtime.** `crate.index()` (live root + cold-start recipe), `CRATE_RESOURCES`
-  (the static surface map), `CRATE_ERROR_REGISTRY` (the error dictionary) — no doc lookup needed.
+- **Discover at runtime.** `crate.index()` (live root + cold-start recipe + recipes + error
+  catalogue), `CRATE_RESOURCES` (static surface map), `CRATE_ERROR_REGISTRY` (error dictionary).
 
 ```ts
 import { Crate, isCrateError, isRateLimited } from '@hosaka-fm/crate';
@@ -194,10 +204,8 @@ import { Crate, isCrateError, isRateLimited } from '@hosaka-fm/crate';
 const crate = new Crate({ apiKey: process.env.CRATE_API_KEY });
 
 try {
-  const artist = await crate.artist('Four Tet');
-  for await (const row of crate.bandcamp.bulkAll({ source: 'signals_mbid', maxPages: 3 })) {
-    handle(row);
-  }
+  const artist = await crate.artist('Four Tet', { fields: ['discography'] });
+  handle(artist.discography);
 } catch (err) {
   if (!isCrateError(err)) throw err; // not ours — rethrow
   switch (err.kind) {
@@ -225,47 +233,39 @@ keyless, **beacon** = per-search JWT. All read methods auto-retry on a retryable
 
 <!-- BEGIN GENERATED:surface (npm run docs:gen) -->
 
-| Call                                | Endpoint                         | Auth    | Returns                         |
-| ----------------------------------- | -------------------------------- | ------- | ------------------------------- |
-| `crate.resolve(query)`              | `GET /resolve`                   | **key** | `IdentityResolution`            |
-| `crate.artist(key)`                 | `GET /artist/{key}`              | **key** | `ArtistDossierContract`         |
-| `crate.artistOrNull(key)`           | `GET /artist/{key}`              | **key** | `ArtistDossierContract \| null` |
-| `crate.search(params)`              | `GET /search`                    | **key** | `SearchResponse`                |
-| `crate.breakouts()`                 | `GET /breakouts`                 | **key** | `BreakoutsResponse`             |
-| `crate.index()`                     | `GET /api/v1`                    | anon    | `ApiRootIndex`                  |
-| `crate.facets()`                    | `GET /facets`                    | **key** | `FacetCounts`                   |
-| `crate.master(id)`                  | `GET /masters/{id}`              | **key** | `MasterEnrichment`              |
-| `crate.masters(ids)`                | `POST /masters/batch`            | **key** | `BatchResponse`                 |
-| `crate.usage()`                     | `GET /usage`                     | **key** | `UsageResponse`                 |
-| `crate.bandcamp(artistKey)`         | `GET /bandcamp/{artistKey}`      | **key** | `BandcampFeedContract`          |
-| `crate.bandcamp.bulk(params)`       | `GET /bandcamp`                  | **key** | `BandcampBulkPage`              |
-| `crate.bandcamp.bulkAll(params)`    | `GET /bandcamp`                  | **key** | `BulkIterable`                  |
-| `crate.bandcamp.index()`            | `GET /bandcamp`                  | **key** | `BandcampBulkPage`              |
-| `crate.bandcamp.release(query)`     | `GET /bandcamp/release`          | **key** | `BandcampRelease \| null`       |
-| `crate.bandcamp.releases(query)`    | `GET /bandcamp/release`          | **key** | `BandcampReleaseSummary[]`      |
-| `crate.dossier.master(id)`          | `GET /dossier/master/{id}`       | **key** | `MasterDossierContract`         |
-| `crate.dossier.artist(slug)`        | `GET /dossier/artist/{slug}`     | **key** | `ArtistDossierContract`         |
-| `crate.dossier.label(slug)`         | `GET /dossier/label/{slug}`      | **key** | `LabelDossierContract`          |
-| `crate.dossier.festival(slug)`      | `GET /dossier/festival/{slug}`   | **key** | `FestivalDossierContract`       |
-| `crate.dossier.manifest()`          | `GET /dossier/manifest`          | **key** | `DossierManifest`               |
-| `crate.tastemakers()`               | `GET /tastemakers`               | **key** | `TastemakersResponse`           |
-| `crate.tastemakers.onesToWatch()`   | `GET /tastemakers/ones-to-watch` | **key** | `OnesToWatchResponse`           |
-| `crate.wayfind(question)`           | `POST /wayfind/answer`           | **key** | `WayfindAnswerResponse`         |
-| `crate.wayfind.interpret(q)`        | `POST /wayfind/interpret`        | **key** | `WayfindInterpretResponse`      |
-| `crate.searchEvents.observed(body)` | `POST /search-events/observed`   | beacon  | `void`                          |
-| `crate.searchEvents.refined(body)`  | `POST /search-events/refined`    | beacon  | `void`                          |
+| Call                                | Endpoint                                | Auth    | Returns                         |
+| ----------------------------------- | --------------------------------------- | ------- | ------------------------------- |
+| `crate.resolve(query)`              | `GET /api/v2/resolve`                   | **key** | `IdentityResolution`            |
+| `crate.artist(key)`                 | `GET /api/v2/artist/{key}`              | **key** | `ArtistDossierContract`         |
+| `crate.artistOrNull(key)`           | `GET /api/v2/artist/{key}`              | **key** | `ArtistDossierContract \| null` |
+| `crate.label(key)`                  | `GET /api/v2/label/{key}`               | **key** | `LabelDossierContract`          |
+| `crate.search(params)`              | `GET /api/v2/search`                    | **key** | `SearchResponse`                |
+| `crate.breakouts()`                 | `GET /api/v2/breakouts`                 | **key** | `BreakoutsResponse`             |
+| `crate.index()`                     | `GET /api/v2`                           | anon    | `ApiRootIndex`                  |
+| `crate.facets()`                    | `GET /api/v2/facets`                    | **key** | `FacetCounts`                   |
+| `crate.dossier.artist(slug)`        | `GET /api/v2/dossier/artist/{slug}`     | **key** | `ArtistDossierContract`         |
+| `crate.dossier.label(slug)`         | `GET /api/v2/dossier/label/{slug}`      | **key** | `LabelDossierContract`          |
+| `crate.dossier.festival(slug)`      | `GET /api/v2/dossier/festival/{slug}`   | **key** | `FestivalDossierContract`       |
+| `crate.dossier.manifest()`          | `GET /api/v2/dossier/manifest`          | **key** | `DossierManifest`               |
+| `crate.tastemakers()`               | `GET /api/v2/tastemakers`               | **key** | `TastemakersResponse`           |
+| `crate.tastemakers.onesToWatch()`   | `GET /api/v2/tastemakers/ones-to-watch` | **key** | `OnesToWatchResponse`           |
+| `crate.searchEvents.observed(body)` | `POST /api/v2/search-events/observed`   | beacon  | `void`                          |
+| `crate.searchEvents.refined(body)`  | `POST /api/v2/search-events/refined`    | beacon  | `void`                          |
 
 <!-- END GENERATED:surface -->
 
-### Bandcamp releases & honest gaps
+### Cluster-first dimensions & honest gaps
 
-`crate.bandcamp.release({ item })` / `({ url })` returns the per-release dossier (incl. tracklist)
-or **`null`** when the release isn't present (an honest gap, HTTP 200 — not an error).
-`crate.bandcamp.releases({ clusterId })` returns an artist's release summaries (no tracklists).
-Known gaps, by design: **no direct audio stream** (`track.track_url` is the track _page_; Bandcamp
-streams are tokenised/ToS-bound), and **no label/catalog** (not crawled). `bandcamp_item_id` and
-`cluster_id` are **opaque strings** — pass them through, never numericize. Artwork
-(`ArtworkItem[]` on releases + dossiers) is **link-only** (`rehost: false`).
+In v2 the catalogue is keyed on the artist (the `cluster_id`); records and Bandcamp **attach** to
+it rather than being top-level resources. So instead of `master()` / `bandcamp.release()`, you read
+the artist dossier and look at its dimensions (trim with `?fields=`):
+
+- **`discography`** — the artist's catalogue index: per-master `{ discogsMasterId, representativeName, isPrimary, billingPosition }`. It's an _index_, not the per-master signal layer; `_links.master` points at the (frozen) v1 surface.
+- **`bandcamp_emergence` / `bandcamp_tastemaker`** — artist-level Bandcamp standing (emergence class, demand, supporter cohort). Per-release Bandcamp tracklists are **not** in v2 (see [migration](#migrating-from-v1-0x)).
+
+`null` (HTTP 200 with `cluster_id: null` / `present: false`) is an **honest gap**, not an error —
+`artistOrNull()` returns it. `cluster_id` is an **opaque string**; pass it through, never numericize.
+Artwork (`ArtworkItem[]`) is **link-only** (`rehost: false`).
 
 ## Errors
 
@@ -279,7 +279,8 @@ Every failure throws a `CrateError` subclass with a `kind` discriminant and a ma
 
 HTTP status maps to `kind` predictably: `401 → validation` (`api_key_required`), `404 →
 not_found`, `429 → api` (`isRateLimited`), `5xx → api` (retryable), transport faults `→
-network`/`timeout`. Always log `err.requestId` (on every `CrateAPIError`) when contacting support.
+network`/`timeout`. A `400 invalid_fields` (from `?fields=`) is a `CrateAPIError` carrying the
+valid set in `.hint` + a corrected call in `.next`. Always log `err.requestId` when contacting support.
 
 ```ts
 import { CRATE_ERROR_REGISTRY } from '@hosaka-fm/crate';
@@ -312,34 +313,13 @@ const crate = new Crate({
 | `totalDeadlineMs` | `120000`                       | whole-call budget across retries, ms (`null` to disable)    |
 | `headers`         | —                              | extra default headers (merged under SDK-managed ones)       |
 
-Every knob is overridable per call via `RequestOptions` (plus `signal: AbortSignal`).
-**Reliability model:** retries fire only on `429/500/503/504`, use full-jitter backoff, honour
-`Retry-After` (clamped by `maxRetryAfterMs`), and stop at `totalDeadlineMs`. All read methods are
-idempotent/safe. A caller `abort()` raises `CrateAbortError` (never retried); a deadline raises
-`CrateTimeoutError` (retried). More: [docs/configuration.md](./docs/configuration.md).
-
-## Pagination
-
-```ts
-// Rows, auto-following cursors (the common case):
-for await (const row of crate.bandcamp.bulkAll({ source: 'signals_mbid' })) {
-  /* … */
-}
-
-// Whole pages (exposes _meta) instead of rows:
-for await (const page of crate.bandcamp.bulkAll({ source: 'signals_mbid' }).pages()) {
-  console.log(page._meta, page.next_cursor);
-}
-
-// One page (manual keyset), or a bounded sweep:
-const page = await crate.bandcamp.bulk({ source: 'signals_mbid' });
-const handle = crate.bandcamp.bulkAll({ source: 'signals_mbid', maxPages: 5 });
-```
-
-Iteration ends when `next_cursor` is `null`; `maxPages` caps it cleanly (`handle.truncated ===
-true`, no throw). On a stuck/cycling cursor the SDK throws `CratePaginationError`, whose
-`.lastCursor` you re-pass to `bulk({ cursor })` to resume. Cursors are opaque strings — pass
-through, never numericize. More: [docs/pagination.md](./docs/pagination.md).
+Every knob is overridable per call via `RequestOptions` (plus `signal: AbortSignal` and the
+`fields` trim). **Reliability model:** retries fire only on `429/500/503/504`, use full-jitter
+backoff, honour `Retry-After` (clamped by `maxRetryAfterMs`), and stop at `totalDeadlineMs`. All
+read methods are idempotent/safe. A caller `abort()` raises `CrateAbortError` (never retried); a
+deadline raises `CrateTimeoutError` (retried). If crate ever marks a route deprecated, the SDK
+warns once on the `Sunset` header and follows a `308` preserving method + body. More:
+[docs/configuration.md](./docs/configuration.md).
 
 ## TypeScript
 
@@ -347,7 +327,7 @@ through, never numericize. More: [docs/pagination.md](./docs/pagination.md).
 import { Crate, isCrateError, type ArtistDossierContract } from '@hosaka-fm/crate';
 ```
 
-- **Generated types.** Params and responses are typed straight off crate's OpenAPI spec
+- **Generated types.** Params and responses are typed straight off crate's `/api/v2` OpenAPI spec
   (regenerate with `npm run generate`). No `any` on the public surface.
 - **Result narrowing.** `artist()` throws on an unresolved locator; `artistOrNull()` returns
   `ArtistDossierContract | null`. `switch (err.kind)` narrows the error union (`case 'api'` →
@@ -370,13 +350,31 @@ import { Crate, isCrateError, type ArtistDossierContract } from '@hosaka-fm/crat
 Older or non-standard runtimes: pass your own `fetch` via the `fetch` option. Dual ESM + CJS,
 `sideEffects: false` (tree-shakeable), zero runtime deps, types bundled.
 
+## Migrating from v1 (0.x)
+
+`1.0.0` targets crate's cluster-first `/api/v2` — a deliberate breaking change from `0.3.x`
+(which targeted `/api/v1`, now frozen). Most of the surface is unchanged; the demotions:
+
+| Removed in 1.0                         | Where the data went / what to do                                                                                                    |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `crate.master(id)` / `crate.masters()` | **Removed capability.** The per-master signal layer has no v2 endpoint. The artist's catalogue index is `artist().discography`.     |
+| `crate.dossier.master(id)`             | **Removed.** No v2 master dossier.                                                                                                  |
+| `crate.bandcamp.*` (release/bulk/…)    | Artist-level standing is `artist().bandcamp_emergence` / `bandcamp_tastemaker`. **Per-release tracklists/economics are not in v2.** |
+| `crate.wayfind(…)` / `.interpret(…)`   | **Removed** — natural-language surfaces stay v1-only this cut.                                                                      |
+| `crate.usage()`                        | **Removed** — no v2 `/usage`. Live quota is on `CrateAPIError.rateLimit` (`X-RateLimit-*`); monthly quota/tier is not yet in v2.    |
+| **Added:** `crate.label(key)`          | Cluster-first label dossier, promoted to a top-level method.                                                                        |
+| **Added:** `{ fields }` on `artist()`  | Opt-out sparse-fieldset trim (default = the full dossier).                                                                          |
+
+Need a removed capability today? It still lives on the frozen `/api/v1` — pin a `0.3.x` client for
+it. crate's own guide: [`/docs/migration/v1-to-v2`](https://crate.0xhoneyjar.xyz/docs/migration/v1-to-v2).
+
 ## Versioning & stability
 
-Semantic Versioning. **Pre-`1.0`, minor versions may include breaking changes.** The typed
-surface is regenerated from `spec/openapi.json`, so types track the live crate API contract; a
-CI drift check fails the build if the committed types fall out of sync. Three carve-outs may ship
-as a minor even at/after `1.0`: type-only changes, undocumented internals, and changes with
-negligible runtime impact. See [`CHANGELOG.md`](./CHANGELOG.md).
+Semantic Versioning. `1.0.0` is the first stable major, aligned with crate's `/api/v2`. The typed
+surface is regenerated from `spec/openapi.json`, so types track the live crate contract; a CI drift
+check fails the build if the committed types fall out of sync. Three carve-outs may ship as a minor:
+type-only changes, undocumented internals, and changes with negligible runtime impact. See
+[`CHANGELOG.md`](./CHANGELOG.md).
 
 ## Troubleshooting
 
@@ -384,7 +382,8 @@ negligible runtime impact. See [`CHANGELOG.md`](./CHANGELOG.md).
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CrateValidationError('api_key_required')` with no network call | crate is key-first — construct `new Crate({ apiKey })`. The SDK guards locally _before_ any request; only `crate.index()` is keyless.       |
 | `err instanceof CrateError` is `false`                          | The ESM/CJS dual-package boundary can load two copies of a class. Use the `isCrate*` guards (e.g. `isCrateError(err)`), never `instanceof`. |
-| `bandcamp.release(…)` / `artistOrNull(…)` returned `null`       | That's an honest gap (HTTP 200, `present: false`), **not** an error — handle `null` as control flow. Only `4xx`/`5xx` throw.                |
+| `artistOrNull(…)` returned `null`                               | That's an honest gap (a locator that resolved to no cluster), **not** an error — handle `null` as control flow. Only `4xx`/`5xx` throw.     |
+| `crate.bandcamp` / `crate.master` is `undefined`                | Removed in 1.0 (cluster-first v2). See [Migrating from v1](#migrating-from-v1-0x) — the data moved into `artist()` or stayed on frozen v1.  |
 | 429s get worse when I add retries                               | The SDK already retries `429/5xx` with backoff — remove your own retry loop. On a `429`, read `err.retryAfter` / `err.rateLimit`.           |
 | `TypeError: fetch is not defined`                               | You're on a runtime without a global `fetch` (Node < 18). Upgrade to Node 18+, or pass a `fetch` implementation via the `fetch` option.     |
 

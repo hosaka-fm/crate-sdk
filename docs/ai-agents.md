@@ -26,10 +26,8 @@ import { Crate, isCrateError, isRateLimited } from '@hosaka-fm/crate';
 const crate = new Crate({ apiKey: process.env.CRATE_API_KEY });
 
 try {
-  const artist = await crate.artist('Four Tet');
-  for await (const row of crate.bandcamp.bulkAll({ source: 'signals_mbid', maxPages: 3 })) {
-    handle(row);
-  }
+  const artist = await crate.artist('Four Tet'); // default-rich; { fields: [...] } trims
+  const label = await crate.label('warp-records');
 } catch (err) {
   if (!isCrateError(err)) throw err;
   switch (err.kind) {
@@ -53,13 +51,14 @@ try {
 
 ## `null` is an honest gap, not a failure
 
-`artistOrNull(...)` and `bandcamp.release(...)` return `null` (HTTP 200, `present:false`) when data
-is genuinely absent. Treat `null` as control flow, not an error to catch. Only `4xx`/`5xx` throw.
+`artistOrNull(...)` returns `null`, and `resolve(...)` returns a null `cluster_id` (HTTP 200,
+`present:false`) when data is genuinely absent. Treat `null` as control flow, not an error to
+catch. Only `4xx`/`5xx` throw.
 
 ## Opaque identifiers
 
-`cluster_id`, `bandcamp_item_id`, and pagination cursors are **strings**. Pass them through
-verbatim — never numericize, truncate, or reformat them.
+`cluster_id` and `discogs_master_id` are **strings**. Pass them through verbatim — never
+numericize, truncate, or reformat them.
 
 ## Discover the surface at runtime
 

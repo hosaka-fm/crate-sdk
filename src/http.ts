@@ -11,7 +11,7 @@ import {
 import { apiErrorFromResponse } from './error-mapping';
 import { computeDelay, isRetryableStatus, parseRetryAfter } from './retry';
 
-const API_PREFIX = '/api/v1';
+const API_PREFIX = '/api/v2';
 /** Cap on the preserved raw error body (`.raw`) — bounded handoff payloads. */
 const RAW_CAP = 2048;
 
@@ -36,7 +36,7 @@ export type QueryValue = string | number | boolean | string[] | undefined | null
 
 export interface RequestSpec {
   method: 'GET' | 'POST';
-  /** Path under `/api/v1`, e.g. `/resolve`. */
+  /** Path under `/api/v2`, e.g. `/resolve`. */
   path: string;
   query?: Record<string, QueryValue>;
   body?: unknown;
@@ -135,6 +135,29 @@ function parseRateLimit(headers: Headers): RateLimitInfo | undefined {
     ...(remaining !== undefined ? { remaining } : {}),
     ...(reset !== undefined ? { reset } : {}),
   };
+}
+
+// Deprecation surfacing (RFC 8594). crate's v2 is the successor and not deprecated, but if a
+// response ever carries `Sunset`/`Deprecation` (a future v2-route deprecation, or a custom
+// `baseUrl` pointed at a frozen surface), warn ONCE per distinct sunset value. 308 keepers are
+// followed by the default `redirect: 'follow'`, which preserves method + body — the two POST
+// beacons included (the only non-idempotent calls); the SDK targets v2 directly so it does not
+// round-trip v1 in normal operation.
+const warnedDeprecations = new Set<string>();
+function warnDeprecation(headers: Headers, url: URL): void {
+  const sunset = headers.get('sunset');
+  const deprecation = headers.get('deprecation');
+  if (!sunset && !deprecation) return;
+  const key = `${url.pathname}|${sunset ?? deprecation}`;
+  if (warnedDeprecations.has(key)) return;
+  warnedDeprecations.add(key);
+  const link = headers.get('link');
+  console.warn(
+    `[crate] ${url.pathname} is deprecated` +
+      (sunset ? ` (sunset ${sunset})` : '') +
+      (link ? `; successor ${link}` : '') +
+      '. Migration: https://crate.0xhoneyjar.xyz/docs/migration/v1-to-v2',
+  );
 }
 
 interface FetchInit {
@@ -273,6 +296,7 @@ export async function request<T>(config: HttpConfig, spec: RequestSpec): Promise
       continue;
     }
 
+    warnDeprecation(response.headers, url);
     if (response.ok) return parseOk<T>(response);
 
     const { body: errBody, raw } = await readErrorBody(response);

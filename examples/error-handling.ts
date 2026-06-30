@@ -15,7 +15,6 @@ async function main(): Promise<void> {
     switch (e.kind) {
       case 'validation':
       case 'not_found':
-      case 'pagination':
         // Client-side: hint says what's wrong, next is a copy-pasteable corrected call.
         console.error(`${e.code}: ${e.hint} → ${e.next}`);
         break;

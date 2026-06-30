@@ -4,7 +4,7 @@
     "fn": "resolve",
     "call": "crate.resolve(query)",
     "http": "GET",
-    "ep": "/resolve",
+    "ep": "/api/v2/resolve",
     "auth": "key",
     "ret": "IdentityResolution",
     "retry": true,
@@ -28,22 +28,22 @@
     "fn": "artist",
     "call": "crate.artist(key)",
     "http": "GET",
-    "ep": "/artist/{key}",
+    "ep": "/api/v2/artist/{key}",
     "auth": "key",
     "ret": "ArtistDossierContract",
     "retry": true,
     "idem": true,
     "sig": "artist(key: string, opts?: RequestOptions): Promise<ArtistDossierContract>",
-    "desc": "Fetch an artist dossier in one call — the shortcut when you already mean a specific artist. Hand it almost anything (a name, slug, 64-hex `cluster_id`, or `discogs:`/`mbid:` locator): a direct key hits `/artist/{key}`, while a locator or bare numeric id is resolved first. An unresolved locator throws CrateNotFoundError — use artistOrNull to receive `null`.",
-    "example": "const a = await crate.artist('Four Tet');     // name → dossier\nawait crate.artist('discogs:1234');           // locator → resolve → dossier\n// → a.display, a.resolved_via, a.emergence.signals, a.across_the_web, …",
+    "desc": "Fetch an artist dossier in one call — the shortcut when you already mean a specific artist. Hand it almost anything (a name, slug, 64-hex `cluster_id`, or `discogs:`/`mbid:` locator): a direct key hits `/artist/{key}`, while a locator or bare numeric id is resolved first. The dossier is full by default; pass `{ fields }` to trim it. An unresolved locator throws CrateNotFoundError — use artistOrNull to receive `null`. In v2 (cluster-first), release/master detail attaches here as the `discography` dimension and Bandcamp standing as `bandcamp_emergence` / `bandcamp_tastemaker` — there are no standalone `master`/`bandcamp` methods.",
+    "example": "const a = await crate.artist('Four Tet');                 // name → dossier\nawait crate.artist('discogs:1234');                       // locator → resolve → dossier\nawait crate.artist('Four Tet', { fields: ['discography'] }); // trim to one facet",
     "throws": [
       [
         "not_found",
         "when a locator/numeric id resolves to no cluster."
       ],
       [
-        "CrateAPIError",
-        "on a non-2xx response."
+        "invalid_fields",
+        ")."
       ]
     ]
   },
@@ -52,7 +52,7 @@
     "fn": "artistOrNull",
     "call": "crate.artistOrNull(key)",
     "http": "GET",
-    "ep": "/artist/{key}",
+    "ep": "/api/v2/artist/{key}",
     "auth": "key",
     "ret": "ArtistDossierContract | null",
     "retry": true,
@@ -69,10 +69,34 @@
   },
   {
     "ns": "client",
+    "fn": "label",
+    "call": "crate.label(key)",
+    "http": "GET",
+    "ep": "/api/v2/label/{key}",
+    "auth": "key",
+    "ret": "LabelDossierContract",
+    "retry": true,
+    "idem": true,
+    "sig": "label(key: string, opts?: RequestOptions): Promise<LabelDossierContract>",
+    "desc": "Fetch a label dossier in one call (cluster-first) by `cluster_id` or slug — the label peer of artist, promoted to a first-class resource in v2.",
+    "example": "const l = await crate.label('warp-records');",
+    "throws": [
+      [
+        "empty_key",
+        "on an empty/whitespace key."
+      ],
+      [
+        "CrateAPIError",
+        "on a non-2xx response."
+      ]
+    ]
+  },
+  {
+    "ns": "client",
     "fn": "search",
     "call": "crate.search(params)",
     "http": "GET",
-    "ep": "/search",
+    "ep": "/api/v2/search",
     "auth": "key",
     "ret": "SearchResponse",
     "retry": true,
@@ -92,7 +116,7 @@
     "fn": "breakouts",
     "call": "crate.breakouts()",
     "http": "GET",
-    "ep": "/breakouts",
+    "ep": "/api/v2/breakouts",
     "auth": "key",
     "ret": "BreakoutsResponse",
     "retry": true,
@@ -112,13 +136,13 @@
     "fn": "index",
     "call": "crate.index()",
     "http": "GET",
-    "ep": "/api/v1",
+    "ep": "/api/v2",
     "auth": "anon",
     "ret": "ApiRootIndex",
     "retry": true,
     "idem": true,
     "sig": "index(opts?: RequestOptions): Promise<ApiRootIndex>",
-    "desc": "The self-describing API root — a machine-readable map of every resource plus a 'cold start' recipe. The one **keyless** endpoint, so a new integration or an agent can discover what's possible before committing to anything.",
+    "desc": "The self-describing API root — a machine-readable map of every resource plus a 'cold start' recipe, task recipes, and a runtime error catalogue (v2). The one **keyless** endpoint, so a new integration or an agent can discover what's possible before committing to anything.",
     "example": "const root = await crate.index(); // works without an apiKey\nconsole.log(root.cold_start.problem);\nroot.resources.forEach((r) => console.log(r.name, r.auth));",
     "throws": [
       [
@@ -132,7 +156,7 @@
     "fn": "facets",
     "call": "crate.facets()",
     "http": "GET",
-    "ep": "/facets",
+    "ep": "/api/v2/facets",
     "auth": "key",
     "ret": "FacetCounts",
     "retry": true,
@@ -152,195 +176,18 @@
     ]
   },
   {
-    "ns": "client",
-    "fn": "master",
-    "call": "crate.master(id)",
-    "http": "GET",
-    "ep": "/masters/{id}",
-    "auth": "key",
-    "ret": "MasterEnrichment",
-    "retry": true,
-    "idem": true,
-    "sig": "master(id: number, opts?: RequestOptions): Promise<MasterEnrichment>",
-    "desc": "Enrich one 'master' (a record/album in the Discogs sense) with crate's behavioral signals: collector ownership, DJ play counts, critic attention, formats, and its slot in the cube taxonomy — the per-record intelligence layer over plain discography. **Key-gated.** `id` is a positive integer (server-validated).",
-    "example": "const m = await crate.master(1234567); // requires apiKey\n// → m.owner_count, m.dj_count, m.cube_quadrant, …",
-    "throws": [
-      [
-        "api_key_required",
-        "if constructed without an apiKey."
-      ],
-      [
-        "CrateAPIError",
-        "on a non-2xx response."
-      ]
-    ]
-  },
-  {
-    "ns": "client",
-    "fn": "masters",
-    "call": "crate.masters(ids)",
-    "http": "POST",
-    "ep": "/masters/batch",
-    "auth": "key",
-    "ret": "BatchResponse",
-    "retry": true,
-    "idem": true,
-    "sig": "masters(ids: number[], opts?: RequestOptions): Promise<BatchResponse>",
-    "desc": "Batch master enrichment — up to 100 records in one round-trip. Returns the rows it found plus an explicit `not_found` list, so a partial result is first-class rather than all-or-nothing. Use it to hydrate a page of search results in one call instead of N. **Key-gated.**",
-    "example": "const batch = await crate.masters([12345, 67890]); // requires apiKey\n// → batch.results: MasterEnrichment[]; batch.not_found: number[]",
-    "throws": [
-      [
-        "api_key_required",
-        "(no key) or `masters_arity` (not 1..100 ids)."
-      ],
-      [
-        "CrateAPIError",
-        "on a non-2xx response."
-      ]
-    ]
-  },
-  {
-    "ns": "client",
-    "fn": "usage",
-    "call": "crate.usage()",
-    "http": "GET",
-    "ep": "/usage",
-    "auth": "key",
-    "ret": "UsageResponse",
-    "retry": true,
-    "idem": true,
-    "sig": "usage(opts?: RequestOptions): Promise<UsageResponse>",
-    "desc": "Your meter — plan tier, calls made this month, quota and remaining, and the per-minute burst limit. Poll it to render a usage bar or back off before a wall. **Key-gated.**",
-    "example": "const u = await crate.usage(); // requires apiKey\nconsole.log(`${u.calls_this_month}/${u.quota_monthly} on ${u.tier}`);",
-    "throws": [
-      [
-        "api_key_required",
-        "if constructed without an apiKey."
-      ],
-      [
-        "CrateAPIError",
-        "on a non-2xx response."
-      ]
-    ]
-  },
-  {
-    "ns": "bandcamp",
-    "fn": "bandcamp",
-    "call": "crate.bandcamp(artistKey)",
-    "http": "GET",
-    "ep": "/bandcamp/{artistKey}",
-    "auth": "key",
-    "ret": "BandcampFeedContract",
-    "retry": true,
-    "idem": true,
-    "sig": "crate.bandcamp(artistKey: string, opts?: RequestOptions): Promise<BandcampFeedContract>",
-    "desc": "The per-artist Bandcamp feed — the bridge from an identity to its Bandcamp footprint. `artistKey` is a cluster_id, `discogs:<id>`, or `mbid:<uuid>`.",
-    "example": "const feed = await crate.bandcamp('discogs:1234');",
-    "throws": []
-  },
-  {
-    "ns": "bandcamp",
-    "fn": "bulk",
-    "call": "crate.bandcamp.bulk(params)",
-    "http": "GET",
-    "ep": "/bandcamp",
-    "auth": "key",
-    "ret": "BandcampBulkPage",
-    "retry": true,
-    "idem": true,
-    "sig": "bulk(params?: BandcampBulkParams, opts?: RequestOptions): Promise<BandcampBulkPage>",
-    "desc": "One keyset page of crate's platform-wide Bandcamp signal feed (the whole feed, not one artist). Each page returns an opaque `next_cursor` you persist to resume — use this when you manage paging yourself across runs or processes.",
-    "example": "const page = await crate.bandcamp.bulk({ source: 'signals_mbid' });\n// → page.rows: Record<string, unknown>[]; page.next_cursor: 'eyJ…' | null",
-    "throws": []
-  },
-  {
-    "ns": "bandcamp",
-    "fn": "bulkAll",
-    "call": "crate.bandcamp.bulkAll(params)",
-    "http": "GET",
-    "ep": "/bandcamp",
-    "auth": "key",
-    "ret": "BulkIterable",
-    "retry": true,
-    "idem": true,
-    "sig": "bulkAll(params?: BandcampBulkParams, opts?: RequestOptions): BulkIterable",
-    "desc": "The same feed, paged for you: an async iterable that follows cursors automatically until the feed ends. Yields rows by default; call `.pages()` for whole pages (with `_meta`), and cap the sweep with `maxPages`.",
-    "example": "for await (const row of crate.bandcamp.bulkAll({ source: 'signals_mbid', maxPages: 5 })) {\n  ingest(row);\n}",
-    "throws": []
-  },
-  {
-    "ns": "bandcamp",
-    "fn": "index",
-    "call": "crate.bandcamp.index()",
-    "http": "GET",
-    "ep": "/bandcamp",
-    "auth": "key",
-    "ret": "BandcampBulkPage",
-    "retry": true,
-    "idem": true,
-    "sig": "index(opts?: RequestOptions): Promise<BandcampBulkPage>",
-    "desc": "The no-arg Bandcamp index — discover the valid `source` names for `bulk()` / `bulkAll()` rather than guessing the string.",
-    "example": "const idx = await crate.bandcamp.index();",
-    "throws": []
-  },
-  {
-    "ns": "bandcamp",
-    "fn": "release",
-    "call": "crate.bandcamp.release(query)",
-    "http": "GET",
-    "ep": "/bandcamp/release",
-    "auth": "key",
-    "ret": "BandcampRelease | null",
-    "retry": true,
-    "idem": true,
-    "sig": "release(query: { item: string } | { url: string }, opts?: RequestOptions): Promise<BandcampRelease | null>",
-    "desc": "Zoom into one Bandcamp album and get its dossier, including the full tracklist, by opaque item id or album URL. Returns `null` on the honest gap (HTTP 200 `present: false`) — not an error. `track.track_url` is the track PAGE, never a playable stream (those are tokenised/ToS-bound); artwork is link-only.",
-    "example": "const r = await crate.bandcamp.release({ item: '1234567890' });\nif (r) for (const t of r.tracks) console.log(t.track_num, t.title, t.duration_s);\n// r === null → honest gap, not an error",
-    "throws": []
-  },
-  {
-    "ns": "bandcamp",
-    "fn": "releases",
-    "call": "crate.bandcamp.releases(query)",
-    "http": "GET",
-    "ep": "/bandcamp/release",
-    "auth": "key",
-    "ret": "BandcampReleaseSummary[]",
-    "retry": true,
-    "idem": true,
-    "sig": "releases(query: { clusterId: string }, opts?: RequestOptions): Promise<BandcampReleaseSummary[]>",
-    "desc": "All of an artist's Bandcamp releases for a `cluster_id` (usually from `resolve()`) as lightweight summary rows — no tracklists. List a discography fast, then `release()` into the one you want.",
-    "example": "const releases = await crate.bandcamp.releases({ clusterId });",
-    "throws": []
-  },
-  {
-    "ns": "dossier",
-    "fn": "master",
-    "call": "crate.dossier.master(id)",
-    "http": "GET",
-    "ep": "/dossier/master/{id}",
-    "auth": "key",
-    "ret": "MasterDossierContract",
-    "retry": true,
-    "idem": true,
-    "sig": "master(id: number, opts?: RequestOptions): Promise<MasterDossierContract>",
-    "desc": "The full master (record) dossier — richer than master's flat enrichment: a structured header, per-field sections, artwork, freshness, provenance.",
-    "example": "const d = await crate.dossier.master(1234567);",
-    "throws": []
-  },
-  {
     "ns": "dossier",
     "fn": "artist",
     "call": "crate.dossier.artist(slug)",
     "http": "GET",
-    "ep": "/dossier/artist/{slug}",
+    "ep": "/api/v2/dossier/artist/{slug}",
     "auth": "key",
     "ret": "ArtistDossierContract",
     "retry": true,
     "idem": true,
     "sig": "artist(slug: string, opts?: RequestOptions): Promise<ArtistDossierContract>",
-    "desc": "The deepest grain crate offers: an artist profile from ~24 independent facets (emergence, live demand, tastemaker support, journalism, network position…), each section present-with-signals or honestly marked absent. crate's flagship.",
-    "example": "const d = await crate.dossier.artist('four-tet');\n// → d.emergence.signals?.emergenceTier, d.live_demand.signals?.demandTier, …",
+    "desc": "The deepest grain crate offers: an artist profile from ~24 independent facets (emergence, live demand, tastemaker support, journalism, discography, the Bandcamp facets…), each section present-with-signals or honestly marked absent. crate's flagship. Accepts `{ fields }` to trim the dossier (default = full).",
+    "example": "const d = await crate.dossier.artist('four-tet');\n// → d.emergence.signals?.emergenceTier, d.discography.signals?.entries, …",
     "throws": []
   },
   {
@@ -348,13 +195,13 @@
     "fn": "label",
     "call": "crate.dossier.label(slug)",
     "http": "GET",
-    "ep": "/dossier/label/{slug}",
+    "ep": "/api/v2/dossier/label/{slug}",
     "auth": "key",
     "ret": "LabelDossierContract",
     "retry": true,
     "idem": true,
     "sig": "label(slug: string, opts?: RequestOptions): Promise<LabelDossierContract>",
-    "desc": "The label-grain dossier by slug.",
+    "desc": "The label-grain dossier by slug (cluster-first). Also reachable as the top-level label.",
     "example": "const d = await crate.dossier.label('warp-records');",
     "throws": []
   },
@@ -363,7 +210,7 @@
     "fn": "festival",
     "call": "crate.dossier.festival(slug)",
     "http": "GET",
-    "ep": "/dossier/festival/{slug}",
+    "ep": "/api/v2/dossier/festival/{slug}",
     "auth": "key",
     "ret": "FestivalDossierContract",
     "retry": true,
@@ -378,14 +225,14 @@
     "fn": "manifest",
     "call": "crate.dossier.manifest()",
     "http": "GET",
-    "ep": "/dossier/manifest",
+    "ep": "/api/v2/dossier/manifest",
     "auth": "key",
     "ret": "DossierManifest",
     "retry": true,
     "idem": true,
     "sig": "manifest(opts?: RequestOptions): Promise<DossierManifest>",
-    "desc": "A table of contents for the dossier system — which grains exist, which are available, and the contract version you're coding against.",
-    "example": "const m = await crate.dossier.manifest();\nconsole.log(m.contract_version, m.grains);",
+    "desc": "A table of contents for the dossier system — which grains exist, which are available, and the contract version you're coding against. In v2, `master` is demoted (it surfaces honestly under `unavailable_grains`).",
+    "example": "const m = await crate.dossier.manifest();\nconsole.log(m.contract_version, m.grains, m.unavailable_grains);",
     "throws": []
   },
   {
@@ -393,7 +240,7 @@
     "fn": "tastemakers",
     "call": "crate.tastemakers()",
     "http": "GET",
-    "ep": "/tastemakers",
+    "ep": "/api/v2/tastemakers",
     "auth": "key",
     "ret": "TastemakersResponse",
     "retry": true,
@@ -408,7 +255,7 @@
     "fn": "onesToWatch",
     "call": "crate.tastemakers.onesToWatch()",
     "http": "GET",
-    "ep": "/tastemakers/ones-to-watch",
+    "ep": "/api/v2/tastemakers/ones-to-watch",
     "auth": "key",
     "ret": "OnesToWatchResponse",
     "retry": true,
@@ -419,46 +266,11 @@
     "throws": []
   },
   {
-    "ns": "wayfind",
-    "fn": "wayfind",
-    "call": "crate.wayfind(question)",
-    "http": "POST",
-    "ep": "/wayfind/answer",
-    "auth": "key",
-    "ret": "WayfindAnswerResponse",
-    "retry": true,
-    "idem": true,
-    "sig": "crate.wayfind(question: string, opts?: RequestOptions): Promise<WayfindAnswerResponse>",
-    "desc": "Ask the catalogue a question in plain English and get an answer — the NL front door, handy when wiring crate into a chat or an agent.",
-    "example": "const a = await crate.wayfind('breakout dub techno artists from 2023');",
-    "throws": []
-  },
-  {
-    "ns": "wayfind",
-    "fn": "interpret",
-    "call": "crate.wayfind.interpret(q)",
-    "http": "POST",
-    "ep": "/wayfind/interpret",
-    "auth": "key",
-    "ret": "WayfindInterpretResponse",
-    "retry": true,
-    "idem": true,
-    "sig": "interpret(q: string, opts?: RequestOptions): Promise<WayfindInterpretResponse>",
-    "desc": "The 'show your work' twin of `wayfind()`: returns the structured search params it understood from your text, ready to hand to search. **Key-gated.**",
-    "example": "const params = await crate.wayfind.interpret('ambient from japan, 90s');",
-    "throws": [
-      [
-        "api_key_required",
-        "without an apiKey."
-      ]
-    ]
-  },
-  {
     "ns": "searchEvents",
     "fn": "observed",
     "call": "crate.searchEvents.observed(body)",
     "http": "POST",
-    "ep": "/search-events/observed",
+    "ep": "/api/v2/search-events/observed",
     "auth": "beacon",
     "ret": "void",
     "retry": false,
@@ -478,7 +290,7 @@
     "fn": "refined",
     "call": "crate.searchEvents.refined(body)",
     "http": "POST",
-    "ep": "/search-events/refined",
+    "ep": "/api/v2/search-events/refined",
     "auth": "beacon",
     "ret": "void",
     "retry": false,

@@ -4,7 +4,7 @@
  */
 
 export interface paths {
-    "/api/v1/search": {
+    "/api/v2": {
         parameters: {
             query?: never;
             header?: never;
@@ -12,225 +12,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Faceted search across the catalogue
-         * @description Faceted search across the catalogue. Requires an X-API-Key (post-cycle-078 wall); crate's own /explore + /crate search call it server-side via the first-party proxy. New params (cube_quadrant, dj_count_min, exclude_artist, exclude_label) added in cycle-001 sprint-1.
-         */
-        get: operations["searchCatalogue"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/masters/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Single master enrichment */
-        get: operations["getMaster"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/masters/batch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Batch master enrichment (≤100 IDs)
-         * @description Counts as ONE request against rate limit (not N). Body size capped at 32 KB.
-         */
-        post: operations["batchMasters"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/dossier/manifest": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Cross-grain dossier field manifest (data dictionary)
-         * @description cycle-023 — every field crate can expose for every entity grain (master/artist/label) with provenance (producer, source table, refresh cadence, tier, honest-gap state), plus unavailable grains (song — no fleet track key, carrefour#71). The machine-readable Swagger-like overview; read it to discover the full surface without hitting every entity endpoint. Keyed (X-API-Key), pure/static.
-         */
-        get: operations["getDossierManifest"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/dossier/master/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Full per-master dossier contract (aggregation gateway)
-         * @description cycle-020 — the canonical exhaustive dossier: every fleet signal for the master in every state (present/absent/blind/pending honest-gap) plus a provenance manifest (producer, source table, refresh cadence, tier). Keyed (X-API-Key) (same posture as the public /crate/master page). Distinct from /api/v1/masters/{id} (the older basic enrichment).
-         */
-        get: operations["getMasterDossier"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/dossier/artist/{slug}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Full per-artist dossier contract (aggregation gateway)
-         * @description cycle-021 — the canonical exhaustive artist dossier: identity (cc0_artists), collector behavior (mirror.artist_signals_v1), editorial/event (seen.artist_dossier), and artist-level "Across the Web" (mirror.master_links_rollup aggregated), each with a classified state, plus a provenance manifest. Keyed (X-API-Key) (matches the public /crate/artist page). An unresolved slug returns identity:null (HTTP 200, honest-gap), not 404.
-         */
-        get: operations["getArtistDossier"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/dossier/label/{slug}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Full per-label dossier contract (aggregation gateway)
-         * @description cycle-022 — the canonical label dossier: identity (cc0_labels: name, sublabel→parent lineage, profile, links) + collector behavior (mirror.label_signals_v1: owner_reach/wantlist_demand k-anon, co-ownership, community footprint, travels-with labels), each with a classified state, plus a provenance manifest. Keyed (X-API-Key). Unresolved slug → identity:null (HTTP 200, honest-gap), not 404.
-         */
-        get: operations["getLabelDossier"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/dossier/festival/{slug}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Full per-festival dossier contract (aggregation gateway)
-         * @description cycle-060 — the canonical festival dossier: identity (seen.festival_canonical, the de-fragmented grain: display name, country, inclusion tier, year span, source-mix badges) + the consolidated editions⋈lineup across member festivals (seen.festival_editions/festival_lineup_entries), with a classified state, plus a provenance manifest. The {slug} is the canonical_key. Keyed (X-API-Key). Unresolved key → identity:null (HTTP 200, honest-gap), not 404. Lineup is name-only this cycle.
-         */
-        get: operations["getFestivalDossier"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bandcamp/{artistKey}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Flat Bandcamp feed for one artist — every granted source, verbatim columns
-         * @description cycle-064 — the maximally-flexible Bandcamp feed: every crate_reader-granted Bandcamp surface (mirror signals/emergence/identity/signals_mbid/early_supporter_quality/scene/travels_with/self_declared_links/lead_time_authority + seen gravity/tastemaker) returned FLAT and source-tagged with ALL columns verbatim (the consumer reshapes). artistKey = <64-hex cluster_id> | discogs:<int> | mbid:<uuid>. Keyed (X-API-Key). Data is k-anon/public-safe; counts arrive already-floored — do NOT re-floor. Unresolved/sparse → 200 with the relevant sources {present:false}. Malformed key → 400.
-         */
-        get: operations["getBandcampArtist"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bandcamp": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Bandcamp feed index (no params) + keyset-paginated single-source bulk
-         * @description cycle-064/065 — called with NO query params, returns a self-describing MANIFEST (index of everything available: every source + grain/key/k-anon, the per-artist endpoint, and how to paginate) so a keyless consumer can discover the whole surface. With ?source=<name>&cursor=<64hex>&limit=<1..200> (default source=signals_mbid, limit=50) returns keyset-paginated rows of one cluster_id-PK source, all columns verbatim — page the full corpus via next_cursor. Keyed (X-API-Key). Unknown/non-paginable source or malformed cursor → 400.
-         */
-        get: operations["getBandcampFeedIndex"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bandcamp/release": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Per-release Bandcamp dossier (title, date, cover, tracklist, tags, album URL)
-         * @description cycle-080 — the Bandcamp release layer, served verbatim from mirror's release-grain VIEWs (bandcamp_release_v1 + bandcamp_release_track_v1, mig 0189) + the per-release cover (bandcamp_artwork_v1). Query ONE of (precedence item → url → cluster): ?item=<bandcamp_item_id> (direct → ONE full dossier with tracks) | ?url=<bandcamp album url> (normalized exact source_url match → ONE dossier) | ?cluster_id=<64-hex> (the artist's releases as a summary LIST, no tracks — discovery; each row carries bandcamp_item_id, fetch ?item= for the full dossier). Honest gaps: per-track DIRECT stream URL is not stored (Bandcamp streams are tokenized/expiring + ToS) — track_url is the track PAGE; label/catalog are not in the crawl. Keyed (X-API-Key); ONE crate_reader checkout; never fetches any URL. Unresolved → 200 present:false / empty releases (honest-gap), NOT 404. Malformed/missing → 400.
-         */
-        get: operations["getBandcampRelease"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * API root index — start here (cold-start recipe + resource map)
-         * @description cycle-072 — a friendly, self-describing root: the cold-start recipe (resolve a name/link → cluster_id → dossier) followed by every product surface with its auth tier + how to get the key. PURE (no DB), edge-cacheable. The human-facing sibling of /api/v1/openapi.json.
+         * API v2 root index — start here (cluster-first cold-start)
+         * @description cycle-2b — the v2 root index: the cold-start recipe + every v2 product surface with its auth tier + how to get the key + the runtime error catalogue (code → when → fix). PURE (no DB), edge-cacheable; the human-facing sibling of /api/v2/openapi.json. v2 is the cluster-first stable major: cluster_id is the prime key, sources/releases attach to it.
          */
         get: operations["getApiIndex"];
         put?: never;
@@ -241,7 +24,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/resolve": {
+    "/api/v2/openapi.json": {
         parameters: {
             query?: never;
             header?: never;
@@ -249,10 +32,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Resolve any identifier (name · pasted link · id) → canonical cluster_id
-         * @description The cluster-first front door (cycle-069/070/071): converts ANY identifier a caller holds into the canonical cluster_id + a human slug + the full locator set, WITHOUT knowing crate internals. Query ONE of: ?url=<any artist link> (discogs/musicbrainz → clean id; bandcamp/soundcloud/instagram/website/spotify/youtube → reverse-match the indexed seen.artist_link_index; twitter/reddit recognized but not yet cross-referenced → honest note + name fallback) | ?q=<artist name> (exact case-insensitive) | ?cluster=<64-hex> | ?discogs=<int> | ?mbid=<uuid>. On a resolved cluster, locators returns the full public profile-link set per platform (cycle-079, link-only forward read). resolved_from tells you how it matched ('url'|'name'|'locator'), matched_on which surface, note explains an unresolved recognized link. resolved_via = best binding tier ('discogs' verified, else 'cluster' observed, else null). Keyed (X-API-Key); ONE crate_reader checkout; never fetches the pasted URL. Unresolved → 200 with nulls (honest-gap), not 404. Malformed/missing → 400.
+         * OpenAPI 3.1 specification (v2 — this document)
+         * @description Public endpoint, no auth required. The cluster-first v2 surface at version 2.0.0; documents only /api/v2 routes.
          */
-        get: operations["resolveIdentity"];
+        get: operations["getOpenApiSpec"];
         put?: never;
         post?: never;
         delete?: never;
@@ -261,7 +44,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/artist/{key}": {
+    "/api/v2/artist/{key}": {
         parameters: {
             query?: never;
             header?: never;
@@ -270,7 +53,7 @@ export interface paths {
         };
         /**
          * Cluster-first canonical artist dossier (cluster_id hex OR slug)
-         * @description cycle-069 (API v2 P1) — the same exhaustive artist dossier as /dossier/artist/{slug}, addressed by the canonical cluster_id (64-hex, prime key) OR a human slug. A 64-hex key resolves identity DIRECTLY from the cluster_id (OBSERVED tier), skipping the cc0_artists lookup so a hex entry never re-anchors onto a same-name Discogs row → resolved_via is always 'cluster'. A slug resolves via the name path (resolved_via 'discogs' or 'cluster'). discogs:/mbid: locators are not a canonical address — convert them via /api/v1/resolve first (→ 400 here). Keyed (X-API-Key); unresolved → 200 identity:null (honest-gap), not 404. /dossier/artist/{slug} remains a live alias.
+         * @description cycle-2b — the v2 cluster-first headline resource: the same exhaustive artist dossier as v1, addressed by the canonical cluster_id (64-hex, prime key) OR a human slug, plus the v2 `?fields=` sparse-fieldset. Default = the full dossier in ONE round-trip; `?fields=` opts OUT to trim to the named top-level facets (unknown field → 400 invalid_fields with the valid set + a copy-pasteable example). A 64-hex key resolves identity DIRECTLY from the cluster_id (OBSERVED tier, never re-anchors onto a same-name Discogs row). discogs:/mbid: locators are not a canonical address (→ 400 here) → resolve them to a cluster_id first: /api/v1/resolve works today and returns the cluster_id (the cluster-first /api/v2/resolve front door lands with the rest of the v2 surface), then call /api/v2/artist/{cluster_id}. Keyed (X-API-Key); unresolved → 200 identity:null (honest-gap), not 404.
          */
         get: operations["getArtistByKey"];
         put?: never;
@@ -281,7 +64,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tastemakers": {
+    "/api/v2/resolve": {
         parameters: {
             query?: never;
             header?: never;
@@ -289,10 +72,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Tastemaker leaderboard + ones-to-watch (machine-readable)
-         * @description cycle-048 E1 — crate's richest artist-grain analytics (rank, ownTier, brokerageScore, corroborating axes, lead-times, Bandcamp demand), the SAME derived data the public /crate/tastemakers page renders. Read from the offline-published S3 snapshot (NO DB checkout). Keyed (X-API-Key). Fail-soft: `state` is `present` (rows), `empty` (derived data present but no rows), or `degraded` (derived data absent/unreadable) — degraded returns HTTP 200 honest-gap, never a 500. `stale=true` flags a snapshot older than 7 days. `?limit=` bounds each array (1..200).
+         * Resolve any identifier (name · pasted link · id) → canonical cluster_id
+         * @description The cluster-first front door: converts ANY identifier into the canonical cluster_id + slug + the full locator set. Query ONE of ?url= | ?q= | ?cluster=<64-hex> | ?discogs=<int> | ?mbid=<uuid>. The onward _links point into /api/v2. Keyed (X-API-Key); unresolved → 200 nulls (honest-gap), not 404.
          */
-        get: operations["getTastemakers"];
+        get: operations["resolveIdentity"];
         put?: never;
         post?: never;
         delete?: never;
@@ -301,7 +84,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tastemakers/ones-to-watch": {
+    "/api/v2/search": {
         parameters: {
             query?: never;
             header?: never;
@@ -309,10 +92,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Ones-to-watch rising artists (machine-readable slice)
-         * @description cycle-048 E1 — the ones-to-watch slice on its own surface (mirrors the /crate/tastemakers page section): rising/breakout artists with emergence + momentum tiers, five-factor score, corroborating axes, and Bandcamp demand. Same derived S3 read as /api/v1/tastemakers, NO DB checkout. Keyed (X-API-Key), fail-soft (degraded → HTTP 200). `?limit=` bounds the array (1..200).
+         * Faceted search across the catalogue
+         * @description Faceted master-grain search (lexical; ?nl=true runs the Haiku interpretation pipeline). Keyed (X-API-Key). Read the facets in the response, then re-query with facet filters to refine.
          */
-        get: operations["getOnesToWatch"];
+        get: operations["searchCatalogue"];
         put?: never;
         post?: never;
         delete?: never;
@@ -321,27 +104,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/breakouts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Breakouts index — emerging artists (machine-readable)
-         * @description cycle-048 E2 — the breakouts index (booking-momentum "ones to watch" from seen.artist_emergence, cross-validated against ridden press): the SAME single-checkout read the public /crate/breakouts explorer renders. Keyed (X-API-Key). Fail-soft: `state` is `present`/`empty`/`degraded` — a read failure returns HTTP 200 honest-gap, never a 500. `?limit=` is clamped to 200 (never an unbounded scan). `?tier=breakout|rising` and `?corroboration=corroborated|booking_ahead` filter the returned list (unknown values are ignored).
-         */
-        get: operations["getBreakouts"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/facets": {
+    "/api/v2/facets": {
         parameters: {
             query?: never;
             header?: never;
@@ -350,7 +113,7 @@ export interface paths {
         };
         /**
          * Precomputed facet snapshot
-         * @description Returns the same shape as `SearchResponse.facets`, narrowed by optional genre/style/country/year_from/year_to. format/label are NOT supported (see SDD §888).
+         * @description The same shape as SearchResponse.facets, narrowed by optional genre/style/country/year_from/year_to. format/label are not supported here.
          */
         get: operations["getFacets"];
         put?: never;
@@ -361,15 +124,18 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/usage": {
+    "/api/v2/breakouts": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Per-customer monthly usage snapshot */
-        get: operations["getUsage"];
+        /**
+         * Breakouts index — emerging artists (machine-readable)
+         * @description Booking-momentum "ones to watch" (seen.artist_emergence cross-validated against ridden press). Keyed; fail-soft (state present/empty/degraded → 200 honest-gap). ?tier= & ?corroboration= filter the bounded list.
+         */
+        get: operations["getBreakouts"];
         put?: never;
         post?: never;
         delete?: never;
@@ -378,47 +144,147 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/wayfind/answer": {
+    "/api/v2/tastemakers": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
         /**
-         * Natural-language answer over the catalogue
-         * @description cycle-003 — synthesizes a natural-language answer plus supporting catalogue results for a free-text question. Requires an X-API-Key (post-cycle-078 wall); crate's own /crate NL box reaches it server-side via the first-party proxy. A payment-blocked customer (past_due/suspended) receives 402. On synthesis/Redis trouble it returns a degraded 200 fallback rather than failing; a hard cost-breaker outage returns 503. (WAF rate rules + a cost-breaker still bound traffic at the edge.)
+         * Tastemaker leaderboard + ones-to-watch (machine-readable)
+         * @description crate's richest artist-grain analytics, from the offline-published S3 snapshot (NO DB checkout). Keyed; fail-soft (degraded → 200). ?limit= bounds each array (1..200).
          */
-        post: operations["wayfindAnswer"];
+        get: operations["getTastemakers"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/wayfind/interpret": {
+    "/api/v2/tastemakers/ones-to-watch": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
         /**
-         * Interpret a natural-language query into structured search params
-         * @description cycle-003 — parses a free-text query into structured facets/intent. Authenticated AND Sync-tier-only (mirrors the /search?nl=true tier gate); a non-Sync key receives an explicit 401 `tier_not_eligible`.
+         * Ones-to-watch rising artists (machine-readable slice)
+         * @description The ones-to-watch slice on its own surface (same derived S3 read as /api/v2/tastemakers, NO DB checkout). Keyed; fail-soft (degraded → 200). ?limit= bounds the array (1..200).
          */
-        post: operations["wayfindInterpret"];
+        get: operations["getOnesToWatch"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/search-events/observed": {
+    "/api/v2/label/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Canonical label dossier by cluster_id hex or slug
+         * @description The cluster-first canonical label address. {key} is a 64-hex label_cluster_id (resolves DIRECTLY, OBSERVED tier, never re-anchors) OR a name-slug. discogs:/mbid: → 400. Keyed; unresolved → 200 identity:null (honest-gap), not 404.
+         */
+        get: operations["getLabelByKey"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/dossier/artist/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Full per-artist dossier by slug (alias of /api/v2/artist/{key})
+         * @description The canonical artist dossier addressed by human slug; an alias of /api/v2/artist/{key} sharing the same handler (so it also accepts the v2 ?fields= sparse-fieldset). Keyed; unresolved → 200 identity:null (honest-gap).
+         */
+        get: operations["getArtistDossier"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/dossier/label/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Full per-label dossier by slug (alias of /api/v2/label/{key})
+         * @description The cluster-first label dossier addressed by human slug; an alias of /api/v2/label/{key} sharing the same handler. Keyed; unresolved → 200 identity:null (honest-gap).
+         */
+        get: operations["getLabelDossier"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/dossier/festival/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Full per-festival dossier by canonical key
+         * @description The canonical festival dossier: identity (seen.festival_canonical) + consolidated editions⋈lineup, with a classified state + provenance. {slug} is the canonical_key. Keyed; unresolved → 200 identity:null (honest-gap).
+         */
+        get: operations["getFestivalDossier"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/dossier/manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cross-grain dossier field manifest (data dictionary)
+         * @description Every field crate can expose for every v2 entity grain (artist/label/festival) with provenance + the contract endpoint per grain (v2-pathed). master is demoted (cluster-first; surfaced under unavailable_grains). Keyed, pure/static.
+         */
+        get: operations["getDossierManifest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/search-events/observed": {
         parameters: {
             query?: never;
             header?: never;
@@ -429,7 +295,7 @@ export interface paths {
         put?: never;
         /**
          * Beacon: a search result was observed (cache-hit telemetry)
-         * @description cycle-002 — client beacon reporting that a search result was observed from cache. Authenticated with the per-search beacon JWT (Authorization: Bearer), NOT the X-API-Key. Body ≤512 bytes; idempotent (duplicate beacons are no-ops). The beacon token MUST match the body search_event_id.
+         * @description Client beacon reporting a search result was observed from cache. Authenticated with the per-search beacon JWT (Authorization: Bearer), NOT the X-API-Key (the token is version-agnostic). Body ≤512 bytes; idempotent.
          */
         post: operations["recordObservedBeacon"];
         delete?: never;
@@ -438,7 +304,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/search-events/refined": {
+    "/api/v2/search-events/refined": {
         parameters: {
             query?: never;
             header?: never;
@@ -449,29 +315,9 @@ export interface paths {
         put?: never;
         /**
          * Beacon: a search was refined (facet-change telemetry)
-         * @description cycle-002 — client beacon reporting facet changes that refined a prior search (≤10 changed facets). Authenticated with the per-search beacon JWT (Authorization: Bearer), NOT the X-API-Key. Body ≤512 bytes; idempotent. The beacon token MUST match the body search_event_id.
+         * @description Client beacon reporting facet changes that refined a prior search (≤10 changed facets). Authenticated with the per-search beacon JWT (Authorization: Bearer), NOT the X-API-Key. Body ≤512 bytes; idempotent.
          */
         post: operations["recordRefinedBeacon"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/openapi.json": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * OpenAPI 3.1 specification (this document)
-         * @description Public endpoint, no auth required.
-         */
-        get: operations["getOpenApiSpec"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -489,6 +335,7 @@ export interface components {
          *     |---|---|---|---|
          *     | `invalid_artist_key` | 400 | `/artist/{key}` key is not a 64-hex cluster_id, `discogs:<id>`, or `mbid:<uuid>` | resolve by name first: `GET /api/v1/resolve?q=<name>`, then call `/artist/{cluster_id}` |
          *     | `use_resolve_for_locator` | 400 | `/artist/{key}` given a `discogs:`/`mbid:` locator (not a canonical address) | `GET /api/v1/resolve?discogs=<id>` (or `?mbid=`), then use the returned cluster_id |
+         *     | `invalid_label_key` | 400 | `/label/{key}` key is not a 64-hex `label_cluster_id` or name-slug (e.g. a `discogs:`/`mbid:` locator — not resolvable for labels yet) | address a label by its 64-hex `label_cluster_id` or its name-slug (e.g. `/api/v1/label/warp`) |
          *     | `missing_locator` | 400 | `/resolve` called with none of q/cluster/discogs/mbid (or `/bandcamp/release` with none of item/url/cluster_id) | pass exactly one locator |
          *     | `invalid_locator` | 400 | a `/resolve` (or `/bandcamp/release`) locator is malformed for its type | fix the format, or fall back to `?q=<name>` |
          *     | `invalid_source_or_cursor` | 400 | `/bandcamp` given an unknown/non-paginable `?source=` or a bad `?cursor=` | `GET /api/v1/bandcamp` (no params) for the manifest; pass `next_cursor` back verbatim |
@@ -599,7 +446,7 @@ export interface components {
         };
         UsageResponse: {
             /** @enum {string} */
-            tier: "sync" | "self_serve_49" | "self_serve_99" | "self_serve_299";
+            tier: "sync" | "self_serve_49" | "self_serve_99" | "self_serve_299" | "free";
             month: string;
             calls_this_month: number;
             quota_monthly: number;
@@ -1050,6 +897,29 @@ export interface components {
                     }[];
                 } | null;
             };
+            discography: {
+                state: string;
+                signals: {
+                    clusterId: string | null;
+                    total: number;
+                    shown: number;
+                    truncated: boolean;
+                    entries: {
+                        discogsMasterId: number;
+                        representativeName: string | null;
+                        isPrimary: boolean;
+                        billingPosition: number;
+                        _links: {
+                            master: string;
+                        };
+                    }[];
+                    overMerge: {
+                        discogsArtistIdCount: number;
+                        folded: boolean;
+                    } | null;
+                    observedAt: string | null;
+                };
+            };
             provenance: {
                 field: string;
                 producer: string;
@@ -1067,9 +937,96 @@ export interface components {
             grain: "label";
             slug: string;
             display: string;
+            /** @description Resolved Discogs label id (the LEAF coordinate); null = cluster-only / unresolved. */
             id: number | null;
-            identity?: unknown;
-            behavioral?: unknown;
+            /**
+             * @description crate's CANONICAL artist identity — a pe-norm-v1 hex string. The SAME artist across Discogs, MusicBrainz and Bandcamp collapses to ONE cluster_id, so this is the key you store and the key you address every artist surface off of (/artist/{key} takes a 64-hex cluster_id directly). WHY IT MATTERS: it is crate's prime IP — the non-Discogs long-tail join key; discogs_artist_id / mbid are mere leaf coordinates onto it. GOTCHA: it is an OPAQUE string — pass it through verbatim, NEVER numericize, parse, or compare it as a number. null is an HONEST GAP (the name/link couldn't be resolved to a cluster), NOT an error — you still get HTTP 200. A 64-hex cluster_id always resolves at OBSERVED tier (resolved_via:'cluster'), never re-anchored onto a same-name Discogs row.
+             * @example a3f9c1e84b2d70f6a3f9c1e84b2d70f6a3f9c1e84b2d70f6a3f9c1e84b2d70f6
+             */
+            cluster_id: string | null;
+            /**
+             * @description The binding TIER — how trustworthy the identity match is. 'discogs' = canonical, Discogs-bound (verified). 'cluster' = OBSERVED/UNVERIFIED identity inferred from the seen booking graph with no Discogs bind. null = the lookup did not resolve at all (honest gap). WHY IT MATTERS: it is a trust signal you must respect — a 'cluster' result is crate showing you what it can SEE in the booking graph, not what it has verified. GOTCHA: surface a 'cluster' result as flagged/unverified, NEVER as canonical truth; do not silently merge a 'cluster' artist with a verified one. A bare 64-hex key always comes back 'cluster' by design (it skips the cc0_artists lookup so a hex address never re-anchors onto a same-name Discogs row).
+             * @example discogs
+             * @enum {string|null}
+             */
+            resolved_via: "discogs" | "cluster" | null;
+            identity: {
+                discogsLabelId: number | null;
+                name: string;
+                parentLabel: string | null;
+                profile: string | null;
+                urls: string[];
+            } | null;
+            /** @description cycle-L1: cross-source identity binds from label_identity_v1. bandcamp_url is a LINK only (rehost:false, never fetched). */
+            binds: {
+                discogs_label_id: number | null;
+                label_mbid: string | null;
+                /**
+                 * @description The label's self-declared Bandcamp page URL from the cross-source identity spine (a LINK, never fetched — same rehost:false posture as artwork). WHY IT MATTERS: it is the canonical 'listen/buy on Bandcamp' address for the label, and the bind that lets a Bandcamp-native (cluster-only) label still resolve. GOTCHA: it is a page link, not an API or audio endpoint; it is nullable (no Bandcamp bind for this cluster yet) — null is an honest gap, not an error.
+                 * @example https://labelname.bandcamp.com
+                 */
+                bandcamp_url: string | null;
+            } | null;
+            /** @description cycle-L1: which source planes this cluster is observed in (presence flags, not measured counts). */
+            presence: {
+                has_discogs: boolean;
+                has_bandcamp: boolean;
+                has_seen_momentum: boolean;
+                has_editorial: boolean;
+            } | null;
+            /** @description cycle-L1: present ONLY when >1 raw Discogs label id folded into this cluster (over-merge honesty) — the dossier is then forced to the OBSERVED tier. */
+            over_merge: {
+                /**
+                 * @description OVER-MERGE observability: how many distinct raw Discogs label ids folded into this one label_cluster_id. WHY IT MATTERS: a label cluster is name-derived, so distinct Discogs labels that share a normalized name can collapse together; this count is crate's honesty signal that the cluster may conflate more than one real label. GOTCHA: when it is >1 the dossier is forced to the OBSERVED tier (resolved_via:'cluster') and surfaces an `over_merge` block — do NOT present such a cluster's identity or signals as authoritative for a single label. 1 (or absent) means a clean single-label cluster.
+                 * @example 1
+                 */
+                discogs_label_id_count: number;
+                /** @enum {boolean} */
+                folded: true;
+            } | null;
+            behavioral: {
+                state: string;
+                signals?: unknown;
+            };
+            /** @description cycle-L1: Bandcamp co-ownership adjacency (mirror.bandcamp_label_travels_v1, cluster-keyed, k-anon k>=5). Each entry links onward to /api/v1/label/{cluster_id}. */
+            travels: {
+                state: string;
+                related: {
+                    clusterId: string;
+                    labelName: string | null;
+                    /**
+                     * @description The rarity-weighted normalized pointwise mutual information of a Bandcamp co-ownership edge — how much more often two labels are co-collected than chance, downweighting ubiquitous labels. WHY IT MATTERS: it ranks the `travels` adjacency (higher = a stronger, more distinctive co-ownership tie) so you can take the top few as the label's nearest neighbors. GOTCHA: it is a relative affinity score, NOT a count or a probability — don't sum it, threshold it absolutely, or show it as a percentage; use it only to order edges. Pair it with `support` (the distinct-supporter count behind the edge, k-anon floor 5).
+                     * @example 0.42
+                     */
+                    npmi: number;
+                    support: number;
+                    _links: {
+                        label: string;
+                    };
+                }[];
+            };
+            /** @description cycle-L2: per-label DJ-set momentum (seen.label_djset_momentum, cluster-keyed) — which labels are breaking in DJ sets. Lead with playsLast365d (recency) + distinctArtists (roster breadth); velocity = playsLast365d/playCount. honest_gap when the label has no DJ plays. */
+            dj_momentum: {
+                state: string;
+                signals: {
+                    playCount: number;
+                    distinctDjs: number;
+                    distinctArtists: number;
+                    distinctTracklists: number;
+                    firstPlayedAt: string | null;
+                    lastPlayedAt: string | null;
+                    /**
+                     * @description How many times the label's roster was played in DJ sets in the last 365 days — the RECENCY signal of label DJ-momentum (seen.label_djset_momentum). WHY IT MATTERS: it is the lead 'which labels are breaking right now' number; pair it with distinctArtists (roster breadth) to separate a one-hit label from a deep accelerating roster. GOTCHA: it is a raw count over public DJ tracklists (no per-fan data), not a rate — divide by playCount to get `velocity`. A label with no DJ plays has no row at all (dj_momentum.state='honest_gap'), not a zero.
+                     * @example 342
+                     */
+                    playsLast365d: number;
+                    /**
+                     * @description The share of a label's all-time DJ-set plays that happened in the last 365 days: playsLast365d / playCount ∈ [0,1]. WHY IT MATTERS: it normalizes momentum so a young breaking label (near 1.0) is distinguishable from a long-established catalogue label with the same recent count but a huge back-catalogue (near 0). GOTCHA: it is null when playCount is 0 (no all-time plays — avoid div-by-zero); it is a ratio, not a percentage or a count — don't sum it across labels.
+                     * @example 0.61
+                     */
+                    velocity: number | null;
+                } | null;
+            };
             provenance: unknown[];
             generated_at: string;
         };
@@ -1186,6 +1143,15 @@ export interface components {
                 openapi: string;
                 generate: string;
             };
+        };
+        SignupAccepted: {
+            /** @enum {boolean} */
+            ok: true;
+            message: string;
+        };
+        SignupRequest: {
+            /** Format: email */
+            email: string;
         };
         IdentityResolution: {
             /**
@@ -1355,6 +1321,244 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getApiIndex: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description API v2 root index */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        object: "api_index";
+                        /** @enum {string} */
+                        version: "v2";
+                        cold_start: {
+                            problem: string;
+                            steps: {
+                                step: number;
+                                call: string;
+                                gives: string;
+                            }[];
+                        };
+                        recipes: {
+                            task: string;
+                            steps: {
+                                call: string;
+                                gives: string;
+                            }[];
+                        }[];
+                        resources: {
+                            name: string;
+                            url: string;
+                            /** @enum {string} */
+                            auth: "public" | "sync";
+                            eli5: string;
+                            description: string;
+                            example: string;
+                            how_to_get_the_key: string | null;
+                        }[];
+                        errors: {
+                            code: string;
+                            http_status: number;
+                            when: string;
+                            fix: string;
+                        }[];
+                        links: {
+                            openapi: string;
+                            docs: string;
+                        };
+                        types: {
+                            openapi: string;
+                            generate: string;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    getOpenApiSpec: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OpenAPI 3.1 spec (v2) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    getArtistByKey: {
+        parameters: {
+            query?: {
+                fields?: string;
+            };
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Artist dossier contract (default-rich; trimmed when ?fields= is supplied) */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtistDossierContract"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    resolveIdentity: {
+        parameters: {
+            query?: {
+                url?: string;
+                q?: string;
+                cluster?: string;
+                discogs?: string;
+                mbid?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resolved identity (or nulls when unresolved) */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentityResolution"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     searchCatalogue: {
         parameters: {
             query?: {
@@ -1446,18 +1650,22 @@ export interface operations {
             };
         };
     };
-    getMaster: {
+    getFacets: {
         parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
+            query?: {
+                genre?: string | string[];
+                style?: string | string[];
+                country?: string | string[];
+                year_from?: number;
+                year_to?: number;
             };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Master enrichment */
+            /** @description Facet counts */
             200: {
                 headers: {
                     /** @description Requests allowed in the current window. */
@@ -1469,7 +1677,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MasterEnrichment"];
+                    "application/json": components["schemas"]["FacetCounts"];
                 };
             };
             /** @description Validation failure (invalid query, malformed body, bad facet name) */
@@ -1492,15 +1700,6 @@ export interface operations {
             };
             /** @description Payment required (past_due customer or suspended key) */
             402: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1546,22 +1745,20 @@ export interface operations {
             };
         };
     };
-    batchMasters: {
+    getBreakouts: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+                tier?: "breakout" | "rising";
+                corroboration?: "corroborated" | "booking_ahead";
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    ids: number[];
-                };
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description Batch enrichment results (input-order preserved) */
+            /** @description Breakouts index items (or honest-gap state) */
             200: {
                 headers: {
                     /** @description Requests allowed in the current window. */
@@ -1573,38 +1770,11 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BatchResponse"];
+                    "application/json": components["schemas"]["BreakoutsResponse"];
                 };
             };
             /** @description Validation failure (invalid query, malformed body, bad facet name) */
             400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Authentication failure */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Payment required (past_due customer or suspended key) */
-            402: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Payload too large */
-            413: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1650,16 +1820,18 @@ export interface operations {
             };
         };
     };
-    getDossierManifest: {
+    getTastemakers: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Dossier field manifest */
+            /** @description Tastemaker leaderboard + ones-to-watch (or honest-gap state) */
             200: {
                 headers: {
                     /** @description Requests allowed in the current window. */
@@ -1671,7 +1843,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DossierManifest"];
+                    "application/json": components["schemas"]["TastemakersResponse"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
@@ -1692,20 +1873,38 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
-    getMasterDossier: {
+    getOnesToWatch: {
         parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
+            query?: {
+                limit?: number;
             };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Master dossier contract */
+            /** @description Ones-to-watch rows (or honest-gap state) */
             200: {
                 headers: {
                     /** @description Requests allowed in the current window. */
@@ -1717,7 +1916,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MasterDossierContract"];
+                    "application/json": components["schemas"]["OnesToWatchResponse"];
                 };
             };
             /** @description Validation failure (invalid query, malformed body, bad facet name) */
@@ -1729,8 +1928,72 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description Resource not found */
-            404: {
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getLabelByKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Label dossier contract */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelDossierContract"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1778,7 +2041,9 @@ export interface operations {
     };
     getArtistDossier: {
         parameters: {
-            query?: never;
+            query?: {
+                fields?: string;
+            };
             header?: never;
             path: {
                 slug: string;
@@ -1787,7 +2052,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Artist dossier contract */
+            /** @description Artist dossier contract (default-rich; trimmed when ?fields= is supplied) */
             200: {
                 headers: {
                     /** @description Requests allowed in the current window. */
@@ -1995,230 +2260,7 @@ export interface operations {
             };
         };
     };
-    getBandcampArtist: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                artistKey: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Flat source-tagged Bandcamp feed */
-            200: {
-                headers: {
-                    /** @description Requests allowed in the current window. */
-                    "X-RateLimit-Limit"?: number;
-                    /** @description Requests remaining in the current window. */
-                    "X-RateLimit-Remaining"?: number;
-                    /** @description Unix epoch (seconds) when the current window resets. */
-                    "X-RateLimit-Reset"?: number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BandcampFeedContract"];
-                };
-            };
-            /** @description Validation failure (invalid query, malformed body, bad facet name) */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RateLimited"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Database pool exhausted — retry after 5s */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Request deadline (15s) or query timeout exceeded */
-            504: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    getBandcampFeedIndex: {
-        parameters: {
-            query?: {
-                source?: string;
-                cursor?: string;
-                limit?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description One page of a single Bandcamp source */
-            200: {
-                headers: {
-                    /** @description Requests allowed in the current window. */
-                    "X-RateLimit-Limit"?: number;
-                    /** @description Requests remaining in the current window. */
-                    "X-RateLimit-Remaining"?: number;
-                    /** @description Unix epoch (seconds) when the current window resets. */
-                    "X-RateLimit-Reset"?: number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BandcampBulkPage"];
-                };
-            };
-            /** @description Validation failure (invalid query, malformed body, bad facet name) */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RateLimited"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Database pool exhausted — retry after 5s */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Request deadline (15s) or query timeout exceeded */
-            504: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    getBandcampRelease: {
-        parameters: {
-            query?: {
-                item?: string;
-                url?: string;
-                cluster_id?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description A single release dossier (item/url) or the artist release list (cluster_id); honest-gap when unresolved */
-            200: {
-                headers: {
-                    /** @description Requests allowed in the current window. */
-                    "X-RateLimit-Limit"?: number;
-                    /** @description Requests remaining in the current window. */
-                    "X-RateLimit-Remaining"?: number;
-                    /** @description Unix epoch (seconds) when the current window resets. */
-                    "X-RateLimit-Reset"?: number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BandcampReleaseResponse"];
-                };
-            };
-            /** @description Validation failure (invalid query, malformed body, bad facet name) */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RateLimited"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Database pool exhausted — retry after 5s */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Request deadline (15s) or query timeout exceeded */
-            504: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    getApiIndex: {
+    getDossierManifest: {
         parameters: {
             query?: never;
             header?: never;
@@ -2227,33 +2269,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description API root index */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiRootIndex"];
-                };
-            };
-        };
-    };
-    resolveIdentity: {
-        parameters: {
-            query?: {
-                url?: string;
-                q?: string;
-                cluster?: string;
-                discogs?: string;
-                mbid?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Resolved identity (or nulls when unresolved) */
+            /** @description Dossier field manifest */
             200: {
                 headers: {
                     /** @description Requests allowed in the current window. */
@@ -2265,16 +2281,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["IdentityResolution"];
-                };
-            };
-            /** @description Validation failure (invalid query, malformed body, bad facet name) */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/json": components["schemas"]["DossierManifest"];
                 };
             };
             /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
@@ -2288,634 +2295,6 @@ export interface operations {
             };
             /** @description Internal server error */
             500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Database pool exhausted — retry after 5s */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Request deadline (15s) or query timeout exceeded */
-            504: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    getArtistByKey: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Artist dossier contract (same shape as /dossier/artist/{slug}) */
-            200: {
-                headers: {
-                    /** @description Requests allowed in the current window. */
-                    "X-RateLimit-Limit"?: number;
-                    /** @description Requests remaining in the current window. */
-                    "X-RateLimit-Remaining"?: number;
-                    /** @description Unix epoch (seconds) when the current window resets. */
-                    "X-RateLimit-Reset"?: number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ArtistDossierContract"];
-                };
-            };
-            /** @description Validation failure (invalid query, malformed body, bad facet name) */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RateLimited"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Database pool exhausted — retry after 5s */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Request deadline (15s) or query timeout exceeded */
-            504: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    getTastemakers: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Tastemaker leaderboard + ones-to-watch (or honest-gap state) */
-            200: {
-                headers: {
-                    /** @description Requests allowed in the current window. */
-                    "X-RateLimit-Limit"?: number;
-                    /** @description Requests remaining in the current window. */
-                    "X-RateLimit-Remaining"?: number;
-                    /** @description Unix epoch (seconds) when the current window resets. */
-                    "X-RateLimit-Reset"?: number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TastemakersResponse"];
-                };
-            };
-            /** @description Validation failure (invalid query, malformed body, bad facet name) */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RateLimited"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Database pool exhausted — retry after 5s */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Request deadline (15s) or query timeout exceeded */
-            504: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    getOnesToWatch: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Ones-to-watch rows (or honest-gap state) */
-            200: {
-                headers: {
-                    /** @description Requests allowed in the current window. */
-                    "X-RateLimit-Limit"?: number;
-                    /** @description Requests remaining in the current window. */
-                    "X-RateLimit-Remaining"?: number;
-                    /** @description Unix epoch (seconds) when the current window resets. */
-                    "X-RateLimit-Reset"?: number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OnesToWatchResponse"];
-                };
-            };
-            /** @description Validation failure (invalid query, malformed body, bad facet name) */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RateLimited"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Database pool exhausted — retry after 5s */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Request deadline (15s) or query timeout exceeded */
-            504: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    getBreakouts: {
-        parameters: {
-            query?: {
-                limit?: number;
-                tier?: "breakout" | "rising";
-                corroboration?: "corroborated" | "booking_ahead";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Breakouts index items (or honest-gap state) */
-            200: {
-                headers: {
-                    /** @description Requests allowed in the current window. */
-                    "X-RateLimit-Limit"?: number;
-                    /** @description Requests remaining in the current window. */
-                    "X-RateLimit-Remaining"?: number;
-                    /** @description Unix epoch (seconds) when the current window resets. */
-                    "X-RateLimit-Reset"?: number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BreakoutsResponse"];
-                };
-            };
-            /** @description Validation failure (invalid query, malformed body, bad facet name) */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RateLimited"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Database pool exhausted — retry after 5s */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Request deadline (15s) or query timeout exceeded */
-            504: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    getFacets: {
-        parameters: {
-            query?: {
-                genre?: string | string[];
-                style?: string | string[];
-                country?: string | string[];
-                year_from?: number;
-                year_to?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Facet counts */
-            200: {
-                headers: {
-                    /** @description Requests allowed in the current window. */
-                    "X-RateLimit-Limit"?: number;
-                    /** @description Requests remaining in the current window. */
-                    "X-RateLimit-Remaining"?: number;
-                    /** @description Unix epoch (seconds) when the current window resets. */
-                    "X-RateLimit-Reset"?: number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FacetCounts"];
-                };
-            };
-            /** @description Validation failure (invalid query, malformed body, bad facet name) */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Authentication failure */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Payment required (past_due customer or suspended key) */
-            402: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RateLimited"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Database pool exhausted — retry after 5s */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Request deadline (15s) or query timeout exceeded */
-            504: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    getUsage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Usage snapshot */
-            200: {
-                headers: {
-                    /** @description Requests allowed in the current window. */
-                    "X-RateLimit-Limit"?: number;
-                    /** @description Requests remaining in the current window. */
-                    "X-RateLimit-Remaining"?: number;
-                    /** @description Unix epoch (seconds) when the current window resets. */
-                    "X-RateLimit-Reset"?: number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UsageResponse"];
-                };
-            };
-            /** @description Authentication failure */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Payment required (past_due customer or suspended key) */
-            402: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RateLimited"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    wayfindAnswer: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["WayfindAnswerRequest"];
-            };
-        };
-        responses: {
-            /** @description Synthesized answer (or degraded fallback) + supporting results */
-            200: {
-                headers: {
-                    /** @description Requests allowed in the current window. */
-                    "X-RateLimit-Limit"?: number;
-                    /** @description Requests remaining in the current window. */
-                    "X-RateLimit-Remaining"?: number;
-                    /** @description Unix epoch (seconds) when the current window resets. */
-                    "X-RateLimit-Reset"?: number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WayfindAnswerResponse"];
-                };
-            };
-            /** @description Validation failure (invalid query, malformed body, bad facet name) */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Authentication failure */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Payment required (past_due customer or suspended key) */
-            402: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RateLimited"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Database pool exhausted — retry after 5s */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    wayfindInterpret: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["WayfindInterpretRequest"];
-            };
-        };
-        responses: {
-            /** @description Structured interpretation (or degraded:null block) */
-            200: {
-                headers: {
-                    /** @description Requests allowed in the current window. */
-                    "X-RateLimit-Limit"?: number;
-                    /** @description Requests remaining in the current window. */
-                    "X-RateLimit-Remaining"?: number;
-                    /** @description Unix epoch (seconds) when the current window resets. */
-                    "X-RateLimit-Reset"?: number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WayfindInterpretResponse"];
-                };
-            };
-            /** @description Validation failure (invalid query, malformed body, bad facet name) */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Authentication failure */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Payment required (past_due customer or suspended key) */
-            402: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RateLimited"];
-                };
-            };
-            /** @description Database pool exhausted — retry after 5s */
-            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3031,28 +2410,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BeaconError"];
-                };
-            };
-        };
-    };
-    getOpenApiSpec: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OpenAPI 3.1 spec */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
                 };
             };
         };

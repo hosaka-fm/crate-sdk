@@ -375,7 +375,7 @@
       <div class="hero">
         <div class="eyebrow">Official TypeScript client</div>
         <h1>The crate catalogue, <b>typed end&#8209;to&#8209;end</b>.</h1>
-        <p>A medium-thickness client for crate's public music-catalogue API — artist / master / label / festival dossiers and a Bandcamp data feed, keyed on the canonical <code>cluster_id</code>. Typed methods, automatic retries, async-iterator pagination, and errors that teach. Built so a human reaches a green result in 60 seconds — and an AI agent recovers from failures using the error object alone.</p>
+        <p>A medium-thickness client for crate's cluster-first public music-catalogue API (<code>/api/v2</code>) — artist / label / festival dossiers keyed on the canonical <code>cluster_id</code>, where <code>master</code> and <code>bandcamp</code> are dimensions of the artist dossier. Typed methods, automatic retries, sparse <code>?fields=</code>, and errors that teach. Built so a human reaches a green result in 60 seconds — and an AI agent recovers from failures using the error object alone.</p>
       </div>
 
       <div class="stat-row" id="stats"></div>
@@ -388,7 +388,7 @@
       <div class="feat-grid">
         <div class="feat"><h4>Typed off the live spec</h4><p>Every parameter and response is generated from crate's OpenAPI contract — full autocomplete, no <code>any</code>, no hand-written drift.</p></div>
         <div class="feat"><h4>Resilient by default</h4><p>Auto-retry on 429/5xx with full-jitter backoff that honours <code>Retry-After</code>, a per-attempt timeout, and a whole-call deadline.</p></div>
-        <div class="feat"><h4>Pagination that disappears</h4><p><code>for await</code> over an async iterator; keyset cursors are followed for you, with a clean resume path.</p></div>
+        <div class="feat"><h4>Default-rich, opt-out</h4><p>One call returns the full dossier; pass <code>{ fields }</code> to trim it. <code>Deprecation</code>/<code>Sunset</code> headers are surfaced and <code>308</code> redirects are followed for you.</p></div>
         <div class="feat"><h4>Errors that teach</h4><p>Typed exceptions carry <code>.kind</code> / <code>.code</code>, a human <code>.hint</code>, and a copy-pasteable <code>.next</code> — and they're JSON-safe.</p></div>
         <div class="feat"><h4>Agent-native</h4><p>Forgiving inputs, branch-on-code handling, and a runtime-discoverable surface via <code>index()</code>, <code>CRATE_RESOURCES</code>, <code>CRATE_ERROR_REGISTRY</code>.</p></div>
         <div class="feat"><h4>Lean</h4><p>Dual ESM + CJS, <b>zero runtime dependencies</b>, tree-shakeable, types bundled. Node 18+.</p></div>
@@ -405,10 +405,9 @@ const artist = await crate.artist('Four Tet');
 // resolve any link / name / id to a canonical identity
 const id = await crate.resolve('https://fourtet.bandcamp.com');
 
-// stream a Bandcamp feed — pagination is automatic
-for await (const row of crate.bandcamp.bulkAll({ source: 'signals_mbid', maxPages: 3 })) {
-  handle(row);
-}"></pre>
+// labels are first-class; ?fields= trims the default-rich dossier
+const label = await crate.label('warp-records');
+const lean = await crate.artist('Four Tet', { fields: ['discography'] });"></pre>
     </section>
 
     <!-- METHODS -->
@@ -519,8 +518,8 @@ await anon.search({ q: 'jungle' });
         <div class="acard"><h4>Branch on code, not message</h4><p>Switch on <code>err.kind</code> then <code>err.code</code>. <code>err.hint</code> says what's wrong; <code>err.next</code> is a corrected call you can run.</p></div>
         <div class="acard"><h4>Lossless handoff</h4><p><code>JSON.stringify(err)</code> preserves the teaching payload (a plain <code>Error</code> → <code>{}</code>). It omits <code>.raw</code> and reduces <code>.cause</code> to <code>{name,message}</code>.</p></div>
         <div class="acard"><h4>Don't double-retry</h4><p>The SDK already retries 429/5xx with backoff. On a 429 read <code>err.retryAfter</code> / <code>err.rateLimit</code> — don't wrap calls in your own loop.</p></div>
-        <div class="acard"><h4>null is an honest gap</h4><p><code>artistOrNull()</code> / <code>bandcamp.release()</code> return <code>null</code> (HTTP 200, <code>present:false</code>) when data is absent. Only 4xx/5xx throw.</p></div>
-        <div class="acard"><h4>Opaque ids</h4><p><code>cluster_id</code>, <code>bandcamp_item_id</code>, and pagination cursors are strings — pass them through verbatim, never numericize.</p></div>
+        <div class="acard"><h4>null is an honest gap</h4><p><code>artistOrNull()</code> returns <code>null</code>, and <code>resolve()</code> a null <code>cluster_id</code> (HTTP 200, <code>present:false</code>) when data is absent. Only 4xx/5xx throw.</p></div>
+        <div class="acard"><h4>Opaque ids</h4><p><code>cluster_id</code> and <code>discogs_master_id</code> are strings — pass them through verbatim, never numericize.</p></div>
       </div>
       <div class="field-label">Discover the surface at runtime</div>
       <pre class="code" data-code="import { CRATE_RESOURCES, CRATE_ERROR_REGISTRY } from '@hosaka-fm/crate';
@@ -541,10 +540,8 @@ CRATE_ERROR_REGISTRY.api;           // { retryable, clientSide, carries: [...], 
   // ---------- DATA ----------
   const NS = {
     client: { label: 'top-level', color: 'var(--text)' },
-    bandcamp: { label: 'bandcamp', color: 'var(--brass)' },
     dossier: { label: 'dossier', color: 'var(--brass)' },
     tastemakers: { label: 'tastemakers', color: 'var(--brass)' },
-    wayfind: { label: 'wayfind', color: 'var(--brass)' },
     searchEvents: { label: 'searchEvents', color: 'var(--brass)' },
   };
 
@@ -556,7 +553,7 @@ CRATE_ERROR_REGISTRY.api;           // { retryable, clientSide, carries: [...], 
 
   const ERRORS = [
     { kind:'api', cls:'CrateAPIError', retry:'cond', client:false, carries:['status','retryAfter','rateLimit','requestId','details','raw'],
-      when:'A non-2xx HTTP response was received.', codes:['bad_request','unauthorized','payment_required','not_found','request_too_large','rate_limited','server_error','api_error'] },
+      when:'A non-2xx HTTP response was received.', codes:['bad_request','unauthorized','payment_required','not_found','invalid_fields','request_too_large','rate_limited','server_error','api_error'] },
     { kind:'network', cls:'CrateNetworkError', retry:'yes', client:false, carries:['cause'],
       when:'A transport failure before any response was received.', codes:['network_error'] },
     { kind:'timeout', cls:'CrateTimeoutError', retry:'yes', client:false, carries:['timeoutMs'],
@@ -564,13 +561,11 @@ CRATE_ERROR_REGISTRY.api;           // { retryable, clientSide, carries: [...], 
     { kind:'abort', cls:'CrateAbortError', retry:'no', client:false, carries:['cause'],
       when:'The caller aborted via their AbortSignal. Never retried.', codes:['aborted'] },
     { kind:'validation', cls:'CrateValidationError', retry:'no', client:true, carries:['code','hint','next','param'],
-      when:'A client-side argument guard failed — thrown before any network call.', codes:['exactly_one_of','api_key_required','beacon_token_required','masters_arity','base_url_has_path','empty_key','node_fetch_missing'] },
+      when:'A client-side argument guard failed — thrown before any network call.', codes:['exactly_one_of','api_key_required','beacon_token_required','base_url_has_path','empty_key','node_fetch_missing'] },
     { kind:'not_found', cls:'CrateNotFoundError', retry:'no', client:true, carries:['hint','next'],
       when:'artist() resolved a locator/name to a null cluster_id (an honest gap).', codes:['not_found'] },
     { kind:'parse', cls:'CrateParseError', retry:'no', client:false, carries:['status','raw'],
       when:'A response body was not valid JSON (2xx or error).', codes:['parse_error'] },
-    { kind:'pagination', cls:'CratePaginationError', retry:'no', client:true, carries:['lastCursor','hint','next'],
-      when:'Bulk pagination hit a non-advancing/cycling cursor or a malformed page.', codes:['pagination_no_progress','pagination_malformed_page'] },
   ];
 
   const GUARDS = [
@@ -582,7 +577,6 @@ CRATE_ERROR_REGISTRY.api;           // { retryable, clientSide, carries: [...], 
     ['isCrateValidationError(v)', 'CrateValidationError'],
     ['isCrateNotFoundError(v)', 'CrateNotFoundError'],
     ['isCrateParseError(v)', 'CrateParseError'],
-    ['isCratePaginationError(v)', 'CratePaginationError'],
     ['isRateLimited(v)', 'CrateAPIError (HTTP 429, carries retryAfter)'],
     ['isRetryable(v)', "CrateError the default policy would retry"],
   ];
@@ -619,44 +613,34 @@ CRATE_ERROR_REGISTRY.api;           // { retryable, clientSide, carries: [...], 
       fields:[['url','string','a platform URL'],['q','string','free-text name'],['cluster','string','64-hex cluster_id'],['discogs','string | number','Discogs artist id'],['mbid','string','MusicBrainz id']] },
     { name:'IdentityResolution', kind:'response', desc:'The canonical identity returned by resolve().',
       fields:[['cluster_id','string | null','pe-norm-v1 hex, or null (honest gap)'],['slug','string | null',''],['display','string | null',''],['locators','{ discogs, mbid, bandcamp[], soundcloud[], instagram[], spotify[], youtube[], website[] }','eight platform locator arrays'],['resolved_via',"'discogs' | 'cluster' | null",''],['resolved_from',"'url' | 'name' | 'locator'",''],['matched_on','string?',''],['note','string?','honest-gap note']] },
-    { name:'ArtistDossierContract', kind:'response', desc:'The deep, multi-facet artist grain (~24 signal sections). Top-level shape:',
-      fields:[['contract_version','string',''],['grain',"'artist'",''],['slug / display / id','string / string / number|null',''],['cluster_id','string | null','non-Discogs long-tail key'],['resolved_via',"'discogs' | 'cluster' | null",''],['identity','{ name, realname, profile, urls[], aliases[], … } | null',''],['behavioral · emergence · breakout · live_demand · …','section { state, signals }','each facet is an honest-gap section'],['across_the_web','{ count, links[] }',''],['artwork','{ state, items: ArtworkItem[] }','link-only covers'],['provenance','{ field, producer, tier, … }[]',''],['generated_at','string','']] },
-    { name:'MasterDossierContract', kind:'response', desc:'The per-master dossier grain.',
-      fields:[['contract_version','string',''],['grain',"'master'",''],['id','number',''],['header','{ title, artist, year, formats[], cube_quadrant }',''],['sections','{ field, state }[]',''],['artwork','ArtworkItem[]',''],['freshness','{ mirror_lag_s, seen_lag_s }',''],['cache','{ etag, maxAge }',''],['provenance','unknown[]',''],['generated_at','string','']] },
-    { name:'MasterEnrichment', kind:'response', desc:'A single enriched master row (also the shape inside BatchResponse).',
-      fields:[['master_id','number',''],['title / artist','string',''],['year','number | null',''],['cube_quadrant','string | null',''],['owner_count / dj_count / critic_count','number | null',''],['formats','string[]',''],['freshness','{ ridden_lag_s, mirror_lag_s }',''],['link_to_cube','string','']] },
-    { name:'BatchResponse', kind:'response', desc:'The result of masters([...]).',
-      fields:[['results','MasterEnrichment[]','found rows'],['not_found','number[]','ids with no match']] },
-    { name:'BandcampRelease', kind:'response', desc:'A per-release Bandcamp dossier (incl. tracklist). bandcamp_item_id is an opaque STRING.',
-      fields:[['bandcamp_item_id','string','opaque (bigint → string)'],['cluster_id','string | null','~0.2% have none'],['artist / artist_subdomain / title','string | null',''],['release_date','string | null','may be a reissue or pre-order date'],['source_url','string | null','the album page'],['tags','string[]','Bandcamp keywords'],['label','BandcampLabel | null','release label (1.4.0)'],['economics','BandcampReleaseEconomics | null','pricing / download terms (1.4.0)'],['artwork','ArtworkItem[]','link-only (source: bandcamp)'],['tracks','{ track_num, title, duration_s, license_type, track_url }[]','track_url is the PAGE, not a stream']] },
-    { name:'BandcampReleaseSummary', kind:'response', desc:'A summary row from bandcamp.releases() — no tracklist.',
-      fields:[['bandcamp_item_id','string','opaque'],['artist / title','string | null',''],['release_date','string | null',''],['source_url','string | null',''],['label','BandcampLabel | null','1.4.0'],['tags','string[]','']] },
-    { name:'BandcampLabel', kind:'response', desc:'A Bandcamp label reference on a release / summary (spec 1.4.0).',
-      fields:[['name','string','the label name'],['url','string','the label page']] },
-    { name:'BandcampReleaseEconomics', kind:'response', desc:'Per-release Bandcamp pricing + download terms (spec 1.4.0).',
-      fields:[['minimum_price / set_price / default_price','number | null','pricing'],['is_set_price / free_download / require_email / is_preorder','boolean',''],['currency / download_pref','string | null',''],['about / credits / upc','string | null',''],['preorder_count','number | null',''],['publish_date','string | null',''],['packages','unknown[]','merch / format packages']] },
-    { name:'BandcampBulkPage', kind:'response', desc:'One keyset page of the bulk feed.',
-      fields:[['source','string',''],['rows','Record<string, unknown>[]','rows are intentionally open'],['next_cursor','string | null','null = end of feed'],['_meta','{ k_anon_floor, note, generated_at }','']] },
-    { name:'BulkIterable', kind:'util', desc:'A resumable, dual-mode async iterable returned by bulkAll().',
-      fields:[['[Symbol.asyncIterator]','→ rows','for await yields rows by default'],['pages()','AsyncIterableIterator<BandcampBulkPage>','iterate whole pages (with _meta)'],['cursor','string | null','last cursor consumed; re-passable to bulk({ cursor })'],['truncated','boolean','true if stopped at maxPages (not the end)']] },
+    { name:'ArtistDossierContract', kind:'response', desc:'The cluster-first artist grain (~24 honest-gap signal sections). master + bandcamp are dimensions here, not separate resources.',
+      fields:[['contract_version','string',''],['grain',"'artist'",''],['slug / display / id','string / string / number|null',''],['cluster_id','string | null','the prime key (pe-norm-v1 hex); null = honest gap'],['resolved_via',"'discogs' | 'cluster' | null",'binding tier'],['identity','{ name, realname, profile, urls[], aliases[], … } | null',''],['discography','{ state, signals: { entries: { discogsMasterId, representativeName, isPrimary, _links.master }[], total, truncated, … } }','a POINTER INDEX of masters — not per-master detail'],['bandcamp_emergence','{ state, signals: { emergenceClass, demandLead, ownerReach, … } | null }','bandcamp standing as a dimension'],['bandcamp_tastemaker','{ state, signals: { supporterCohortSize, aesq, … } | null }',''],['behavioral · emergence · breakout · live_demand · network_position · …','section { state, signals }','each facet is an honest-gap section'],['across_the_web','{ count, links[] }',''],['artwork','{ state, items: ArtworkItem[] }','link-only covers'],['provenance','{ field, producer, tier, … }[]',''],['generated_at','string','']] },
+    { name:'LabelDossierContract', kind:'response', desc:'The first-class label grain (cluster-keyed, cycle-L1/L2 signals).',
+      fields:[['contract_version','string',''],['grain',"'label'",''],['slug / display / id','string / string / number|null',''],['cluster_id','string | null','label_cluster_id; null = honest gap'],['resolved_via',"'discogs' | 'cluster' | null",''],['identity','{ discogsLabelId, name, parentLabel, profile, urls[] } | null',''],['binds','{ discogs_label_id, label_mbid, bandcamp_url } | null','cross-source spine (bandcamp_url is a link only)'],['presence','{ has_discogs, has_bandcamp, has_seen_momentum, has_editorial } | null',''],['over_merge','{ discogs_label_id_count, folded } | null','present only when >1 raw label folded in'],['travels','{ state, related: { clusterId, labelName, npmi, support, _links.label }[] }','Bandcamp co-ownership adjacency'],['dj_momentum','{ state, signals: { playsLast365d, velocity, distinctArtists, … } | null }','which labels are breaking in DJ sets'],['provenance','unknown[]',''],['generated_at','string','']] },
+    { name:'FestivalDossierContract', kind:'response', desc:'The festival grain (identity + lineup, contract-faithful but lightly typed).',
+      fields:[['contract_version','string',''],['grain',"'festival'",''],['slug / display / id','string / string / string|null',''],['identity','unknown','festival identity block'],['lineup','unknown','the lineup block'],['provenance','unknown[]',''],['generated_at','string','']] },
+    { name:'DossierManifest', kind:'response', desc:'The grain manifest from dossier.manifest() — which grains are available for a key.',
+      fields:[['contract_version','string',''],['generated_at','string',''],['grains','unknown[]','available grains'],['unavailable_grains','unknown[]','grains with no data (honest gap)']] },
     { name:'SearchParams', kind:'param', desc:'Faceted search parameters. The eight faceted keys take string | string[].',
-      fields:[['q','string?','free text'],['genre / style / format / country / label','string | string[]','faceted'],['cube_quadrant / exclude_artist / exclude_label','string | string[]',''],['*_mode',"'and' | 'or'",'combine each facet'],['year_from / year_to / dj_count_min','number?',''],['limit / offset','number?','pagination']] },
-    { name:'SearchResponse', kind:'response', desc:'The faceted search result.',
-      fields:[['query','{ q?, filters[] }','the echoed query'],['pagination','{ page, total_pages, total_results, total_results_mode }',''],['facets','Record<string, unknown>',''],['freshness','{ ridden_lag_s, mirror_lag_s }',''],['results','ResultRow[]','']] },
-    { name:'ResultRow', kind:'response', desc:'One row of a SearchResponse.',
-      fields:[['master_id','number',''],['title / artist','string',''],['year','number | null',''],['cube_quadrant','string | null',''],['owner_count / dj_count / critic_count','number | null',''],['formats','string[]',''],['link_to_cube','string','']] },
+      fields:[['q','string?','free text'],['genre / style / format / country / label','string | string[]','faceted'],['cube_quadrant / exclude_artist / exclude_label','string | string[]',''],['*_mode',"'and' | 'or'",'combine each facet'],['year_from / year_to / dj_count_min','number?',''],['limit / offset','number?','single-page window']] },
+    { name:'SearchResponse', kind:'response', desc:'The faceted search result (a single page).',
+      fields:[['query','{ q?, filters: { facet, value, mode? }[] }','the echoed query'],['pagination','{ page, total_pages, total_results, total_results_mode }',''],['facets','Record<string, unknown>',''],['freshness','{ ridden_lag_s, mirror_lag_s }',''],['results','{ master_id, title, artist, year, cube_quadrant, owner_count, dj_count, critic_count, formats[], link_to_cube }[]','']] },
+    { name:'FacetCounts', kind:'response', desc:'The facet counts from crate.facets() — an open record of facet → counts.',
+      fields:[['[facet]','unknown','per-facet value → count map (intentionally open)']] },
     { name:'ArtworkItem', kind:'response', desc:'A link-only artwork cover (rehost is always false).',
-      fields:[['url','string','hotlink-only CDN URL'],['source',"'bandcamp' | 'coverartarchive' | 'discogs'",''],['grain',"'artist' | 'release'",''],['license','string',''],['rehost','false','crate never re-hosts the bytes']] },
-    { name:'ApiRootIndex', kind:'response', desc:'The keyless root from crate.index().',
-      fields:[['object / version',"'api_index' / 'v1'",''],['cold_start','{ problem, steps: { step, call, gives }[] }','a get-started recipe'],['resources','{ name, url, auth, description, how_to_get_the_key }[]','the live resource map'],['recipes','{ task, steps }[]','task flows (1.6.0)'],['errors','{ code, http_status, when, fix }[]','runtime error catalogue (1.6.0)'],['links','{ openapi, docs }',''],['types','{ openapi, generate }','']] },
-    { name:'UsageResponse', kind:'response', desc:'Your monthly usage + tier.',
-      fields:[['tier',"'sync' | 'self_serve_49' | 'self_serve_99' | 'self_serve_299'",''],['month','string',''],['calls_this_month / quota_monthly / remaining_this_month','number',''],['burst_limit_per_minute','number',''],['tier_metadata','{ endpoints_available: string[] }','']] },
+      fields:[['url','string','hotlink-only CDN URL'],['source',"'bandcamp' | 'coverartarchive'",''],['grain',"'artist' | 'release'",''],['license','string',''],['rehost','false','crate never re-hosts the bytes']] },
+    { name:'ApiRootIndex', kind:'response', desc:'The keyless root from crate.index() — the runtime self-teaching index.',
+      fields:[['object / version',"'api_index' / 'v2'",''],['cold_start','{ problem, steps: { step, call, gives }[] }','a get-started recipe'],['resources','{ name, url, auth, eli5, description, example, how_to_get_the_key }[]','the live resource map'],['recipes','{ task, steps: { call, gives }[] }[]','task flows'],['errors','{ code, http_status, when, fix }[]','runtime error catalogue'],['links','{ openapi, docs }',''],['types','{ openapi, generate }','']] },
+    { name:'RateLimited', kind:'response', desc:'The 429 body shape (distinct from the generic Error schema).',
+      fields:[['error',"'rate_limited'",''],['retry_after_seconds','number','required — the server-directed wait']] },
     { name:'BreakoutsResponse', kind:'response', desc:'Emerging-artist breakouts.',
-      fields:[['items','{ discogsArtistId, clusterId, name, slug, emergenceTier, emergenceScore, pressCount, corroboration, location }[]',''],['state',"'present' | 'empty' | 'degraded'",'']] },
+      fields:[['items','{ discogsArtistId, clusterId, resolvedVia, name, slug, emergenceTier, emergenceScore, pressCount, corroboration, location }[]',''],['state',"'present' | 'empty' | 'degraded'",'']] },
     { name:'TastemakersResponse', kind:'response', desc:'The tastemaker board.',
       fields:[['leaderboard','{ rank, name, ownTier, degree, brokerageScore, … }[]',''],['onesToWatch','{ rank, name, emergenceTier, momentumTier, profile, … }[]',''],['earlySpinners','{ rank, djName, cuttingEdgeScore, … }[]',''],['snapshotDate','string | null',''],['state',"'present' | 'empty' | 'degraded'",''],['stale','boolean','']] },
+    { name:'OnesToWatchResponse', kind:'response', desc:'The standalone ones-to-watch board from tastemakers.onesToWatch().',
+      fields:[['onesToWatch','{ rank, name, emergenceTier, momentumTier, emergenceScore, profile, degree, … }[]',''],['snapshotDate','string | null',''],['state',"'present' | 'empty' | 'degraded'",''],['stale','boolean','']] },
     { name:'CrateErrorJSON', kind:'util', desc:'The stable, JSON-safe envelope from CrateError.toJSON(). Excludes .raw and the raw .cause.',
-      fields:[['name / kind / code','string','always present'],['message','string',''],['status / retryAfter / requestId','number / number / string','(api)'],['rateLimit','{ limit, remaining, reset }','(api, 429)'],['timeoutMs','number','(timeout)'],['lastCursor','string | null','(pagination)'],['hint / next / param / docUrl','string','client-side teaching fields'],['cause','{ name, message }','reduced — never leaks bodies']] },
+      fields:[['name / kind / code','string','always present'],['message','string',''],['status / retryAfter / requestId','number / number / string','(api)'],['rateLimit','{ limit, remaining, reset }','(api, 429)'],['timeoutMs','number','(timeout)'],['hint / next / param / docUrl','string','client-side teaching fields'],['cause','{ name, message }','reduced — never leaks bodies']] },
   ];
 
   // ---------- helpers ----------

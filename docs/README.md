@@ -8,7 +8,6 @@ public API. New here? Start with the [README](../README.md) for install + quick 
 | [Getting started](./getting-started.md) | Prerequisites, install, your first call in 60 seconds          |
 | [Authentication](./authentication.md)   | The three auth tiers (anon / API key / beacon)                 |
 | [Configuration](./configuration.md)     | Retries, timeouts, deadlines, custom `fetch`                   |
-| [Pagination](./pagination.md)           | `bulkAll` async iterator, `pages()`, resume                    |
 | [Errors](./errors.md)                   | Typed exceptions, `kind`/`code`, the HTTP-status map, `toJSON` |
 | [AI agents](./ai-agents.md)             | Forgiving inputs, branch-on-code, runtime discovery            |
 | [Recipes](./recipes.md)                 | Copy-paste, single-capability snippets                         |

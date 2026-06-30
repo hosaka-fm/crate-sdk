@@ -43,10 +43,10 @@ export async function agentRecipe(): Promise<void> {
     }
   }
 
-  // 3. Auto-paginate bandcamp rows (terminates on null next_cursor; maxPages caps cleanly).
-  for await (const row of crate.bandcamp.bulkAll({ source: 'signals_mbid', maxPages: 3 })) {
-    console.log(row);
-  }
+  // 3. v2 is cluster-first — release/master detail + Bandcamp standing are DIMENSIONS of
+  //    the artist dossier. `fields` trims to just what you need (default = the full dossier).
+  const discog = await crate.artist('Four Tet', { fields: ['discography'] });
+  console.log(discog.discography);
 
   // 4. Self-describe: crate.index() is the live root map; CRATE_ERROR_REGISTRY is the
   //    static error dictionary an agent can branch on without reading docs.

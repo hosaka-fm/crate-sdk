@@ -6,8 +6,8 @@ import * as pkg from '../src/index';
 import { CRATE_RESOURCES } from '../src/resources';
 import type {
   ArtistDossierContract,
-  BandcampRow,
   IdentityResolution,
+  LabelDossierContract,
   RateLimited,
   SearchResponse,
 } from '../src/types';
@@ -39,7 +39,6 @@ describe('public API surface snapshot (ADX-10)', () => {
     'CrateValidationError',
     'CrateNotFoundError',
     'CrateParseError',
-    'CratePaginationError',
     'isCrateError',
     'isCrateAPIError',
     'isCrateNetworkError',
@@ -48,7 +47,6 @@ describe('public API surface snapshot (ADX-10)', () => {
     'isCrateValidationError',
     'isCrateNotFoundError',
     'isCrateParseError',
-    'isCratePaginationError',
     'isRateLimited',
     'isRetryable',
   ].sort();
@@ -93,7 +91,7 @@ describe('auth-tier contract (key-first: doc-level ApiKeyAuth default)', () => {
           .map(([m]) => `${m.toUpperCase()} ${p}`),
       )
       .sort();
-    expect(publicPaths).toEqual(['GET /api/v1', 'GET /api/v1/openapi.json']);
+    expect(publicPaths).toEqual(['GET /api/v2', 'GET /api/v2/openapi.json']);
   });
 });
 
@@ -104,7 +102,7 @@ describe('type-alias contract (checked by tsc --noEmit)', () => {
     expectTypeOf<ArtistDossierContract>().not.toBeAny();
     expectTypeOf<SearchResponse>().not.toBeAny();
     expectTypeOf<RateLimited['retry_after_seconds']>().toEqualTypeOf<number>();
-    expectTypeOf<BandcampRow>().not.toBeAny();
+    expectTypeOf<LabelDossierContract>().not.toBeAny();
     // @ts-expect-error — proves tsc is actually checking this file (engagement guard)
     const _wrong: number = 'not a number';
     void _wrong;

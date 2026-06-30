@@ -37,11 +37,9 @@ describe('ADX-5: JSDoc coverage on public Crate methods', () => {
         'breakouts',
         'facets',
         'index',
-        'master',
-        'masters',
+        'label',
         'resolve',
         'search',
-        'usage',
       ].sort(),
     );
   });

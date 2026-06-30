@@ -1,8 +1,9 @@
-// The Crate client (SDD §3). A thin, typed surface over the shared transport:
-// every method builds a small request spec and delegates to http.ts. Conveniences
-// (resolve/artist/bandcamp) add the SDK's earned logic; everything else is a 1:1
-// typed wrapper. Designed for AI-agent ergonomics (ADX-1..10): forgiving inputs,
-// teaching errors, JSON-safe failures, a self-description surface.
+// The Crate client (SDD §3) — targets crate /api/v2 (cluster-first, 2.0.0). A thin, typed
+// surface over the shared transport: every method builds a small request spec and delegates
+// to http.ts. Conveniences (resolve/artist/label) add the SDK's earned logic; everything
+// else is a 1:1 typed wrapper. Designed for AI-agent ergonomics (ADX-1..10): forgiving
+// inputs, default-rich one-round-trip dossiers (?fields= only trims), teaching errors,
+// JSON-safe failures, a self-describing surface.
 import { CrateNotFoundError, CrateValidationError } from './errors';
 import { type HttpConfig, type QueryValue, request, type RequestSpec } from './http';
 import {
@@ -12,33 +13,21 @@ import {
   type ResolveQuery,
   resolveQueryToParam,
 } from './identity';
-import { type BandcampBulkParams, type BulkIterable, makeBulkIterable } from './pagination';
 import type {
   ApiRootIndex,
   ArtistDossierContract,
-  BandcampBulkPage,
-  BandcampFeedContract,
-  BandcampRelease,
-  BandcampReleaseResponse,
-  BandcampReleaseSummary,
-  BatchResponse,
   BreakoutsResponse,
   DossierManifest,
   FacetCounts,
   FestivalDossierContract,
   IdentityResolution,
   LabelDossierContract,
-  MasterDossierContract,
-  MasterEnrichment,
   ObservedBeaconRequest,
   OnesToWatchResponse,
   RefinedBeaconRequest,
   SearchParams,
   SearchResponse,
   TastemakersResponse,
-  UsageResponse,
-  WayfindAnswerResponse,
-  WayfindInterpretResponse,
 } from './types';
 
 const DEFAULT_BASE_URL = 'https://crate.0xhoneyjar.xyz';
@@ -64,7 +53,7 @@ export interface CrateOptions {
   headers?: Record<string, string>;
 }
 
-/** Per-call overrides of the retry/timeout knobs, plus an `AbortSignal`. */
+/** Per-call overrides of the retry/timeout knobs, plus an `AbortSignal` and the `?fields=` trim. */
 export interface RequestOptions {
   signal?: AbortSignal;
   timeout?: number;
@@ -73,86 +62,17 @@ export interface RequestOptions {
   maxRetryAfterMs?: number;
   totalDeadlineMs?: number | null;
   headers?: Record<string, string>;
+  /**
+   * Sparse-fieldset trim for `artist()` / `dossier.artist()` (v2 `?fields=`): the top-level
+   * dossier facets to KEEP. Omit for the full dossier (one round-trip). An unknown field
+   * throws a teaching `CrateAPIError` (`invalid_fields`) carrying the valid set + an example.
+   */
+  fields?: string[];
 }
 
 /** Beacon body with the SDK-injected `timestamp` optional. */
 export type ObservedBeaconInput = Omit<ObservedBeaconRequest, 'timestamp'> & { timestamp?: string };
 export type RefinedBeaconInput = Omit<RefinedBeaconRequest, 'timestamp'> & { timestamp?: string };
-
-/**
- * `crate.bandcamp` — a callable namespace. Bandcamp carries underground signal the
- * major databases miss. Call it with an artist key for that artist's Bandcamp feed,
- * or use the helpers to sweep crate's platform-wide feed of release signals.
- */
-export interface BandcampApi {
-  /**
-   * The per-artist Bandcamp feed — the bridge from an identity to its Bandcamp
-   * footprint. `artistKey` is a cluster_id, `discogs:<id>`, or `mbid:<uuid>`.
-   * @example
-   * ```ts
-   * const feed = await crate.bandcamp('discogs:1234');
-   * ```
-   */
-  (artistKey: string, opts?: RequestOptions): Promise<BandcampFeedContract>;
-  /**
-   * One keyset page of crate's platform-wide Bandcamp signal feed (the whole feed,
-   * not one artist). Each page returns an opaque `next_cursor` you persist to resume —
-   * use this when you manage paging yourself across runs or processes.
-   * @example
-   * ```ts
-   * const page = await crate.bandcamp.bulk({ source: 'signals_mbid' });
-   * // → page.rows: Record<string, unknown>[]; page.next_cursor: 'eyJ…' | null
-   * ```
-   */
-  bulk(params?: BandcampBulkParams, opts?: RequestOptions): Promise<BandcampBulkPage>;
-  /**
-   * The same feed, paged for you: an async iterable that follows cursors automatically
-   * until the feed ends. Yields rows by default; call `.pages()` for whole pages (with
-   * `_meta`), and cap the sweep with `maxPages`.
-   * @example
-   * ```ts
-   * for await (const row of crate.bandcamp.bulkAll({ source: 'signals_mbid', maxPages: 5 })) {
-   *   ingest(row);
-   * }
-   * ```
-   */
-  bulkAll(params?: BandcampBulkParams, opts?: RequestOptions): BulkIterable;
-  /**
-   * The no-arg Bandcamp index — discover the valid `source` names for `bulk()` /
-   * `bulkAll()` rather than guessing the string.
-   * @example
-   * ```ts
-   * const idx = await crate.bandcamp.index();
-   * ```
-   */
-  index(opts?: RequestOptions): Promise<BandcampBulkPage>;
-  /**
-   * Zoom into one Bandcamp album and get its dossier, including the full tracklist, by
-   * opaque item id or album URL. Returns `null` on the honest gap (HTTP 200
-   * `present: false`) — not an error. `track.track_url` is the track PAGE, never a
-   * playable stream (those are tokenised/ToS-bound); artwork is link-only.
-   * @example
-   * ```ts
-   * const r = await crate.bandcamp.release({ item: '1234567890' });
-   * if (r) for (const t of r.tracks) console.log(t.track_num, t.title, t.duration_s);
-   * // r === null → honest gap, not an error
-   * ```
-   */
-  release(
-    query: { item: string } | { url: string },
-    opts?: RequestOptions,
-  ): Promise<BandcampRelease | null>;
-  /**
-   * All of an artist's Bandcamp releases for a `cluster_id` (usually from `resolve()`)
-   * as lightweight summary rows — no tracklists. List a discography fast, then
-   * `release()` into the one you want.
-   * @example
-   * ```ts
-   * const releases = await crate.bandcamp.releases({ clusterId });
-   * ```
-   */
-  releases(query: { clusterId: string }, opts?: RequestOptions): Promise<BandcampReleaseSummary[]>;
-}
 
 /**
  * `crate.tastemakers` — a callable namespace. Not every listener is equal: some DJs and
@@ -181,59 +101,27 @@ export interface TastemakersApi {
 }
 
 /**
- * `crate.wayfind` — a callable namespace for natural-language access to the catalogue.
- * Call it to get an answer; use `.interpret()` to get structured search params back.
- */
-export interface WayfindApi {
-  /**
-   * Ask the catalogue a question in plain English and get an answer — the NL front
-   * door, handy when wiring crate into a chat or an agent.
-   * @example
-   * ```ts
-   * const a = await crate.wayfind('breakout dub techno artists from 2023');
-   * ```
-   */
-  (question: string, opts?: RequestOptions): Promise<WayfindAnswerResponse>;
-  /**
-   * The 'show your work' twin of `wayfind()`: returns the structured search params it
-   * understood from your text, ready to hand to {@link Crate.search}. **Key-gated.**
-   * @example
-   * ```ts
-   * const params = await crate.wayfind.interpret('ambient from japan, 90s');
-   * ```
-   * @throws {CrateValidationError} `api_key_required` without an apiKey.
-   */
-  interpret(q: string, opts?: RequestOptions): Promise<WayfindInterpretResponse>;
-}
-
-/**
  * `crate.dossier.*` — the full, contract-versioned dossier grains. A dossier isn't
  * metadata; it's a profile assembled from many independent signal facets, each one
- * sourced in `provenance`, with honest-gap `state` per section.
+ * sourced in `provenance`, with honest-gap `state` per section. (`dossier.artist` /
+ * `dossier.label` are slug aliases of the top-level {@link Crate.artist} / {@link Crate.label}.)
  */
 export interface DossierApi {
   /**
-   * The full master (record) dossier — richer than {@link Crate.master}'s flat
-   * enrichment: a structured header, per-field sections, artwork, freshness, provenance.
-   * @example
-   * ```ts
-   * const d = await crate.dossier.master(1234567);
-   * ```
-   */
-  master(id: number, opts?: RequestOptions): Promise<MasterDossierContract>;
-  /**
    * The deepest grain crate offers: an artist profile from ~24 independent facets
-   * (emergence, live demand, tastemaker support, journalism, network position…), each
-   * section present-with-signals or honestly marked absent. crate's flagship.
+   * (emergence, live demand, tastemaker support, journalism, discography, the Bandcamp
+   * facets…), each section present-with-signals or honestly marked absent. crate's
+   * flagship. Accepts `{ fields }` to trim the dossier (default = full).
    * @example
    * ```ts
    * const d = await crate.dossier.artist('four-tet');
-   * // → d.emergence.signals?.emergenceTier, d.live_demand.signals?.demandTier, …
+   * // → d.emergence.signals?.emergenceTier, d.discography.signals?.entries, …
    * ```
    */
   artist(slug: string, opts?: RequestOptions): Promise<ArtistDossierContract>;
   /**
-   * The label-grain dossier by slug.
+   * The label-grain dossier by slug (cluster-first). Also reachable as the top-level
+   * {@link Crate.label}.
    * @example
    * ```ts
    * const d = await crate.dossier.label('warp-records');
@@ -251,11 +139,12 @@ export interface DossierApi {
   festival(slug: string, opts?: RequestOptions): Promise<FestivalDossierContract>;
   /**
    * A table of contents for the dossier system — which grains exist, which are
-   * available, and the contract version you're coding against.
+   * available, and the contract version you're coding against. In v2, `master` is
+   * demoted (it surfaces honestly under `unavailable_grains`).
    * @example
    * ```ts
    * const m = await crate.dossier.manifest();
-   * console.log(m.contract_version, m.grains);
+   * console.log(m.contract_version, m.grains, m.unavailable_grains);
    * ```
    */
   manifest(opts?: RequestOptions): Promise<DossierManifest>;
@@ -264,7 +153,7 @@ export interface DossierApi {
 /**
  * `crate.searchEvents.*` — beacons that flow telemetry *back* to crate so relevance
  * improves from real usage. Each REQUIRES a per-search `beaconToken` (a short-lived JWT
- * issued with the search response, distinct from your API key).
+ * issued with the search response, distinct from your API key; version-agnostic).
  */
 export interface SearchEventsApi {
   /**
@@ -310,7 +199,7 @@ interface BaseSpec {
 }
 
 /**
- * The official typed client for the crate public API.
+ * The official typed client for the crate public API (`/api/v2`, cluster-first).
  *
  * crate is **key-first**: every data endpoint requires an `apiKey` (only
  * {@link Crate.index} is keyless). Calling a data method without a key throws
@@ -324,13 +213,9 @@ interface BaseSpec {
 export class Crate {
   readonly #config: HttpConfig;
 
-  /** Per-artist Bandcamp feed + bulk pagination. @see {@link BandcampApi} */
-  readonly bandcamp: BandcampApi;
   /** Tastemaker leaderboard + ones-to-watch. @see {@link TastemakersApi} */
   readonly tastemakers: TastemakersApi;
-  /** Natural-language answer + (key-gated) interpret. @see {@link WayfindApi} */
-  readonly wayfind: WayfindApi;
-  /** Per-grain dossier contracts. @see {@link DossierApi} */
+  /** Per-grain dossier contracts (artist / label / festival / manifest). @see {@link DossierApi} */
   readonly dossier: DossierApi;
   /** Beacon telemetry (per-search JWT required). @see {@link SearchEventsApi} */
   readonly searchEvents: SearchEventsApi;
@@ -355,7 +240,7 @@ export class Crate {
         {
           code: 'base_url_has_path',
           param: 'baseUrl',
-          hint: 'pass only the origin; the SDK appends /api/v1 itself',
+          hint: 'pass only the origin; the SDK appends /api/v2 itself',
           next: `new Crate({ baseUrl: "${parsed.origin}" })`,
         },
       );
@@ -386,70 +271,6 @@ export class Crate {
     };
 
     // Callable function-objects + namespaces (capture `this`).
-    const bandcamp = (async (artistKey: string, opts?: RequestOptions) => {
-      assertNonEmptyKey(artistKey, 'bandcamp');
-      return this.#req<BandcampFeedContract>(
-        { method: 'GET', path: `/bandcamp/${encodeURIComponent(artistKey)}`, idempotent: true },
-        opts,
-      );
-    }) as BandcampApi;
-    bandcamp.bulk = (params?, opts?) =>
-      this.#req<BandcampBulkPage>(
-        { method: 'GET', path: '/bandcamp', query: bulkQuery(params), idempotent: true },
-        opts,
-      );
-    bandcamp.index = (opts?) =>
-      this.#req<BandcampBulkPage>({ method: 'GET', path: '/bandcamp', idempotent: true }, opts);
-    bandcamp.bulkAll = (params: BandcampBulkParams = {}, opts?) =>
-      makeBulkIterable(
-        (p) =>
-          this.#req<BandcampBulkPage>(
-            { method: 'GET', path: '/bandcamp', query: bulkQuery(p), idempotent: true },
-            opts,
-          ),
-        params,
-      );
-    bandcamp.release = async (query, opts?) => {
-      const q: Record<string, QueryValue> = {};
-      if ('item' in query && query.item) q.item = query.item;
-      else if ('url' in query && query.url) q.url = query.url;
-      if (q.item === undefined && q.url === undefined) {
-        throw new CrateValidationError('crate.bandcamp.release() needs exactly one of item | url', {
-          code: 'exactly_one_of',
-          param: 'query',
-          hint: 'pass { item } (bandcamp_item_id) or { url } (album page URL)',
-          next: 'crate.bandcamp.release({ item: "1234567890" })',
-        });
-      }
-      const res = await this.#req<BandcampReleaseResponse>(
-        { method: 'GET', path: '/bandcamp/release', query: q, idempotent: true },
-        opts,
-      );
-      // Honest gap: present:false → null (not an error). A release_list is unexpected for item/url.
-      return res.object === 'bandcamp.release' && res.present ? res.release : null;
-    };
-    bandcamp.releases = async (query, opts?) => {
-      if (!query?.clusterId) {
-        throw new CrateValidationError('crate.bandcamp.releases() needs a clusterId', {
-          code: 'exactly_one_of',
-          param: 'clusterId',
-          hint: 'pass { clusterId } (64-hex cluster_id)',
-          next: 'crate.bandcamp.releases({ clusterId: "<64-hex>" })',
-        });
-      }
-      const res = await this.#req<BandcampReleaseResponse>(
-        {
-          method: 'GET',
-          path: '/bandcamp/release',
-          query: { cluster_id: query.clusterId },
-          idempotent: true,
-        },
-        opts,
-      );
-      return res.object === 'bandcamp.release_list' ? res.releases : [];
-    };
-    this.bandcamp = bandcamp;
-
     const tastemakers = ((opts?: RequestOptions) =>
       this.#req<TastemakersResponse>(
         { method: 'GET', path: '/tastemakers', idempotent: true },
@@ -462,31 +283,15 @@ export class Crate {
       );
     this.tastemakers = tastemakers;
 
-    const wayfind = ((question: string, opts?: RequestOptions) =>
-      this.#req<WayfindAnswerResponse>(
-        { method: 'POST', path: '/wayfind/answer', body: { question }, idempotent: true },
-        opts,
-      )) as WayfindApi;
-    wayfind.interpret = (q: string, opts?) =>
-      this.#req<WayfindInterpretResponse>(
-        { method: 'POST', path: '/wayfind/interpret', body: { q }, idempotent: true },
-        opts,
-      );
-    this.wayfind = wayfind;
-
     this.dossier = {
-      master: (id, opts?) =>
-        this.#req<MasterDossierContract>(
-          {
-            method: 'GET',
-            path: `/dossier/master/${encodeURIComponent(String(id))}`,
-            idempotent: true,
-          },
-          opts,
-        ),
       artist: (slug, opts?) =>
         this.#req<ArtistDossierContract>(
-          { method: 'GET', path: `/dossier/artist/${encodeURIComponent(slug)}`, idempotent: true },
+          {
+            method: 'GET',
+            path: `/dossier/artist/${encodeURIComponent(slug)}`,
+            idempotent: true,
+            query: fieldsQuery(opts),
+          },
           opts,
         ),
       label: (slug, opts?) =>
@@ -550,7 +355,7 @@ export class Crate {
     if (spec.requiresKey !== false && !this.#config.apiKey) {
       return Promise.reject(
         new CrateValidationError(
-          `crate: ${spec.method} ${spec.path || '/api/v1'} requires an API key`,
+          `crate: ${spec.method} ${spec.path || '/api/v2'} requires an API key`,
           {
             code: 'api_key_required',
             param: 'apiKey',
@@ -610,16 +415,21 @@ export class Crate {
    * Fetch an artist dossier in one call — the shortcut when you already mean a specific
    * artist. Hand it almost anything (a name, slug, 64-hex `cluster_id`, or
    * `discogs:`/`mbid:` locator): a direct key hits `/artist/{key}`, while a locator or
-   * bare numeric id is resolved first. An unresolved locator throws
-   * {@link CrateNotFoundError} — use {@link Crate.artistOrNull} to receive `null`.
+   * bare numeric id is resolved first. The dossier is full by default; pass `{ fields }`
+   * to trim it. An unresolved locator throws {@link CrateNotFoundError} — use
+   * {@link Crate.artistOrNull} to receive `null`.
+   *
+   * In v2 (cluster-first), release/master detail attaches here as the `discography`
+   * dimension and Bandcamp standing as `bandcamp_emergence` / `bandcamp_tastemaker` —
+   * there are no standalone `master`/`bandcamp` methods.
    * @example
    * ```ts
-   * const a = await crate.artist('Four Tet');     // name → dossier
-   * await crate.artist('discogs:1234');           // locator → resolve → dossier
-   * // → a.display, a.resolved_via, a.emergence.signals, a.across_the_web, …
+   * const a = await crate.artist('Four Tet');                 // name → dossier
+   * await crate.artist('discogs:1234');                       // locator → resolve → dossier
+   * await crate.artist('Four Tet', { fields: ['discography'] }); // trim to one facet
    * ```
    * @throws {CrateNotFoundError} `not_found` when a locator/numeric id resolves to no cluster.
-   * @throws {CrateAPIError} on a non-2xx response. @see {@link Crate.resolve}, {@link Crate.artistOrNull}
+   * @throws {CrateAPIError} on a non-2xx response (e.g. `invalid_fields`). @see {@link Crate.resolve}
    */
   async artist(key: string, opts?: RequestOptions): Promise<ArtistDossierContract> {
     return (await this.#artistDossier(key, 'throw', opts)) as ArtistDossierContract;
@@ -649,7 +459,12 @@ export class Crate {
     const cls = classifyArtistKey(key);
     if (cls.type === 'direct') {
       return this.#req<ArtistDossierContract>(
-        { method: 'GET', path: `/artist/${encodeURIComponent(cls.key)}`, idempotent: true },
+        {
+          method: 'GET',
+          path: `/artist/${encodeURIComponent(cls.key)}`,
+          idempotent: true,
+          query: fieldsQuery(opts),
+        },
         opts,
       );
     }
@@ -668,7 +483,30 @@ export class Crate {
       );
     }
     return this.#req<ArtistDossierContract>(
-      { method: 'GET', path: `/artist/${encodeURIComponent(id.cluster_id)}`, idempotent: true },
+      {
+        method: 'GET',
+        path: `/artist/${encodeURIComponent(id.cluster_id)}`,
+        idempotent: true,
+        query: fieldsQuery(opts),
+      },
+      opts,
+    );
+  }
+
+  /**
+   * Fetch a label dossier in one call (cluster-first) by `cluster_id` or slug — the
+   * label peer of {@link Crate.artist}, promoted to a first-class resource in v2.
+   * @example
+   * ```ts
+   * const l = await crate.label('warp-records');
+   * ```
+   * @throws {CrateValidationError} `empty_key` on an empty/whitespace key.
+   * @throws {CrateAPIError} on a non-2xx response.
+   */
+  async label(key: string, opts?: RequestOptions): Promise<LabelDossierContract> {
+    assertNonEmptyKey(key, 'label');
+    return this.#req<LabelDossierContract>(
+      { method: 'GET', path: `/label/${encodeURIComponent(key.trim())}`, idempotent: true },
       opts,
     );
   }
@@ -712,8 +550,9 @@ export class Crate {
 
   /**
    * The self-describing API root — a machine-readable map of every resource plus a
-   * 'cold start' recipe. The one **keyless** endpoint, so a new integration or an agent
-   * can discover what's possible before committing to anything.
+   * 'cold start' recipe, task recipes, and a runtime error catalogue (v2). The one
+   * **keyless** endpoint, so a new integration or an agent can discover what's possible
+   * before committing to anything.
    * @example
    * ```ts
    * const root = await crate.index(); // works without an apiKey
@@ -743,73 +582,6 @@ export class Crate {
   facets(opts?: RequestOptions): Promise<FacetCounts> {
     return this.#req<FacetCounts>({ method: 'GET', path: '/facets', idempotent: true }, opts);
   }
-
-  /**
-   * Enrich one 'master' (a record/album in the Discogs sense) with crate's behavioral
-   * signals: collector ownership, DJ play counts, critic attention, formats, and its
-   * slot in the cube taxonomy — the per-record intelligence layer over plain
-   * discography. **Key-gated.** `id` is a positive integer (server-validated).
-   * @example
-   * ```ts
-   * const m = await crate.master(1234567); // requires apiKey
-   * // → m.owner_count, m.dj_count, m.cube_quadrant, …
-   * ```
-   * @throws {CrateValidationError} `api_key_required` if constructed without an apiKey.
-   * @throws {CrateAPIError} on a non-2xx response.
-   */
-  master(id: number, opts?: RequestOptions): Promise<MasterEnrichment> {
-    return this.#req<MasterEnrichment>(
-      { method: 'GET', path: `/masters/${encodeURIComponent(String(id))}`, idempotent: true },
-      opts,
-    );
-  }
-
-  /**
-   * Batch master enrichment — up to 100 records in one round-trip. Returns the rows it
-   * found plus an explicit `not_found` list, so a partial result is first-class rather
-   * than all-or-nothing. Use it to hydrate a page of search results in one call instead
-   * of N. **Key-gated.**
-   * @example
-   * ```ts
-   * const batch = await crate.masters([12345, 67890]); // requires apiKey
-   * // → batch.results: MasterEnrichment[]; batch.not_found: number[]
-   * ```
-   * @throws {CrateValidationError} `api_key_required` (no key) or `masters_arity` (not 1..100 ids).
-   * @throws {CrateAPIError} on a non-2xx response.
-   */
-  async masters(ids: number[], opts?: RequestOptions): Promise<BatchResponse> {
-    if (!Array.isArray(ids) || ids.length < 1 || ids.length > 100) {
-      throw new CrateValidationError(
-        `crate.masters() needs 1..100 ids, got ${Array.isArray(ids) ? ids.length : 'a non-array'}`,
-        {
-          code: 'masters_arity',
-          param: 'ids',
-          hint: 'pass between 1 and 100 master ids (chunk larger sets)',
-          next: 'crate.masters([12345, 67890])',
-        },
-      );
-    }
-    return this.#req<BatchResponse>(
-      { method: 'POST', path: '/masters/batch', body: { ids }, idempotent: true },
-      opts,
-    );
-  }
-
-  /**
-   * Your meter — plan tier, calls made this month, quota and remaining, and the
-   * per-minute burst limit. Poll it to render a usage bar or back off before a wall.
-   * **Key-gated.**
-   * @example
-   * ```ts
-   * const u = await crate.usage(); // requires apiKey
-   * console.log(`${u.calls_this_month}/${u.quota_monthly} on ${u.tier}`);
-   * ```
-   * @throws {CrateValidationError} `api_key_required` if constructed without an apiKey.
-   * @throws {CrateAPIError} on a non-2xx response.
-   */
-  usage(opts?: RequestOptions): Promise<UsageResponse> {
-    return this.#req<UsageResponse>({ method: 'GET', path: '/usage', idempotent: true }, opts);
-  }
 }
 
 // --- module-local query builders (pure) ---
@@ -823,17 +595,9 @@ function searchQuery(params?: SearchParams): Record<string, QueryValue> {
   return q;
 }
 
-function bulkQuery(params?: {
-  source?: string;
-  cursor?: string | null;
-  limit?: number;
-}): Record<string, QueryValue> {
-  const q: Record<string, QueryValue> = {};
-  if (!params) return q;
-  if (params.source) q.source = params.source;
-  if (params.cursor != null) q.cursor = params.cursor;
-  if (params.limit != null) q.limit = Math.max(1, Math.min(200, Math.trunc(params.limit)));
-  return q;
+/** The v2 `?fields=` opt-out trim: a non-empty `fields` array → `fields=a,b`; else no param (full dossier). */
+function fieldsQuery(opts?: RequestOptions): Record<string, QueryValue> | undefined {
+  return opts?.fields && opts.fields.length > 0 ? { fields: opts.fields.join(',') } : undefined;
 }
 
 function requireBeaconToken(method: string, opts: { beaconToken?: string }): void {

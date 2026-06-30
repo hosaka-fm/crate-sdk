@@ -18,7 +18,6 @@ export const CRATE_ERROR_KINDS = [
   'abort',
   'validation',
   'parse',
-  'pagination',
   'not_found',
 ] as const;
 export type CrateErrorKind = (typeof CRATE_ERROR_KINDS)[number];
@@ -33,6 +32,7 @@ export const CRATE_ERROR_CODES = [
   'invalid_source_or_cursor',
   'invalid_query',
   'invalid_facet',
+  'invalid_fields',
   'master_not_found',
   'rate_limited',
   // SDK status fallbacks — synthesized only when an error body carries no `error` field.
@@ -47,7 +47,6 @@ export const CRATE_ERROR_CODES = [
   'exactly_one_of',
   'api_key_required',
   'beacon_token_required',
-  'masters_arity',
   'base_url_has_path',
   'empty_key',
   'node_fetch_missing',
@@ -55,8 +54,6 @@ export const CRATE_ERROR_CODES = [
   'timeout',
   'aborted',
   'network_error',
-  'pagination_no_progress',
-  'pagination_malformed_page',
 ] as const;
 export type KnownCrateErrorCode = (typeof CRATE_ERROR_CODES)[number];
 // `& {}` preserves autocomplete on the known set without rejecting future server codes.
@@ -111,12 +108,6 @@ export const CRATE_ERROR_REGISTRY: Record<CrateErrorKind, ErrorKindInfo> = {
     carries: ['status', 'raw'],
     whenThrown: 'a response body was not valid JSON (2xx or error)',
   },
-  pagination: {
-    retryable: false,
-    clientSide: true,
-    carries: ['lastCursor', 'hint', 'next'],
-    whenThrown: 'bulk pagination hit a non-advancing/cycling cursor or a malformed page',
-  },
   not_found: {
     retryable: false,
     clientSide: true,
@@ -145,7 +136,6 @@ export interface CrateErrorJSON {
   masterId?: number;
   rateLimit?: RateLimitInfo;
   timeoutMs?: number;
-  lastCursor?: string | null;
   param?: string;
   hint?: string;
   docUrl?: string;
@@ -354,31 +344,6 @@ export class CrateParseError extends CrateError {
   }
 }
 
-/** Bulk pagination hit a non-advancing/cycling cursor or a malformed page. Carries `lastCursor` (ADX-8). */
-export class CratePaginationError extends CrateError {
-  readonly kind = 'pagination' as const;
-  /** The last cursor consumed — re-passable to `bandcamp.bulk({ cursor })` to resume. */
-  readonly lastCursor: string | null;
-  constructor(
-    message: string,
-    opts: {
-      code: 'pagination_no_progress' | 'pagination_malformed_page';
-      lastCursor: string | null;
-      hint: string;
-      next: string;
-    },
-  ) {
-    super(message, { code: opts.code, hint: opts.hint, next: opts.next });
-    this.name = 'CratePaginationError';
-    this.lastCursor = opts.lastCursor;
-  }
-  override toJSON(): CrateErrorJSON {
-    const json = super.toJSON();
-    json.lastCursor = this.lastCursor;
-    return json;
-  }
-}
-
 /**
  * The discriminated union of every concrete error the SDK throws. Narrowing on
  * `.kind` (e.g. inside `switch`) selects the right subclass and its fields — so
@@ -391,8 +356,7 @@ export type AnyCrateError =
   | CrateAbortError
   | CrateValidationError
   | CrateNotFoundError
-  | CrateParseError
-  | CratePaginationError;
+  | CrateParseError;
 
 // --- Brand-based type guards (survive dual ESM+CJS; prefer over instanceof) ---
 
@@ -423,9 +387,6 @@ export function isCrateNotFoundError(v: unknown): v is CrateNotFoundError {
 }
 export function isCrateParseError(v: unknown): v is CrateParseError {
   return hasBrand(v) && v.kind === 'parse';
-}
-export function isCratePaginationError(v: unknown): v is CratePaginationError {
-  return hasBrand(v) && v.kind === 'pagination';
 }
 /** A rate-limit (HTTP 429) error, carrying `retryAfter`. */
 export function isRateLimited(v: unknown): v is CrateAPIError {

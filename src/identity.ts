@@ -68,15 +68,17 @@ export type ArtistKeyKind =
  * anything else (slug or plain name) → direct one-hop (the endpoint name-resolves).
  */
 /** Throw a teaching CrateValidationError for an empty/whitespace key (parity with resolve()). */
-export function assertNonEmptyKey(input: string, method: 'artist' | 'bandcamp'): void {
-  if (input.trim() === '') {
-    throw new CrateValidationError(`crate.${method}(): key must not be empty`, {
-      code: 'empty_key',
-      param: method === 'bandcamp' ? 'artistKey' : 'key',
-      hint: 'pass a cluster_id, slug, name, or discogs:/mbid: locator',
-      next: method === 'bandcamp' ? "crate.bandcamp('<cluster_id>')" : "crate.artist('Four Tet')",
-    });
-  }
+export function assertNonEmptyKey(input: string, method: 'artist' | 'label'): void {
+  if (input.trim() !== '') return;
+  throw new CrateValidationError(`crate.${method}(): key must not be empty`, {
+    code: 'empty_key',
+    param: 'key',
+    hint:
+      method === 'label'
+        ? 'pass a cluster_id or label slug'
+        : 'pass a cluster_id, slug, name, or discogs:/mbid: locator',
+    next: method === 'label' ? "crate.label('warp-records')" : "crate.artist('Four Tet')",
+  });
 }
 
 export function classifyArtistKey(input: string): ArtistKeyKind {
