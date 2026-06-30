@@ -12,5 +12,8 @@ grimoires
 .claude
 .beads
 .run
+# Generated docs-site content (regenerated each build; not hand-edited)
+site/src/content/docs/guides
+site/src/content/docs/sdk
 # Loa-provided workflow (framework-owned; not ours to reformat)
 .github/workflows/post-merge.yml

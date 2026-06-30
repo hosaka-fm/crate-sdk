@@ -27,6 +27,9 @@ pack.json
 
 # Docs site (Astro Starlight) — build-only (node_modules/ + dist/ already covered above)
 .astro/
+# Generated docs content (single-source: regenerated each build by site/scripts/sync-content.mjs)
+site/src/content/docs/guides/
+site/src/content/docs/sdk/
 
 # Run-mode ephemeral state (recovery only; not history)
 .run/
