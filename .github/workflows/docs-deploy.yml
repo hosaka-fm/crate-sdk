@@ -1,0 +1,70 @@
+name: docs-deploy
+
+# Build the docs site (site/) and deploy to S3 + invalidate CloudFront on merge to main.
+# Auth: GitHub OIDC → role crate-sdk-docs-github-deploy (no long-lived keys).
+# Live: https://crate-sdk.0xhoneyjar.xyz
+#
+# FONT NOTE: ABC Schengen is a commercial font; the trial binaries are gitignored, so a clean CI
+# checkout builds with the metric-similar Helvetica-class fallback (license-correct — we do not
+# serve trial fonts publicly). To serve the real font, acquire the Dinamo webfont license and add
+# the woff2 as base64 repo secrets ABC_SCHENGEN_SANS_B64 / ABC_SCHENGEN_MONO_B64 — the "Provision
+# font" step decodes them when present, otherwise it is a no-op (fallback).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'spec/openapi.json'
+      - 'docs/**'
+      - 'meta/**'
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: docs-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Provision licensed font (optional; falls back if secrets absent)
+        env:
+          SANS_B64: ${{ secrets.ABC_SCHENGEN_SANS_B64 }}
+          MONO_B64: ${{ secrets.ABC_SCHENGEN_MONO_B64 }}
+        run: |
+          if [ -n "$SANS_B64" ] && [ -n "$MONO_B64" ]; then
+            mkdir -p site/public/fonts/abc-schengen
+            printf '%s' "$SANS_B64" | base64 -d > site/public/fonts/abc-schengen/ABCSchengenA-Variable.woff2
+            printf '%s' "$MONO_B64" | base64 -d > site/public/fonts/abc-schengen/ABCSchengenAMono-Variable.woff2
+            echo "Licensed ABC Schengen provisioned."
+          else
+            echo "No font secrets set — building with the Helvetica-class fallback (license-safe)."
+          fi
+
+      - name: Install + build
+        working-directory: site
+        run: |
+          npm ci
+          npm run build
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::891376933289:role/crate-sdk-docs-github-deploy
+          aws-region: us-east-1
+
+      - name: Sync to S3
+        run: aws s3 sync site/dist s3://crate-docs-0xhoneyjar-xyz --delete
+
+      - name: Invalidate CloudFront
+        run: aws cloudfront create-invalidation --distribution-id E13QRD6NNZ3UCF --paths '/*'

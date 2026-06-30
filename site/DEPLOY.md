@@ -25,7 +25,24 @@ https://crate-sdk.0xhoneyjar.xyz (CloudFront `d2yj9i2xm8iq8p.cloudfront.net`)
 - `crate-sdk.0xhoneyjar.xyz` CAA → `amazon.com` (so ACM can issue; wildcard CAA is Vercel CAs)
 - `_<token>.crate-sdk.0xhoneyjar.xyz` CNAME → ACM DNS validation
 
-## Redeploy (after `npm run build`)
+## Auto-deploy (CI)
+
+`.github/workflows/docs-deploy.yml` deploys on **push to `main`** (paths: `site/**`,
+`spec/openapi.json`, `docs/**`, `meta/**`) and on manual `workflow_dispatch`. Auth is **GitHub
+OIDC** → role `crate-sdk-docs-github-deploy` (no long-lived keys). It builds, `aws s3 sync`s to the
+bucket, and invalidates CloudFront.
+
+**Font in CI:** a clean CI checkout has no trial woff2 (gitignored), so CI builds the
+metric-similar **Helvetica-class fallback** (license-correct — trial fonts are not served
+publicly). To serve real ABC Schengen, acquire the Dinamo webfont license, then add the two woff2
+as base64 repo secrets (the workflow's "Provision font" step decodes them automatically):
+
+```sh
+gh secret set ABC_SCHENGEN_SANS_B64 < <(base64 -w0 ABCSchengenA-Variable.woff2)
+gh secret set ABC_SCHENGEN_MONO_B64 < <(base64 -w0 ABCSchengenAMono-Variable.woff2)
+```
+
+## Manual redeploy (after `npm run build`)
 
 ```sh
 cd site && npm run build
