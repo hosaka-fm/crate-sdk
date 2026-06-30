@@ -84,6 +84,22 @@ for (const m of methods) {
   writeFileSync(path.join(OUT_SDK, `${slugOf(m)}.md`), md);
 }
 
+// ---- Concepts: spec x-concepts → concepts/index.md ----
+const OUT_CONCEPTS = path.join(SITE, 'src', 'content', 'docs', 'concepts');
+mkdirSync(OUT_CONCEPTS, { recursive: true });
+const spec = JSON.parse(readFileSync(path.join(ROOT, 'spec', 'openapi.json'), 'utf8'));
+const concepts = spec['x-concepts'] || [];
+const conceptsBody = concepts
+  .map((c) => `## ${c.term}\n\n${c.eli5}\n${c.see ? `\n**See:** ${c.see}\n` : ''}`)
+  .join('\n');
+writeFileSync(
+  path.join(OUT_CONCEPTS, 'index.md'),
+  `---\ntitle: "Concepts"\ndescription: "crate's core terms — the cluster-first model — from the spec's x-concepts."\n---\n\n` +
+    'crate is **cluster-first**: `cluster_id` is the prime key, the artist is the root, and ' +
+    '`master` / `bandcamp` are dimensions of the artist dossier. These are the terms that recur ' +
+    `across the API and SDK.\n\n${conceptsBody}`,
+);
+
 // ---- Changelog: CHANGELOG.md → changelog.md ----
 let changelog = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8')
   .replace(/^#\s+.+$/m, '')
@@ -104,5 +120,5 @@ if (existsSync(explorerSrc)) {
 }
 
 console.log(
-  `sync-content: ${guideCount} guides + ${methods.length} SDK pages + changelog${explorerCopied ? ' + explorer' : ''} generated`,
+  `sync-content: ${guideCount} guides + ${methods.length} SDK pages + ${concepts.length} concepts + changelog${explorerCopied ? ' + explorer' : ''} generated`,
 );
