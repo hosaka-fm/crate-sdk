@@ -53,7 +53,7 @@ export interface paths {
         };
         /**
          * Cluster-first canonical artist dossier (cluster_id hex OR slug)
-         * @description cycle-2b — the v2 cluster-first headline resource: the same exhaustive artist dossier as v1, addressed by the canonical cluster_id (64-hex, prime key) OR a human slug, plus the v2 `?fields=` sparse-fieldset. Default = the full dossier in ONE round-trip; `?fields=` opts OUT to trim to the named top-level facets (unknown field → 400 invalid_fields with the valid set + a copy-pasteable example). A 64-hex key resolves identity DIRECTLY from the cluster_id (OBSERVED tier, never re-anchors onto a same-name Discogs row). discogs:/mbid: locators are not a canonical address (→ 400 here) → resolve them to a cluster_id first: /api/v1/resolve works today and returns the cluster_id (the cluster-first /api/v2/resolve front door lands with the rest of the v2 surface), then call /api/v2/artist/{cluster_id}. Keyed (X-API-Key); unresolved → 200 identity:null (honest-gap), not 404.
+         * @description cycle-2b — the v2 cluster-first headline resource: the same exhaustive artist dossier as v1, addressed by the canonical cluster_id (64-hex, prime key) OR a human slug, plus the v2 `?fields=` sparse-fieldset. Default = the full dossier in ONE round-trip; `?fields=` opts OUT to trim to the named top-level facets (unknown field → 400 invalid_fields with the valid set + a copy-pasteable example). A 64-hex key resolves identity DIRECTLY from the cluster_id (OBSERVED tier, never re-anchors onto a same-name Discogs row). discogs:/mbid: locators are not a canonical address (→ 400 here) → resolve them to a cluster_id first via GET /api/v2/resolve (the response `next` field is the ready-to-call URL), then call /api/v2/artist/{cluster_id}. Keyed (X-API-Key); unresolved → 200 identity:null (honest-gap), not 404.
          */
         get: operations["getArtistByKey"];
         put?: never;
@@ -333,16 +333,15 @@ export interface components {
          *
          *     | code | HTTP | when thrown | fix |
          *     |---|---|---|---|
-         *     | `invalid_artist_key` | 400 | `/artist/{key}` key is not a 64-hex cluster_id, `discogs:<id>`, or `mbid:<uuid>` | resolve by name first: `GET /api/v1/resolve?q=<name>`, then call `/artist/{cluster_id}` |
-         *     | `use_resolve_for_locator` | 400 | `/artist/{key}` given a `discogs:`/`mbid:` locator (not a canonical address) | `GET /api/v1/resolve?discogs=<id>` (or `?mbid=`), then use the returned cluster_id |
-         *     | `invalid_label_key` | 400 | `/label/{key}` key is not a 64-hex `label_cluster_id` or name-slug (e.g. a `discogs:`/`mbid:` locator — not resolvable for labels yet) | address a label by its 64-hex `label_cluster_id` or its name-slug (e.g. `/api/v1/label/warp`) |
-         *     | `missing_locator` | 400 | `/resolve` called with none of q/cluster/discogs/mbid (or `/bandcamp/release` with none of item/url/cluster_id) | pass exactly one locator |
-         *     | `invalid_locator` | 400 | a `/resolve` (or `/bandcamp/release`) locator is malformed for its type | fix the format, or fall back to `?q=<name>` |
-         *     | `invalid_source_or_cursor` | 400 | `/bandcamp` given an unknown/non-paginable `?source=` or a bad `?cursor=` | `GET /api/v1/bandcamp` (no params) for the manifest; pass `next_cursor` back verbatim |
+         *     | `invalid_artist_key` | 400 | `/artist/{key}` key is not a 64-hex cluster_id, `discogs:<id>`, or `mbid:<uuid>` | resolve by name first: `GET /api/v2/resolve?q=<name>`, then call `/artist/{cluster_id}` |
+         *     | `use_resolve_for_locator` | 400 | `/artist/{key}` given a `discogs:`/`mbid:` locator (not a canonical address) | `GET /api/v2/resolve?discogs=<id>` (or `?mbid=`), then use the returned cluster_id (the response `next` field is the ready-to-call URL) |
+         *     | `invalid_label_key` | 400 | `/label/{key}` key is not a 64-hex `label_cluster_id` or name-slug (e.g. a `discogs:`/`mbid:` locator — not resolvable for labels yet) | address a label by its 64-hex `label_cluster_id` or its name-slug (e.g. `/api/v2/label/warp`) |
+         *     | `invalid_fields` | 400 | `/artist/{key}?fields=` lists a facet that is not a valid top-level dossier field | use only the fields in the response `valid` set; omit `?fields=` entirely for the full dossier (see the `example` field) |
+         *     | `missing_locator` | 400 | `/resolve` called with none of q/cluster/discogs/mbid | pass exactly one locator |
+         *     | `invalid_locator` | 400 | a `/resolve` locator is malformed for its type | fix the format, or fall back to `?q=<name>` |
          *     | `invalid_query` | 400 | `/search` `?q=` missing/empty, or any Zod validation failure (`details[]` attached) | pass `?q=<text>`; fix each `details` entry |
-         *     | `invalid_facet` | 400 | an unknown facet filter name was supplied | `GET /api/v1/facets` for valid names + values |
-         *     | `master_not_found` | 404 | `/dossier/master/{id}` or `/masters/{id}` given an unknown master id | verify the id (e.g. via `GET /api/v1/search`) |
-         *     | `rate_limited` | 429 | an IP/key/tier rate or concurrency cap was exceeded (`retry_after_seconds` + `Retry-After` + `X-RateLimit-*` set) | back off `retry_after_seconds`, then retry; batch via `POST /api/v1/masters/batch` (≤100 ids = 1 request) |
+         *     | `invalid_facet` | 400 | an unknown facet filter name was supplied | `GET /api/v2/facets` for valid names + values |
+         *     | `rate_limited` | 429 | an IP/key/tier rate or concurrency cap was exceeded (`retry_after_seconds` + `Retry-After` + `X-RateLimit-*` set) | back off `retry_after_seconds` (or until `X-RateLimit-Reset`), then retry |
          */
         Error: {
             /**
@@ -988,7 +987,7 @@ export interface components {
                 state: string;
                 signals?: unknown;
             };
-            /** @description cycle-L1: Bandcamp co-ownership adjacency (mirror.bandcamp_label_travels_v1, cluster-keyed, k-anon k>=5). Each entry links onward to /api/v1/label/{cluster_id}. */
+            /** @description cycle-L1: Bandcamp co-ownership adjacency (mirror.bandcamp_label_travels_v1, cluster-keyed, k-anon k>=5). Each entry links onward to the label by its cluster_id (GET /api/v2/label/{cluster_id}). */
             travels: {
                 state: string;
                 related: {
