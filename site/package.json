@@ -5,6 +5,9 @@
   "type": "module",
   "description": "Docs site for @hosaka-fm/crate — a static Astro Starlight shell over the SDK's single-source generation pipeline. Never shipped in the npm package.",
   "scripts": {
+    "sync": "node scripts/sync-content.mjs",
+    "predev": "npm run sync",
+    "prebuild": "npm run sync",
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
