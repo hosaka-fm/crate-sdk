@@ -24,10 +24,21 @@ const OUT_GUIDES = path.join(SITE, 'src', 'content', 'docs', 'guides');
 const OUT_SDK = path.join(SITE, 'src', 'content', 'docs', 'sdk');
 const GH = 'https://github.com/hosaka-fm/crate-sdk';
 
-const yaml = (s) => `"${String(s).replace(/"/g, "'").replace(/\s+/g, ' ').trim()}"`;
+// YAML double-quoted scalar: escape backslash FIRST, then the double-quote, then collapse
+// whitespace. (A bare `\` or `"` in the value otherwise emits invalid frontmatter and hard-fails
+// the Astro build.)
+const yaml = (s) =>
+  `"${String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\s+/g, ' ').trim()}"`;
 const firstSentence = (s) => {
   const m = String(s).match(/^.*?[.!?](\s|$)/);
   return (m ? m[0] : String(s)).trim();
+};
+// Truncate on a word boundary (never mid-word) and add an ellipsis only when actually cut.
+const truncate = (s, n) => {
+  if (s.length <= n) return s;
+  const cut = s.slice(0, n);
+  const sp = cut.lastIndexOf(' ');
+  return `${(sp > 40 ? cut.slice(0, sp) : cut).replace(/[\s.,;:]+$/, '')}…`;
 };
 const plain = (s) =>
   s
@@ -45,15 +56,20 @@ for (const file of readdirSync(DOCS).filter((f) => f.endsWith('.md') && f !== 'R
   const h1 = body.match(/^#\s+(.+)$/m);
   const title = h1 ? h1[1].trim() : name;
   if (h1) body = body.replace(/^#\s+.+$/m, '').replace(/^\s+/, ''); // drop H1 (Starlight renders the title)
-  const descPara = (
-    body.split(/\n\s*\n/).find((p) => p.trim() && !p.trim().startsWith('#')) || ''
-  ).replace(/\n/g, ' ');
-  const description = plain(descPara).slice(0, 155);
-  // Rewrite relative links to the site's routes / GitHub.
+  // First *prose* paragraph (starts with a letter or "(") — skips headings, tables (|),
+  // lists (-,*,digits), quotes (>), code fences, and admonitions (:::).
+  const descPara = (body.split(/\n\s*\n/).find((p) => /^[A-Za-z(]/.test(p.trim())) || '').replace(
+    /\n/g,
+    ' ',
+  );
+  const description = truncate(plain(descPara), 155);
+  // Rewrite relative links to the site's routes / GitHub. Order matters: specific rules first,
+  // then a catch-all for any remaining ../<path> (e.g. ../AGENTS.md, ../llms.txt) → GitHub blob.
   body = body
     .replace(/\]\(\.\/([a-z0-9-]+)\.md(#[^)]*)?\)/g, (_m, n, a) => `](/guides/${n}/${a || ''})`)
     .replace(/\]\(\.\.\/examples\/([^)]+)\)/g, `](${GH}/blob/main/examples/$1)`)
-    .replace(/\]\(\.\.\/README\.md([^)]*)\)/g, `](${GH}$1)`);
+    .replace(/\]\(\.\.\/README\.md([^)]*)\)/g, `](${GH}$1)`)
+    .replace(/\]\(\.\.\/([^)]+)\)/g, `](${GH}/blob/main/$1)`);
   const fm = `---\ntitle: ${yaml(title)}\n${description ? `description: ${yaml(description)}\n` : ''}---\n\n`;
   writeFileSync(path.join(OUT_GUIDES, `${name}.md`), fm + body);
   guideCount++;

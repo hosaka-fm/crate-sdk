@@ -50,6 +50,36 @@ aws s3 sync dist s3://crate-docs-0xhoneyjar-xyz --delete
 aws cloudfront create-invalidation --distribution-id E13QRD6NNZ3UCF --paths '/*'
 ```
 
+## Resource tags
+
+All resources are tagged `Project=crate-sdk`, `Owner=sdk-team`, `Component=docs-site|docs-deploy`,
+`Lifecycle=active` for cost allocation + discovery (S3 bucket, CloudFront distribution, IAM role,
+ACM cert).
+
+## Teardown
+
+```sh
+# 1. Delete the CloudFront distribution (disable → wait → delete; ~15 min)
+aws cloudfront get-distribution-config --id E13QRD6NNZ3UCF      # note the ETag + set Enabled:false → update-distribution
+aws cloudfront delete-distribution --id E13QRD6NNZ3UCF --if-match <etag>
+aws cloudfront delete-function --name crate-docs-index-rewrite --if-match <etag>
+# 2. Empty + delete the bucket
+aws s3 rm s3://crate-docs-0xhoneyjar-xyz --recursive && aws s3api delete-bucket --bucket crate-docs-0xhoneyjar-xyz
+# 3. Remove DNS + cert + IAM (Route53 zone Z01393483Y40WF3N1H76)
+#    delete the crate-sdk.0xhoneyjar.xyz A/AAAA alias + CAA + the _<token> validation CNAME
+aws acm delete-certificate --region us-east-1 --certificate-arn arn:aws:acm:us-east-1:891376933289:certificate/c5cb4aa9-64cc-46e1-95fb-a3f47aeaaadb
+aws iam delete-role-policy --role-name crate-sdk-docs-github-deploy --policy-name docs-deploy-s3-cloudfront
+aws iam delete-role --role-name crate-sdk-docs-github-deploy
+```
+
+## Publishing the npm package (held)
+
+The SDK `package.json` is at `1.0.0` and a **local** `v1.0.0` git tag exists, but **publish is
+held** — no `hosaka-fm` npm org yet. `release.yml` is fail-closed (gated on repo var
+`PUBLISH_ENABLED=true` + secret `NPM_TOKEN`). To publish when ready: (1) create the `hosaka-fm` npm
+org; (2) set `NPM_TOKEN` (automation token) + `PUBLISH_ENABLED=true`; (3) `git push origin v1.0.0`
+(or run the Release workflow). Until then the tag is intentionally local-only.
+
 ## ⚠️ Pre-launch
 
 ABC Schengen is the **trial** font here (gitignored). Acquire the Dinamo webfont license and drop
