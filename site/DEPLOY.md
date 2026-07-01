@@ -1,29 +1,33 @@
-# Deploy — crate-sdk.0xhoneyjar.xyz (AWS)
+# Deploy — crate-sdk.hosaka.fm (AWS)
 
-The docs site is hosted in **hosaka's AWS** (account 891376933289), not Vercel — even though
-`0xhoneyjar.xyz` is otherwise wildcarded to Vercel. `crate-sdk.0xhoneyjar.xyz` is an **explicit
-Route 53 override** of that wildcard.
+The docs site is hosted in **hosaka's AWS** (account 891376933289). Primary domain is
+**`crate-sdk.hosaka.fm`** (in the Terraform-managed `hosaka.fm` Route 53 zone). The old
+**`crate-sdk.0xhoneyjar.xyz`** is kept as a **transitional alias** on the same CloudFront
+distribution (multi-SAN cert) until crate's landing flips its inbound link — then it can be retired.
 
 ## Live URL
 
-https://crate-sdk.0xhoneyjar.xyz (CloudFront `d2yj9i2xm8iq8p.cloudfront.net`)
+https://crate-sdk.hosaka.fm (CloudFront `d2yj9i2xm8iq8p.cloudfront.net`) · legacy alias:
+https://crate-sdk.0xhoneyjar.xyz
 
 ## Resources (us-east-1)
 
-| Resource                                | Id                                      |
-| --------------------------------------- | --------------------------------------- |
-| S3 bucket (private, OAC)                | `crate-docs-0xhoneyjar-xyz`             |
-| CloudFront distribution                 | `E13QRD6NNZ3UCF`                        |
-| CloudFront function (dir-index rewrite) | `crate-docs-index-rewrite`              |
-| Origin Access Control                   | `E2GZ3UHH9BQQ9E`                        |
-| ACM cert (us-east-1)                    | for `crate-sdk.0xhoneyjar.xyz`          |
-| Route 53 zone                           | `Z01393483Y40WF3N1H76` (0xhoneyjar.xyz) |
+| Resource                                | Id                                                          |
+| --------------------------------------- | ---------------------------------------------------------- |
+| S3 bucket (private, OAC)                | `crate-docs-0xhoneyjar-xyz` ⚠️ internal name — **carve-out**, not renamed (bucket rename = migrate + repoint; like `honeyjar-terraform-state`) |
+| CloudFront distribution                 | `E13QRD6NNZ3UCF` (aliases: crate-sdk.hosaka.fm + crate-sdk.0xhoneyjar.xyz) |
+| CloudFront function (dir-index rewrite) | `crate-docs-index-rewrite`                                 |
+| Origin Access Control                   | `E2GZ3UHH9BQQ9E`                                           |
+| ACM cert (us-east-1, multi-SAN)         | crate-sdk.hosaka.fm + crate-sdk.0xhoneyjar.xyz            |
+| Route 53 zones                          | `Z06075752AIVGWUY9CS2A` (hosaka.fm, primary) · `Z01393483Y40WF3N1H76` (0xhoneyjar.xyz, legacy alias) |
 
-## DNS overrides (explicit, beat the `*.0xhoneyjar.xyz` Vercel wildcard)
+## DNS
 
-- `crate-sdk.0xhoneyjar.xyz` A/AAAA alias → CloudFront
-- `crate-sdk.0xhoneyjar.xyz` CAA → `amazon.com` (so ACM can issue; wildcard CAA is Vercel CAs)
-- `_<token>.crate-sdk.0xhoneyjar.xyz` CNAME → ACM DNS validation
+- **hosaka.fm zone** (`Z06075752AIVGWUY9CS2A`): `crate-sdk.hosaka.fm` A/AAAA alias → CloudFront.
+  The zone's CAA already authorizes AWS ACM (no override needed).
+- **0xhoneyjar.xyz zone** (`Z01393483Y40WF3N1H76`, legacy): `crate-sdk.0xhoneyjar.xyz` A/AAAA alias
+  → CloudFront, plus a `CAA amazon.com` override (that zone is otherwise Vercel-wildcarded). Retire
+  once crate stops linking to the old host.
 
 ## Auto-deploy (CI)
 

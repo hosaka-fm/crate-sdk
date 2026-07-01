@@ -12,7 +12,7 @@ import starlightLlmsTxt from 'starlight-llms-txt';
 //   - llms.txt etc.   ← starlight-llms-txt plugin (agent surface)
 // Astro/Starlight is a docs-build devDependency ONLY — it never enters the shipped SDK.
 export default defineConfig({
-  site: 'https://crate-sdk.0xhoneyjar.xyz',
+  site: 'https://crate-sdk.hosaka.fm',
   integrations: [
     starlight({
       title: '@hosaka-fm/crate',
