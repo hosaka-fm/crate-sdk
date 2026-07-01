@@ -7,8 +7,11 @@ distribution (multi-SAN cert) until crate's landing flips its inbound link — t
 
 ## Live URL
 
-https://crate-sdk.hosaka.fm (CloudFront `d2yj9i2xm8iq8p.cloudfront.net`) · legacy alias:
-https://crate-sdk.0xhoneyjar.xyz
+**https://crate-sdk.hosaka.fm** (CloudFront `d2yj9i2xm8iq8p.cloudfront.net`) — the only canonical
+docs URL. The legacy `crate-sdk.0xhoneyjar.xyz` **301-redirects** here (path-preserving) via the
+CloudFront function — there is no standalone 0xhoneyjar page/mirror; inbound links still resolve.
+Function source: [`site/cloudfront/index-rewrite.js`](./cloudfront/index-rewrite.js) (host-branch:
+0xhoneyjar → 301; hosaka.fm → dir-index rewrite). Deployed as CF function `crate-docs-index-rewrite`.
 
 ## Resources (us-east-1)
 
