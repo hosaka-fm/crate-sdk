@@ -156,7 +156,7 @@ function warnDeprecation(headers: Headers, url: URL): void {
     `[crate] ${url.pathname} is deprecated` +
       (sunset ? ` (sunset ${sunset})` : '') +
       (link ? `; successor ${link}` : '') +
-      '. Migration: https://crate.0xhoneyjar.xyz/docs/migration/v1-to-v2',
+      '. Migration: https://crate.hosaka.fm/docs/migration/v1-to-v2',
   );
 }
 

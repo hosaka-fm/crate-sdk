@@ -5,7 +5,7 @@
 - **Node 18+** (the SDK uses the global `fetch`), or any runtime with a global `fetch` (Deno, Bun,
   Cloudflare Workers, Edge).
 - **A crate API key.** crate is key-first — every data endpoint requires one. Keys are invite-only
-  today; see the [crate docs](https://crate.0xhoneyjar.xyz/docs). Only `crate.index()` works without one.
+  today; see the [crate docs](https://crate.hosaka.fm/docs). Only `crate.index()` works without one.
 
 ## Install
 

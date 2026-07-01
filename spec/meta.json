@@ -1,5 +1,5 @@
 {
-  "spec_url": "https://crate.0xhoneyjar.xyz/api/v2/openapi.json",
+  "spec_url": "https://crate.hosaka.fm/api/v2/openapi.json",
   "openapi": "3.1.0",
   "info_version": "2.0.0",
   "spec_sha256_jcs": "fc3151c176743020cde831d6b9a1da449987d4df9f2caff2e0a78fd9b2594624",

@@ -30,12 +30,12 @@ import type {
   TastemakersResponse,
 } from './types';
 
-const DEFAULT_BASE_URL = 'https://crate.0xhoneyjar.xyz';
+const DEFAULT_BASE_URL = 'https://crate.hosaka.fm';
 
 export interface CrateOptions {
   /** Customer API key → `X-API-Key`. Required for every data endpoint (crate is key-first); only `crate.index()` is keyless. */
   apiKey?: string;
-  /** API origin (no path). Default `https://crate.0xhoneyjar.xyz`. */
+  /** API origin (no path). Default `https://crate.hosaka.fm`. */
   baseUrl?: string;
   /** Injectable fetch (tests / custom agents). Defaults to the global `fetch` (Node 18+). */
   fetch?: typeof globalThis.fetch;

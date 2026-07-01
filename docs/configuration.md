@@ -5,7 +5,7 @@
 ```ts
 const crate = new Crate({
   apiKey: process.env.CRATE_API_KEY,
-  baseUrl: 'https://crate.0xhoneyjar.xyz',
+  baseUrl: 'https://crate.hosaka.fm',
   timeout: 30_000,
   maxRetries: 2,
   maxBackoffMs: 8_000,
@@ -15,17 +15,17 @@ const crate = new Crate({
 });
 ```
 
-| Option            | Type                    | Default                        | Meaning                                                    |
-| ----------------- | ----------------------- | ------------------------------ | ---------------------------------------------------------- |
-| `apiKey`          | `string`                | —                              | Customer key → `X-API-Key`. Required for data endpoints.   |
-| `baseUrl`         | `string`                | `https://crate.0xhoneyjar.xyz` | API origin (no path).                                      |
-| `fetch`           | `typeof fetch`          | global `fetch`                 | Injectable fetch (tests / custom agents / older runtimes). |
-| `timeout`         | `number`                | `30000`                        | Per-attempt timeout, ms.                                   |
-| `maxRetries`      | `number`                | `2`                            | Retries, **not** total sends. `0` disables.                |
-| `maxBackoffMs`    | `number`                | `8000`                         | Full-jitter backoff cap, ms.                               |
-| `maxRetryAfterMs` | `number`                | `60000`                        | Clamp on a server-directed `Retry-After`, ms.              |
-| `totalDeadlineMs` | `number \| null`        | `120000`                       | Whole-call budget across retries, ms. `null` disables.     |
-| `headers`         | `Record<string,string>` | —                              | Extra default headers (merged **under** SDK-managed ones). |
+| Option            | Type                    | Default                   | Meaning                                                    |
+| ----------------- | ----------------------- | ------------------------- | ---------------------------------------------------------- |
+| `apiKey`          | `string`                | —                         | Customer key → `X-API-Key`. Required for data endpoints.   |
+| `baseUrl`         | `string`                | `https://crate.hosaka.fm` | API origin (no path).                                      |
+| `fetch`           | `typeof fetch`          | global `fetch`            | Injectable fetch (tests / custom agents / older runtimes). |
+| `timeout`         | `number`                | `30000`                   | Per-attempt timeout, ms.                                   |
+| `maxRetries`      | `number`                | `2`                       | Retries, **not** total sends. `0` disables.                |
+| `maxBackoffMs`    | `number`                | `8000`                    | Full-jitter backoff cap, ms.                               |
+| `maxRetryAfterMs` | `number`                | `60000`                   | Clamp on a server-directed `Retry-After`, ms.              |
+| `totalDeadlineMs` | `number \| null`        | `120000`                  | Whole-call budget across retries, ms. `null` disables.     |
+| `headers`         | `Record<string,string>` | —                         | Extra default headers (merged **under** SDK-managed ones). |
 
 ## Per-call overrides (`RequestOptions`)
 

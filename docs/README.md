@@ -1,6 +1,6 @@
 # @hosaka-fm/crate documentation
 
-Guides for the official typed TypeScript client for the [crate](https://crate.0xhoneyjar.xyz)
+Guides for the official typed TypeScript client for the [crate](https://crate.hosaka.fm)
 public API. New here? Start with the [README](../README.md) for install + quick start, then dive in:
 
 | Guide                                   | What it covers                                                 |

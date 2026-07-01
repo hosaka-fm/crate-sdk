@@ -17,7 +17,7 @@ const kc = () => new Crate({ apiKey: KEY });
 let agent: MockAgent;
 // biome-ignore lint: test pool typing
 let pool: ReturnType<MockAgent['get']>;
-const ORIGIN = 'https://crate.0xhoneyjar.xyz';
+const ORIGIN = 'https://crate.hosaka.fm';
 let calls: Array<{ path: string; method: string; headers: Record<string, string>; body?: string }>;
 
 function hget(h: Record<string, string>, name: string): string | undefined {
@@ -289,7 +289,7 @@ describe('construction', () => {
   it('baseUrl with a path → CrateValidationError(base_url_has_path)', () => {
     const err = (() => {
       try {
-        return new Crate({ baseUrl: 'https://crate.0xhoneyjar.xyz/api' });
+        return new Crate({ baseUrl: 'https://crate.hosaka.fm/api' });
       } catch (e) {
         return e;
       }
