@@ -64,7 +64,7 @@ jobs:
           aws-region: us-east-1
 
       - name: Sync to S3
-        run: aws s3 sync site/dist s3://crate-docs-0xhoneyjar-xyz --delete
+        run: aws s3 sync site/dist s3://crate-sdk-docs-hosaka-fm --delete
 
       - name: Invalidate CloudFront
         run: aws cloudfront create-invalidation --distribution-id E13QRD6NNZ3UCF --paths '/*'

@@ -15,14 +15,14 @@ Function source: [`site/cloudfront/index-rewrite.js`](./cloudfront/index-rewrite
 
 ## Resources (us-east-1)
 
-| Resource                                | Id                                                                                                                                             |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| S3 bucket (private, OAC)                | `crate-docs-0xhoneyjar-xyz` ⚠️ internal name — **carve-out**, not renamed (bucket rename = migrate + repoint; like `honeyjar-terraform-state`) |
-| CloudFront distribution                 | `E13QRD6NNZ3UCF` (aliases: crate-sdk.hosaka.fm + crate-sdk.0xhoneyjar.xyz)                                                                     |
-| CloudFront function (dir-index rewrite) | `crate-docs-index-rewrite`                                                                                                                     |
-| Origin Access Control                   | `E2GZ3UHH9BQQ9E`                                                                                                                               |
-| ACM cert (us-east-1, multi-SAN)         | crate-sdk.hosaka.fm + crate-sdk.0xhoneyjar.xyz                                                                                                 |
-| Route 53 zones                          | `Z06075752AIVGWUY9CS2A` (hosaka.fm, primary) · `Z01393483Y40WF3N1H76` (0xhoneyjar.xyz, legacy alias)                                           |
+| Resource                                | Id                                                                                                                             |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| S3 bucket (private, OAC)                | `crate-sdk-docs-hosaka-fm` (migrated from `crate-docs-0xhoneyjar-xyz` on 2026-07-01 — 124/124 objects verified identical ETag) |
+| CloudFront distribution                 | `E13QRD6NNZ3UCF` (aliases: crate-sdk.hosaka.fm + crate-sdk.0xhoneyjar.xyz)                                                     |
+| CloudFront function (dir-index rewrite) | `crate-docs-index-rewrite`                                                                                                     |
+| Origin Access Control                   | `E2GZ3UHH9BQQ9E`                                                                                                               |
+| ACM cert (us-east-1, multi-SAN)         | crate-sdk.hosaka.fm + crate-sdk.0xhoneyjar.xyz                                                                                 |
+| Route 53 zones                          | `Z06075752AIVGWUY9CS2A` (hosaka.fm, primary) · `Z01393483Y40WF3N1H76` (0xhoneyjar.xyz, legacy alias)                           |
 
 ## DNS
 
@@ -53,7 +53,7 @@ gh secret set ABC_SCHENGEN_MONO_B64 < <(base64 -w0 ABCSchengenAMono-Variable.wof
 
 ```sh
 cd site && npm run build
-aws s3 sync dist s3://crate-docs-0xhoneyjar-xyz --delete
+aws s3 sync dist s3://crate-sdk-docs-hosaka-fm --delete
 aws cloudfront create-invalidation --distribution-id E13QRD6NNZ3UCF --paths '/*'
 ```
 
@@ -71,7 +71,7 @@ aws cloudfront get-distribution-config --id E13QRD6NNZ3UCF      # note the ETag 
 aws cloudfront delete-distribution --id E13QRD6NNZ3UCF --if-match <etag>
 aws cloudfront delete-function --name crate-docs-index-rewrite --if-match <etag>
 # 2. Empty + delete the bucket
-aws s3 rm s3://crate-docs-0xhoneyjar-xyz --recursive && aws s3api delete-bucket --bucket crate-docs-0xhoneyjar-xyz
+aws s3 rm s3://crate-sdk-docs-hosaka-fm --recursive && aws s3api delete-bucket --bucket crate-sdk-docs-hosaka-fm
 # 3. Remove DNS + cert + IAM (Route53 zone Z01393483Y40WF3N1H76)
 #    delete the crate-sdk.0xhoneyjar.xyz A/AAAA alias + CAA + the _<token> validation CNAME
 aws acm delete-certificate --region us-east-1 --certificate-arn arn:aws:acm:us-east-1:891376933289:certificate/c5cb4aa9-64cc-46e1-95fb-a3f47aeaaadb
