@@ -64,5 +64,5 @@ can't rot — update them alongside any surface change.
 
 Use the [issue templates](https://github.com/hosaka-fm/crate-sdk/issues/new/choose). For problems
 with the crate **API/service** (keys, billing, rate limits, data), see
-[crate support](https://crate.0xhoneyjar.xyz/docs) — this repo is for the **client library**.
+[crate support](https://crate.hosaka.fm/docs) — this repo is for the **client library**.
 Security reports go through [`SECURITY.md`](./SECURITY.md), not public issues.

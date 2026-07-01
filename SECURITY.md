@@ -31,4 +31,4 @@ This SDK authenticates to crate with an API key (`X-API-Key`). Treat keys as sec
 
 This policy covers the `@hosaka-fm/crate` **client library**. Vulnerabilities in the crate
 **API/service** itself are governed by crate's Terms of Service — see
-[crate support](https://crate.0xhoneyjar.xyz/docs).
+[crate support](https://crate.hosaka.fm/docs).
