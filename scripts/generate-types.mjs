@@ -36,7 +36,7 @@ process.stderr.write(`generated ${path.relative(root, out)}\n`);
 if (writeMeta) {
   const doc = JSON.parse(readFileSync(spec, 'utf8'));
   const meta = {
-    spec_url: 'https://crate.0xhoneyjar.xyz/api/v2/openapi.json',
+    spec_url: 'https://crate.hosaka.fm/api/v2/openapi.json',
     openapi: doc.openapi,
     info_version: doc.info?.version,
     spec_sha256_jcs: createHash('sha256').update(canonicalize(doc)).digest('hex'),

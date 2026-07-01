@@ -2,7 +2,7 @@
 
 # @hosaka-fm/crate
 
-**The official, typed TypeScript client for the [crate](https://crate.0xhoneyjar.xyz) public API** —
+**The official, typed TypeScript client for the [crate](https://crate.hosaka.fm) public API** —
 a **cluster-first** music-catalogue gateway: artist / label / festival dossiers keyed on the
 canonical `cluster_id`, with release/master detail and Bandcamp standing carried as dimensions of
 the artist dossier.
@@ -128,7 +128,7 @@ const crate = new Crate({ apiKey: process.env.CRATE_API_KEY });
 Every data method throws `CrateValidationError('api_key_required')` **before any network call**
 if constructed without an `apiKey` — a fail-fast guard, not a wasted round-trip. Keep keys in an
 env var (`CRATE_API_KEY`); never hard-code or commit them. Keys are invite-only today — see the
-[crate docs](https://crate.0xhoneyjar.xyz/docs). Full detail: [docs/authentication.md](./docs/authentication.md).
+[crate docs](https://crate.hosaka.fm/docs). Full detail: [docs/authentication.md](./docs/authentication.md).
 
 ## Mental model
 
@@ -301,17 +301,17 @@ const crate = new Crate({
 });
 ```
 
-| Option            | Default                        | Meaning                                                     |
-| ----------------- | ------------------------------ | ----------------------------------------------------------- |
-| `apiKey`          | —                              | customer key → `X-API-Key` (required for data endpoints)    |
-| `baseUrl`         | `https://crate.0xhoneyjar.xyz` | API origin (no path)                                        |
-| `fetch`           | global `fetch`                 | injectable `fetch` (tests / custom agents / older runtimes) |
-| `timeout`         | `30000`                        | per-attempt timeout, ms                                     |
-| `maxRetries`      | `2`                            | retries, not total sends; `0` disables                      |
-| `maxBackoffMs`    | `8000`                         | full-jitter backoff cap, ms                                 |
-| `maxRetryAfterMs` | `60000`                        | clamp on a server-directed `Retry-After`, ms                |
-| `totalDeadlineMs` | `120000`                       | whole-call budget across retries, ms (`null` to disable)    |
-| `headers`         | —                              | extra default headers (merged under SDK-managed ones)       |
+| Option            | Default                   | Meaning                                                     |
+| ----------------- | ------------------------- | ----------------------------------------------------------- |
+| `apiKey`          | —                         | customer key → `X-API-Key` (required for data endpoints)    |
+| `baseUrl`         | `https://crate.hosaka.fm` | API origin (no path)                                        |
+| `fetch`           | global `fetch`            | injectable `fetch` (tests / custom agents / older runtimes) |
+| `timeout`         | `30000`                   | per-attempt timeout, ms                                     |
+| `maxRetries`      | `2`                       | retries, not total sends; `0` disables                      |
+| `maxBackoffMs`    | `8000`                    | full-jitter backoff cap, ms                                 |
+| `maxRetryAfterMs` | `60000`                   | clamp on a server-directed `Retry-After`, ms                |
+| `totalDeadlineMs` | `120000`                  | whole-call budget across retries, ms (`null` to disable)    |
+| `headers`         | —                         | extra default headers (merged under SDK-managed ones)       |
 
 Every knob is overridable per call via `RequestOptions` (plus `signal: AbortSignal` and the
 `fields` trim). **Reliability model:** retries fire only on `429/500/503/504`, use full-jitter
@@ -366,7 +366,7 @@ Older or non-standard runtimes: pass your own `fetch` via the `fetch` option. Du
 | **Added:** `{ fields }` on `artist()`  | Opt-out sparse-fieldset trim (default = the full dossier).                                                                          |
 
 Need a removed capability today? It still lives on the frozen `/api/v1` — pin a `0.3.x` client for
-it. crate's own guide: [`/docs/migration/v1-to-v2`](https://crate.0xhoneyjar.xyz/docs/migration/v1-to-v2).
+it. crate's own guide: [`/docs/migration/v1-to-v2`](https://crate.hosaka.fm/docs/migration/v1-to-v2).
 
 ## Versioning & stability
 

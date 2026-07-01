@@ -14,7 +14,7 @@ import { type HttpConfig, request, type RequestSpec } from '../src/http';
 // covered in the Sprint 3 integration + dual-package tests.
 function cfg(overrides: Partial<HttpConfig> = {}): HttpConfig {
   return {
-    baseUrl: 'https://crate.0xhoneyjar.xyz',
+    baseUrl: 'https://crate.hosaka.fm',
     fetchImpl: vi.fn(),
     timeoutMs: 30000,
     maxRetries: 2,

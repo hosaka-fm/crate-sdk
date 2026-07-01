@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Thanks for filing a bug. This repo is the **client library** — for problems with the crate
-        API/service (keys, billing, rate limits, data), see https://crate.0xhoneyjar.xyz/docs.
+        API/service (keys, billing, rate limits, data), see https://crate.hosaka.fm/docs.
         Never paste an API key into this issue.
   - type: input
     id: version

@@ -52,4 +52,4 @@ distinct from your API key and is bound to a single `search_event_id`.
 ## Getting a key
 
 Keys are operator-issued (invite-only) today; a self-serve tier lands later. See the
-[crate docs](https://crate.0xhoneyjar.xyz/docs).
+[crate docs](https://crate.hosaka.fm/docs).

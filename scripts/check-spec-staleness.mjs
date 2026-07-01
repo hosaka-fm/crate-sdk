@@ -11,7 +11,7 @@ import { canonicalize } from './jcs.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const meta = JSON.parse(readFileSync(path.join(root, 'spec', 'meta.json'), 'utf8'));
-const url = meta.spec_url ?? 'https://crate.0xhoneyjar.xyz/api/v2/openapi.json';
+const url = meta.spec_url ?? 'https://crate.hosaka.fm/api/v2/openapi.json';
 
 let live;
 try {
