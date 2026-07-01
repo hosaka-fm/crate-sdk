@@ -1,0 +1,6 @@
+# Deterministic line endings so the offline types-drift gate is byte-reproducible
+# across platforms (CRLF on a Windows checkout would otherwise fail byte-equality).
+* text=auto eol=lf
+*.d.ts text eol=lf
+spec/openapi.json text eol=lf
+spec/meta.json text eol=lf

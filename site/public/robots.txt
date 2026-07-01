@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Human + crawler sitemap
+Sitemap: https://crate-sdk.hosaka.fm/sitemap-index.xml
+
+# Agent surfaces (llms.txt convention)
+# /llms.txt        — curated index
+# /llms-full.txt   — full corpus in one fetch
+# /llms-small.txt  — compact corpus for small context windows

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: crate API support (keys, billing, rate limits, data)
+    url: https://crate.hosaka.fm/docs
+    about: Problems with the crate API/service itself — not the client library.
+  - name: Report a security vulnerability
+    url: https://github.com/hosaka-fm/crate-sdk/security/advisories/new
+    about: Disclose privately via GitHub Security Advisories. Never use a public issue.

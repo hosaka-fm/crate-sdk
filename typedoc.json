@@ -1,0 +1,14 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/index.ts"],
+  "out": "docs/api",
+  "name": "@hosaka-fm/crate",
+  "readme": "none",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "categorizeByGroup": true,
+  "navigationLinks": {
+    "GitHub": "https://github.com/hosaka-fm/crate-sdk",
+    "npm": "https://www.npmjs.com/package/@hosaka-fm/crate"
+  }
+}

@@ -1,0 +1,35 @@
+name: Feature request
+description: Propose an addition or improvement to the client library
+title: '[feat]: '
+labels: ['enhancement', 'triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This repo wraps crate's **public API**. If your request needs a new API capability (an
+        endpoint or field that doesn't exist yet), say so — that work belongs upstream in crate.
+  - type: textarea
+    id: usecase
+    attributes:
+      label: Use case
+      description: What are you trying to do, and why is it hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API
+      description: The method/option shape you'd like, as TypeScript.
+      render: ts
+    validations:
+      required: false
+  - type: dropdown
+    id: maps-to-endpoint
+    attributes:
+      label: Does this map to an existing crate endpoint?
+      options:
+        - 'Yes — wraps an endpoint that already exists'
+        - 'No — needs a new crate API capability'
+        - 'Not sure'
+    validations:
+      required: true

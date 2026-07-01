@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+
+      # Fast gate == the agent's self-check: types, format, tests, drift.
+      - name: Typecheck (esbuild strips types unchecked)
+        run: npm run typecheck
+      - name: Lint (prettier --check)
+        run: npm run lint
+      # Build BEFORE test so the dual-package test can import both built artifacts.
+      - name: Build (dual ESM + CJS)
+        run: npm run build
+
+      - name: Test (drift + dual-package + contract + jsdoc gates)
+        run: npm test
+
+      - name: Docs drift (explorer + README generated from TSDoc)
+        run: npm run docs:check
+
+      - name: Assert zero runtime dependencies
+        run: |
+          node -e "const p=require('./package.json'); const d=Object.keys(p.dependencies||{}); if(d.length){console.error('runtime deps present:',d);process.exit(1)} console.log('zero runtime deps OK')"
+
+      - name: Check dual-package types (arethetypeswrong)
+        run: npm run check:exports
+
+      - name: Assert pack tarball excludes src/test/spec
+        # --ignore-scripts: the build already ran above; without it, the prepack
+        # build writes to stdout and corrupts the --json output.
+        run: |
+          npm pack --dry-run --json --ignore-scripts > pack.json
+          node -e "const f=require('./pack.json')[0].files.map(x=>x.path); const leak=f.filter(p=>/^(src|test|spec|scripts)\//.test(p)); if(leak.length){console.error('tarball leaks:',leak);process.exit(1)} console.log('pack contents OK ('+f.length+' files)')"

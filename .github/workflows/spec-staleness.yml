@@ -1,0 +1,44 @@
+name: Spec staleness
+
+# Tier-2 drift check (NETWORK). Schedule-only + manual — NEVER gates PR CI, so an
+# upstream spec change overnight can't turn unrelated PRs red. On drift it opens a
+# regen issue; the fix is `npm run generate` + commit (which the Tier-1 offline
+# gate in ci.yml then enforces byte-for-byte).
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  staleness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - id: check
+        run: npm run check:staleness
+        continue-on-error: true
+      - name: Open issue on drift
+        if: steps.check.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Spec drift: crate openapi.json changed upstream';
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'spec-drift',
+            });
+            if (existing.data.some((i) => i.title === title)) return;
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo, title,
+              labels: ['spec-drift'],
+              body: 'The live crate OpenAPI spec differs from the vendored `spec/openapi.json`.\n\nRun `npm run generate` and commit the regenerated types + `spec/meta.json`. The offline drift gate in CI will then enforce byte-equality.',
+            });

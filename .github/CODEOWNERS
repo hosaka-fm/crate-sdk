@@ -1,0 +1,3 @@
+# Default reviewers for the crate SDK. Create the @hosaka-fm/maintainers team (or replace
+# with a specific handle) so review requests route automatically.
+* @hosaka-fm/maintainers
