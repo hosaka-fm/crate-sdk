@@ -12,14 +12,14 @@ https://crate-sdk.0xhoneyjar.xyz
 
 ## Resources (us-east-1)
 
-| Resource                                | Id                                                          |
-| --------------------------------------- | ---------------------------------------------------------- |
+| Resource                                | Id                                                                                                                                             |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | S3 bucket (private, OAC)                | `crate-docs-0xhoneyjar-xyz` ⚠️ internal name — **carve-out**, not renamed (bucket rename = migrate + repoint; like `honeyjar-terraform-state`) |
-| CloudFront distribution                 | `E13QRD6NNZ3UCF` (aliases: crate-sdk.hosaka.fm + crate-sdk.0xhoneyjar.xyz) |
-| CloudFront function (dir-index rewrite) | `crate-docs-index-rewrite`                                 |
-| Origin Access Control                   | `E2GZ3UHH9BQQ9E`                                           |
-| ACM cert (us-east-1, multi-SAN)         | crate-sdk.hosaka.fm + crate-sdk.0xhoneyjar.xyz            |
-| Route 53 zones                          | `Z06075752AIVGWUY9CS2A` (hosaka.fm, primary) · `Z01393483Y40WF3N1H76` (0xhoneyjar.xyz, legacy alias) |
+| CloudFront distribution                 | `E13QRD6NNZ3UCF` (aliases: crate-sdk.hosaka.fm + crate-sdk.0xhoneyjar.xyz)                                                                     |
+| CloudFront function (dir-index rewrite) | `crate-docs-index-rewrite`                                                                                                                     |
+| Origin Access Control                   | `E2GZ3UHH9BQQ9E`                                                                                                                               |
+| ACM cert (us-east-1, multi-SAN)         | crate-sdk.hosaka.fm + crate-sdk.0xhoneyjar.xyz                                                                                                 |
+| Route 53 zones                          | `Z06075752AIVGWUY9CS2A` (hosaka.fm, primary) · `Z01393483Y40WF3N1H76` (0xhoneyjar.xyz, legacy alias)                                           |
 
 ## DNS
 
