@@ -31,6 +31,13 @@ const bin = path.join(
 );
 
 execFileSync(bin, [spec, '--output', out], { stdio: ['ignore', 'ignore', 'inherit'] });
+// Present the CANONICAL brand in generated types. The vendored spec is byte-faithful to upstream,
+// which still carries the legacy `crate.0xhoneyjar.xyz` host in server/contact/doc-link fields; our
+// generated types show the live `crate.hosaka.fm`. Deterministic (drift byte-equality still holds)
+// and a no-op once upstream drops 0xhoneyjar. Vendored spec/openapi.json is untouched.
+const generated = readFileSync(out, 'utf8');
+const debranded = generated.replace(/0xhoneyjar\.xyz/g, 'hosaka.fm');
+if (debranded !== generated) writeFileSync(out, debranded);
 process.stderr.write(`generated ${path.relative(root, out)}\n`);
 
 if (writeMeta) {

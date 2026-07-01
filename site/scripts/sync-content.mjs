@@ -100,6 +100,18 @@ for (const m of methods) {
   writeFileSync(path.join(OUT_SDK, `${slugOf(m)}.md`), md);
 }
 
+// ---- De-branded spec for the docs API reference ----
+// starlight-openapi renders THIS copy (server URL / contact / doc-links show the canonical
+// crate.hosaka.fm), while the vendored spec/openapi.json stays byte-faithful for the SDK types +
+// drift guard. No-op once upstream drops 0xhoneyjar. (astro.config points at site/spec/openapi.json.)
+const specRaw = readFileSync(path.join(ROOT, 'spec', 'openapi.json'), 'utf8');
+const SITE_SPEC = path.join(SITE, 'spec');
+mkdirSync(SITE_SPEC, { recursive: true });
+writeFileSync(
+  path.join(SITE_SPEC, 'openapi.json'),
+  specRaw.replace(/0xhoneyjar\.xyz/g, 'hosaka.fm'),
+);
+
 // ---- Concepts: spec x-concepts → concepts/index.md ----
 const OUT_CONCEPTS = path.join(SITE, 'src', 'content', 'docs', 'concepts');
 mkdirSync(OUT_CONCEPTS, { recursive: true });
