@@ -2,7 +2,7 @@ name: docs-deploy
 
 # Build the docs site (site/) and deploy to S3 + invalidate CloudFront on merge to main.
 # Auth: GitHub OIDC → role crate-sdk-docs-github-deploy (no long-lived keys).
-# Live: https://crate-sdk.0xhoneyjar.xyz
+# Live: https://crate-sdk.hosaka.fm
 #
 # FONT NOTE: ABC Schengen is a commercial font; the trial binaries are gitignored, so a clean CI
 # checkout builds with the metric-similar Helvetica-class fallback (license-correct — we do not
