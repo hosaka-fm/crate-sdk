@@ -353,7 +353,7 @@ export interface components {
             message?: string;
             /** @description Actionable remediation in human terms — what to DO next, often naming the exact endpoint (a template with <placeholders>). The human counterpart to the machine-actionable `next`. */
             hint?: string;
-            /** @description Deep link to this code's docs: https://crate.0xhoneyjar.xyz/docs/api#error-<code>. Auto-populated for catalogued codes. */
+            /** @description Deep link to this code's docs: https://crate.hosaka.fm/docs/api#error-<code>. Auto-populated for catalogued codes. */
             doc_url?: string;
             /** @description The specific request parameter that caused the failure (e.g. "key", "q"), so a client can point at the offending input. Present only when the code declares one. */
             param?: string;
