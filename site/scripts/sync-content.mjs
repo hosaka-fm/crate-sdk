@@ -107,7 +107,10 @@ for (const m of methods) {
 const specRaw = readFileSync(path.join(ROOT, 'spec', 'openapi.json'), 'utf8');
 const SITE_SPEC = path.join(SITE, 'spec');
 mkdirSync(SITE_SPEC, { recursive: true });
-writeFileSync(path.join(SITE_SPEC, 'openapi.json'), specRaw.replace(/0xhoneyjar\.xyz/g, 'hosaka.fm'));
+writeFileSync(
+  path.join(SITE_SPEC, 'openapi.json'),
+  specRaw.replace(/0xhoneyjar\.xyz/g, 'hosaka.fm'),
+);
 
 // ---- Concepts: spec x-concepts → concepts/index.md ----
 const OUT_CONCEPTS = path.join(SITE, 'src', 'content', 'docs', 'concepts');
