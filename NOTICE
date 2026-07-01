@@ -7,5 +7,5 @@ requires a valid API key. The MIT license grants no right to use the crate
 service itself. The crate API is a commercial, paid service
 (openapi.json: info.license = "Commercial — see Terms of Service").
 
-See https://crate.0xhoneyjar.xyz/docs and crate's Terms of Service for API
+See https://crate.hosaka.fm/docs and crate's Terms of Service for API
 access terms.
