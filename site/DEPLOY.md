@@ -15,14 +15,14 @@ Function source: [`site/cloudfront/index-rewrite.js`](./cloudfront/index-rewrite
 
 ## Resources (us-east-1)
 
-| Resource                                | Id                                                                                                                             |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| S3 bucket (private, OAC)                | `crate-sdk-docs-hosaka-fm` (migrated from `crate-docs-0xhoneyjar-xyz` on 2026-07-01 — 124/124 objects verified identical ETag) |
-| CloudFront distribution                 | `E13QRD6NNZ3UCF` (aliases: crate-sdk.hosaka.fm + crate-sdk.0xhoneyjar.xyz)                                                     |
-| CloudFront function (dir-index rewrite) | `crate-docs-index-rewrite`                                                                                                     |
-| Origin Access Control                   | `E2GZ3UHH9BQQ9E`                                                                                                               |
-| ACM cert (us-east-1, multi-SAN)         | crate-sdk.hosaka.fm + crate-sdk.0xhoneyjar.xyz                                                                                 |
-| Route 53 zones                          | `Z06075752AIVGWUY9CS2A` (hosaka.fm, primary) · `Z01393483Y40WF3N1H76` (0xhoneyjar.xyz, legacy alias)                           |
+| Resource                                | Id                                                                                                   |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| S3 bucket (private, OAC)                | `crate-sdk-docs-hosaka-fm` (de-brand rename 2026-07-01 — 124/124 objects verified identical ETag)    |
+| CloudFront distribution                 | `E13QRD6NNZ3UCF` (aliases: crate-sdk.hosaka.fm + crate-sdk.0xhoneyjar.xyz)                           |
+| CloudFront function (dir-index rewrite) | `crate-docs-index-rewrite`                                                                           |
+| Origin Access Control                   | `E2GZ3UHH9BQQ9E`                                                                                     |
+| ACM cert (us-east-1, multi-SAN)         | crate-sdk.hosaka.fm + crate-sdk.0xhoneyjar.xyz                                                       |
+| Route 53 zones                          | `Z06075752AIVGWUY9CS2A` (hosaka.fm, primary) · `Z01393483Y40WF3N1H76` (0xhoneyjar.xyz, legacy alias) |
 
 ## DNS
 
