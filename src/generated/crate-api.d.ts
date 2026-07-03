@@ -33,7 +33,7 @@ export interface paths {
         };
         /**
          * OpenAPI 3.1 specification (v2 — this document)
-         * @description Public endpoint, no auth required. The cluster-first v2 surface at version 2.0.0; documents only /api/v2 routes.
+         * @description Public endpoint, no auth required. The cluster-first v2 surface (see info.version for the current 2.x); documents only /api/v2 routes.
          */
         get: operations["getOpenApiSpec"];
         put?: never;
@@ -136,6 +136,46 @@ export interface paths {
          * @description Booking-momentum "ones to watch" (seen.artist_emergence cross-validated against ridden press). Keyed; fail-soft (state present/empty/degraded → 200 honest-gap). ?tier= & ?corroboration= filter the bounded list.
          */
         get: operations["getBreakouts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/aura": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aura index — multi-dimension convergence signals, strongest first
+         * @description Per-artist "aura": how many independent signal dimensions (booking, radio, press, …) are converging on an artist inside an 18-month window, with seen's measured 12-month break odds. Sorted convergence_dim_count DESC, break_odds DESC, latest_appearance_at DESC. Keyed (X-API-Key); ?limit= clamped 1..200 (default 50). Fail-soft: a substrate read failure → 200 state:'degraded' (never a 500). Aggregate-only by construction.
+         */
+        get: operations["getAura"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/aura/{cluster}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aura for one artist by cluster_id
+         * @description The same aura row for a single artist, addressed by the 64-hex cluster_id. Malformed key → 400 invalid_locator. A cluster with no row on the substrate surface (single-dimension artists are filtered by the producer universe rule; inactive artists age out of the 18-month window) → 200 present:false state:honest_gap — an empty read is an answer, not an error. A read FAILURE → 200 present:false state:degraded.
+         */
+        get: operations["getAuraByCluster"];
         put?: never;
         post?: never;
         delete?: never;
@@ -401,6 +441,8 @@ export interface components {
             critic_count: number | null;
             formats: string[];
             link_to_cube: string;
+            /** @description The row artist's canonical 64-hex cluster_id (the fleet identity spine) — null for multi-artist credits or when no identity bind is held. Feed it straight to /api/v2/artist/{key}. */
+            artist_cluster_id?: string | null;
         };
         SearchResponse: {
             query: {
@@ -1184,6 +1226,22 @@ export interface components {
             resolved_from: "url" | "name" | "locator";
             matched_on?: string;
             note?: string;
+            /** @description Onward pointers — present whenever an identity resolved (cluster-addressed when a cluster_id bound; slug-addressed when the identity matched without a verified cluster bind). Follow `artist` for the full dossier. */
+            _links?: {
+                /** @description GET this for the full artist dossier (accepts 64-hex cluster_id or slug). */
+                artist?: string;
+                artist_dossier_by_slug?: string;
+            };
+            /** @description Disambiguation aid, emitted ONLY when a ?q= resolve ends clusterless (unresolved, or identity matched without a cluster bind): up to 5 OBSERVED-tier prefix matches from the booking graph. tier:'cluster' = unverified — surface as flagged, never as canonical truth. Absent otherwise. */
+            candidates?: {
+                /** @description The candidate 64-hex cluster_id (observed tier). */
+                cluster_id?: string;
+                name?: string;
+                /** @enum {string} */
+                tier?: "cluster";
+                /** @description Booking-graph support (k-anon floor 2) — a rough strength signal. */
+                distinct_events?: number;
+            }[];
         };
         TastemakersResponse: {
             leaderboard: {
@@ -1770,6 +1828,198 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BreakoutsResponse"];
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getAura: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Aura rows strongest-first (state present), or the degraded honest-gap state */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description 'degraded' = the substrate read failed (items empty) — still HTTP 200.
+                         * @enum {string}
+                         */
+                        state: "present" | "degraded";
+                        items: {
+                            /** @description The 64-hex cluster_id — the canonical fleet identity address (resolve names/links via /api/v2/resolve). */
+                            cluster_id: string;
+                            artist_name: string;
+                            /** @description Independent convergence dimensions lit in the 18-month window (≥2 by the producer universe rule; a present-state read — the count can decrease). */
+                            convergence_dim_count: number;
+                            /** @description The lit dimension names (e.g. booking, radio, press). */
+                            dimensions: string[];
+                            /** @description Measured probability (percent) of a calibrated break within 12 months — seen's forward-precision curve, keyed on independent dimensions; null when no curve point exists. */
+                            break_odds: number | null;
+                            /** @description Earliest first-appearance date in the window (YYYY-MM-DD). */
+                            first_signal_at: string;
+                            /** @description Most recent date a NEW dimension first appeared — not latest activity (YYYY-MM-DD). */
+                            latest_appearance_at: string;
+                            has_break_event: boolean;
+                            /** @description Earliest calibrated break date (YYYY-MM-DD); null when has_break_event=false. */
+                            break_event_at: string | null;
+                        }[];
+                    };
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getAuraByCluster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cluster: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The aura row (present:true), or the honest-gap / degraded state */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        aura: {
+                            /** @description The 64-hex cluster_id — the canonical fleet identity address (resolve names/links via /api/v2/resolve). */
+                            cluster_id: string;
+                            artist_name: string;
+                            /** @description Independent convergence dimensions lit in the 18-month window (≥2 by the producer universe rule; a present-state read — the count can decrease). */
+                            convergence_dim_count: number;
+                            /** @description The lit dimension names (e.g. booking, radio, press). */
+                            dimensions: string[];
+                            /** @description Measured probability (percent) of a calibrated break within 12 months — seen's forward-precision curve, keyed on independent dimensions; null when no curve point exists. */
+                            break_odds: number | null;
+                            /** @description Earliest first-appearance date in the window (YYYY-MM-DD). */
+                            first_signal_at: string;
+                            /** @description Most recent date a NEW dimension first appeared — not latest activity (YYYY-MM-DD). */
+                            latest_appearance_at: string;
+                            has_break_event: boolean;
+                            /** @description Earliest calibrated break date (YYYY-MM-DD); null when has_break_event=false. */
+                            break_event_at: string | null;
+                        } | null;
+                    };
                 };
             };
             /** @description Validation failure (invalid query, malformed body, bad facet name) */

@@ -1,6 +1,6 @@
 {
   "name": "@hosaka-fm/crate",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Official typed TypeScript client for the crate public API.",
   "keywords": [
     "crate",
@@ -78,7 +78,7 @@
     "docs:surface": "node scripts/extract-surface.mjs",
     "docs:gen": "node scripts/gen-docs.mjs",
     "docs:build": "npm run build && npm run docs:surface && npm run docs:gen && prettier --write README.md",
-    "docs:check": "npm run docs:build && { [ -z \"$(git status --porcelain -- README.md meta explorer)\" ] || { echo 'docs are stale — run: npm run docs:build'; git status --porcelain -- README.md meta explorer; exit 1; }; }",
+    "docs:check": "npm run docs:build && { [ -z \"$(git status --porcelain -- README.md meta explorer)\" ] || { echo 'docs are stale \u2014 run: npm run docs:build'; git status --porcelain -- README.md meta explorer; exit 1; }; }",
     "prepack": "npm run build"
   },
   "devDependencies": {
