@@ -49,6 +49,26 @@
   },
   {
     "ns": "client",
+    "fn": "artistBandcampRelease",
+    "call": "crate.artistBandcampRelease(key, item)",
+    "http": "GET",
+    "ep": "/api/v2/artist/{key}/bandcamp/{item}",
+    "auth": "key",
+    "ret": "ArtistBandcampReleaseResponse",
+    "retry": true,
+    "idem": true,
+    "sig": "artistBandcampRelease(key: string, item: string, opts?: RequestOptions): Promise<ArtistBandcampReleaseResponse>",
+    "desc": "Fetch one Bandcamp release addressed *under its artist* — the full tracklist (with per-track `duration_s`), fetchable artwork URLs, label, tags, and economics. The cluster-attached per-release grain: list `item` ids from an artist dossier's `bandcamp_releases` facet, then hand `(key, item)` here for the detail. Cluster-first integrity: if the release is unknown OR filed under a *different* artist, the response is the honest gap `{ present: false, note }` — never another artist's data, never a 404. Branch on `present`.",
+    "example": "const r = await crate.artistBandcampRelease(clusterId, '2783508421');\nif (r.present) console.log(r.release.title, r.release.tracks.length);",
+    "throws": [
+      [
+        "CrateAPIError",
+        "on a non-2xx response."
+      ]
+    ]
+  },
+  {
+    "ns": "client",
     "fn": "artistOrNull",
     "call": "crate.artistOrNull(key)",
     "http": "GET",

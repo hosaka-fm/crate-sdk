@@ -233,24 +233,25 @@ keyless, **beacon** = per-search JWT. All read methods auto-retry on a retryable
 
 <!-- BEGIN GENERATED:surface (npm run docs:gen) -->
 
-| Call                                | Endpoint                                | Auth    | Returns                         |
-| ----------------------------------- | --------------------------------------- | ------- | ------------------------------- |
-| `crate.resolve(query)`              | `GET /api/v2/resolve`                   | **key** | `IdentityResolution`            |
-| `crate.artist(key)`                 | `GET /api/v2/artist/{key}`              | **key** | `ArtistDossierContract`         |
-| `crate.artistOrNull(key)`           | `GET /api/v2/artist/{key}`              | **key** | `ArtistDossierContract \| null` |
-| `crate.label(key)`                  | `GET /api/v2/label/{key}`               | **key** | `LabelDossierContract`          |
-| `crate.search(params)`              | `GET /api/v2/search`                    | **key** | `SearchResponse`                |
-| `crate.breakouts()`                 | `GET /api/v2/breakouts`                 | **key** | `BreakoutsResponse`             |
-| `crate.index()`                     | `GET /api/v2`                           | anon    | `ApiRootIndex`                  |
-| `crate.facets()`                    | `GET /api/v2/facets`                    | **key** | `FacetCounts`                   |
-| `crate.dossier.artist(slug)`        | `GET /api/v2/dossier/artist/{slug}`     | **key** | `ArtistDossierContract`         |
-| `crate.dossier.label(slug)`         | `GET /api/v2/dossier/label/{slug}`      | **key** | `LabelDossierContract`          |
-| `crate.dossier.festival(slug)`      | `GET /api/v2/dossier/festival/{slug}`   | **key** | `FestivalDossierContract`       |
-| `crate.dossier.manifest()`          | `GET /api/v2/dossier/manifest`          | **key** | `DossierManifest`               |
-| `crate.tastemakers()`               | `GET /api/v2/tastemakers`               | **key** | `TastemakersResponse`           |
-| `crate.tastemakers.onesToWatch()`   | `GET /api/v2/tastemakers/ones-to-watch` | **key** | `OnesToWatchResponse`           |
-| `crate.searchEvents.observed(body)` | `POST /api/v2/search-events/observed`   | beacon  | `void`                          |
-| `crate.searchEvents.refined(body)`  | `POST /api/v2/search-events/refined`    | beacon  | `void`                          |
+| Call                                     | Endpoint                                   | Auth    | Returns                         |
+| ---------------------------------------- | ------------------------------------------ | ------- | ------------------------------- |
+| `crate.resolve(query)`                   | `GET /api/v2/resolve`                      | **key** | `IdentityResolution`            |
+| `crate.artist(key)`                      | `GET /api/v2/artist/{key}`                 | **key** | `ArtistDossierContract`         |
+| `crate.artistBandcampRelease(key, item)` | `GET /api/v2/artist/{key}/bandcamp/{item}` | **key** | `ArtistBandcampReleaseResponse` |
+| `crate.artistOrNull(key)`                | `GET /api/v2/artist/{key}`                 | **key** | `ArtistDossierContract \| null` |
+| `crate.label(key)`                       | `GET /api/v2/label/{key}`                  | **key** | `LabelDossierContract`          |
+| `crate.search(params)`                   | `GET /api/v2/search`                       | **key** | `SearchResponse`                |
+| `crate.breakouts()`                      | `GET /api/v2/breakouts`                    | **key** | `BreakoutsResponse`             |
+| `crate.index()`                          | `GET /api/v2`                              | anon    | `ApiRootIndex`                  |
+| `crate.facets()`                         | `GET /api/v2/facets`                       | **key** | `FacetCounts`                   |
+| `crate.dossier.artist(slug)`             | `GET /api/v2/dossier/artist/{slug}`        | **key** | `ArtistDossierContract`         |
+| `crate.dossier.label(slug)`              | `GET /api/v2/dossier/label/{slug}`         | **key** | `LabelDossierContract`          |
+| `crate.dossier.festival(slug)`           | `GET /api/v2/dossier/festival/{slug}`      | **key** | `FestivalDossierContract`       |
+| `crate.dossier.manifest()`               | `GET /api/v2/dossier/manifest`             | **key** | `DossierManifest`               |
+| `crate.tastemakers()`                    | `GET /api/v2/tastemakers`                  | **key** | `TastemakersResponse`           |
+| `crate.tastemakers.onesToWatch()`        | `GET /api/v2/tastemakers/ones-to-watch`    | **key** | `OnesToWatchResponse`           |
+| `crate.searchEvents.observed(body)`      | `POST /api/v2/search-events/observed`      | beacon  | `void`                          |
+| `crate.searchEvents.refined(body)`       | `POST /api/v2/search-events/refined`       | beacon  | `void`                          |
 
 <!-- END GENERATED:surface -->
 

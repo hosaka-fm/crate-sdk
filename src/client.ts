@@ -15,6 +15,7 @@ import {
 } from './identity';
 import type {
   ApiRootIndex,
+  ArtistBandcampReleaseResponse,
   ArtistDossierContract,
   BreakoutsResponse,
   DossierManifest,
@@ -433,6 +434,37 @@ export class Crate {
    */
   async artist(key: string, opts?: RequestOptions): Promise<ArtistDossierContract> {
     return (await this.#artistDossier(key, 'throw', opts)) as ArtistDossierContract;
+  }
+
+  /**
+   * Fetch one Bandcamp release addressed *under its artist* — the full tracklist (with
+   * per-track `duration_s`), fetchable artwork URLs, label, tags, and economics. The
+   * cluster-attached per-release grain: list `item` ids from an artist dossier's
+   * `bandcamp_releases` facet, then hand `(key, item)` here for the detail.
+   *
+   * Cluster-first integrity: if the release is unknown OR filed under a *different*
+   * artist, the response is the honest gap `{ present: false, note }` — never another
+   * artist's data, never a 404. Branch on `present`.
+   * @example
+   * ```ts
+   * const r = await crate.artistBandcampRelease(clusterId, '2783508421');
+   * if (r.present) console.log(r.release.title, r.release.tracks.length);
+   * ```
+   * @throws {CrateAPIError} on a non-2xx response. @see {@link Crate.artist}
+   */
+  artistBandcampRelease(
+    key: string,
+    item: string,
+    opts?: RequestOptions,
+  ): Promise<ArtistBandcampReleaseResponse> {
+    return this.#req<ArtistBandcampReleaseResponse>(
+      {
+        method: 'GET',
+        path: `/artist/${encodeURIComponent(key)}/bandcamp/${encodeURIComponent(item)}`,
+        idempotent: true,
+      },
+      opts,
+    );
   }
 
   /**
