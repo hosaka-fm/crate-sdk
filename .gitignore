@@ -37,3 +37,18 @@ site/spec/
 
 # Run-mode ephemeral state (recovery only; not history)
 .run/
+
+# LOA LOCAL-ONLY — framework is mounted as a submodule LOCALLY but NEVER tracked
+# on this (public) repo. These were all excluded by the clean-room export; keeping
+# them ignored prevents an accidental `git add -A` from leaking the framework — or
+# the upstream submodule URL in .gitmodules — into the public tree.
+# Update loa via: cd .loa && git pull origin main   (then re-run mount --reconcile)
+/.loa/
+/.gitmodules
+/.loa-version.json
+/.loa.config.yaml
+/.claude/
+/grimoires/
+/.beads/
+/CLAUDE.md
+/.github/workflows/post-merge.yml
