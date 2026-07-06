@@ -81,7 +81,7 @@ describe('auth-tier contract (key-first: doc-level ApiKeyAuth default)', () => {
     }
   });
 
-  it('only index + openapi are public (security: [])', () => {
+  it('only index + openapi + the education preview are public (security: [])', () => {
     const publicPaths = Object.entries(
       spec.paths as Record<string, Record<string, { security?: unknown }>>,
     )
@@ -91,7 +91,13 @@ describe('auth-tier contract (key-first: doc-level ApiKeyAuth default)', () => {
           .map(([m]) => `${m.toUpperCase()} ${p}`),
       )
       .sort();
-    expect(publicPaths).toEqual(['GET /api/v2', 'GET /api/v2/openapi.json']);
+    // /preview/artist is crate's ONE deliberate keyless data route (the hosaka.fm education
+    // widget; crate cycle-087) — anything ELSE going public here is a wall regression.
+    expect(publicPaths).toEqual([
+      'GET /api/v2',
+      'GET /api/v2/openapi.json',
+      'GET /api/v2/preview/artist',
+    ]);
   });
 });
 
