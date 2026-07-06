@@ -1,0 +1,29 @@
+name: Tag release
+# Tags vX.Y.Z from package.json on every main push where the tag doesn't exist yet.
+# The Release workflow (release.yml) fires on the tag; npm publish stays dual-gated
+# (PUBLISH_ENABLED var + NPM_TOKEN secret) and skips cleanly until enabled.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    if: github.repository == 'hosaka-fm/crate-sdk'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag current package.json version if untagged
+        run: |
+          V="v$(node -p "require('./package.json').version")"
+          if git ls-remote --tags origin "refs/tags/$V" | grep -q .; then
+            echo "$V already tagged — nothing to do"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "$V" -m "Release $V"
+            git push origin "$V"
+            echo "tagged $V"
+          fi

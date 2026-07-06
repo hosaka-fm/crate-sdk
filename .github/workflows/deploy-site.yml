@@ -1,0 +1,38 @@
+name: Deploy docs site
+# Builds the Astro/Starlight site (site/) and syncs it to the S3 origin behind
+# https://crate-sdk.hosaka.fm (CloudFront E13QRD6NNZ3UCF). The site's prebuild
+# (sync-content.mjs) pulls the COMMITTED artifacts — docs/*.md, meta/surface.json,
+# CHANGELOG.md, explorer/index.html — so docs stay in lockstep with every merge.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC → crate-sdk-docs-github-deploy (trust-scoped to this repo's main)
+  contents: read
+
+concurrency:
+  group: docs-site-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Build site (prebuild syncs committed SDK artifacts)
+        run: cd site && npm ci && npm run build
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::891376933289:role/crate-sdk-docs-github-deploy
+          aws-region: us-east-1
+      - name: Sync to S3 origin
+        run: aws s3 sync site/dist/ s3://crate-sdk-docs-hosaka-fm/ --delete
+      - name: Invalidate CloudFront
+        run: aws cloudfront create-invalidation --distribution-id E13QRD6NNZ3UCF --paths "/*" --query 'Invalidation.{id:Id,status:Status}'
