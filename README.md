@@ -250,6 +250,8 @@ keyless, **beacon** = per-search JWT. All read methods auto-retry on a retryable
 | `crate.dossier.manifest()`               | `GET /api/v2/dossier/manifest`             | **key** | `DossierManifest`               |
 | `crate.tastemakers()`                    | `GET /api/v2/tastemakers`                  | **key** | `TastemakersResponse`           |
 | `crate.tastemakers.onesToWatch()`        | `GET /api/v2/tastemakers/ones-to-watch`    | **key** | `OnesToWatchResponse`           |
+| `crate.aura(params)`                     | `GET /api/v2/aura`                         | **key** | `AuraIndexResponse`             |
+| `crate.aura.artist(clusterId)`           | `GET /api/v2/aura/{cluster}`               | **key** | `AuraArtistResponse`            |
 | `crate.searchEvents.observed(body)`      | `POST /api/v2/search-events/observed`      | beacon  | `void`                          |
 | `crate.searchEvents.refined(body)`       | `POST /api/v2/search-events/refined`       | beacon  | `void`                          |
 
@@ -262,7 +264,7 @@ it rather than being top-level resources. So instead of `master()` / `bandcamp.r
 the artist dossier and look at its dimensions (trim with `?fields=`):
 
 - **`discography`** — the artist's catalogue index: per-master `{ discogsMasterId, representativeName, isPrimary, billingPosition }`. It's an _index_, not the per-master signal layer; `_links.master` points at the (frozen) v1 surface.
-- **`bandcamp_emergence` / `bandcamp_tastemaker`** — artist-level Bandcamp standing (emergence class, demand, supporter cohort). Per-release Bandcamp tracklists are **not** in v2 (see [migration](#migrating-from-v1-0x)).
+- **`bandcamp_emergence` / `bandcamp_tastemaker`** — artist-level Bandcamp standing (emergence class, demand, supporter cohort). Per-release Bandcamp tracklists **are back in v2** (1.2.0, cluster-attached): list them from the dossier's `bandcamp_releases` facet, then fetch the full release with `artistBandcampRelease(key, item)` — tracklist with `duration_s`, artwork with `width`/`height`, label, tags, economics.
 
 `null` (HTTP 200 with `cluster_id: null` / `present: false`) is an **honest gap**, not an error —
 `artistOrNull()` returns it. `cluster_id` is an **opaque string**; pass it through, never numericize.
@@ -356,15 +358,15 @@ Older or non-standard runtimes: pass your own `fetch` via the `fetch` option. Du
 `1.0.0` targets crate's cluster-first `/api/v2` — a deliberate breaking change from `0.3.x`
 (which targeted `/api/v1`, now frozen). Most of the surface is unchanged; the demotions:
 
-| Removed in 1.0                         | Where the data went / what to do                                                                                                    |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `crate.master(id)` / `crate.masters()` | **Removed capability.** The per-master signal layer has no v2 endpoint. The artist's catalogue index is `artist().discography`.     |
-| `crate.dossier.master(id)`             | **Removed.** No v2 master dossier.                                                                                                  |
-| `crate.bandcamp.*` (release/bulk/…)    | Artist-level standing is `artist().bandcamp_emergence` / `bandcamp_tastemaker`. **Per-release tracklists/economics are not in v2.** |
-| `crate.wayfind(…)` / `.interpret(…)`   | **Removed** — natural-language surfaces stay v1-only this cut.                                                                      |
-| `crate.usage()`                        | **Removed** — no v2 `/usage`. Live quota is on `CrateAPIError.rateLimit` (`X-RateLimit-*`); monthly quota/tier is not yet in v2.    |
-| **Added:** `crate.label(key)`          | Cluster-first label dossier, promoted to a top-level method.                                                                        |
-| **Added:** `{ fields }` on `artist()`  | Opt-out sparse-fieldset trim (default = the full dossier).                                                                          |
+| Removed in 1.0                         | Where the data went / what to do                                                                                                                                                                                                                                       |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crate.master(id)` / `crate.masters()` | **Removed capability.** The per-master signal layer has no v2 endpoint. The artist's catalogue index is `artist().discography`.                                                                                                                                        |
+| `crate.dossier.master(id)`             | **Removed.** No v2 master dossier.                                                                                                                                                                                                                                     |
+| `crate.bandcamp.*` (release/bulk/…)    | Artist-level standing is `artist().bandcamp_emergence` / `bandcamp_tastemaker`. Per-release detail is cluster-attached: `artistBandcampRelease(key, item)` (tracklist + durations + artwork dims + economics); list items via the dossier's `bandcamp_releases` facet. |
+| `crate.wayfind(…)` / `.interpret(…)`   | **Removed** — natural-language surfaces stay v1-only this cut.                                                                                                                                                                                                         |
+| `crate.usage()`                        | **Removed** — no v2 `/usage`. Live quota is on `CrateAPIError.rateLimit` (`X-RateLimit-*`); monthly quota/tier is not yet in v2.                                                                                                                                       |
+| **Added:** `crate.label(key)`          | Cluster-first label dossier, promoted to a top-level method.                                                                                                                                                                                                           |
+| **Added:** `{ fields }` on `artist()`  | Opt-out sparse-fieldset trim (default = the full dossier).                                                                                                                                                                                                             |
 
 Need a removed capability today? It still lives on the frozen `/api/v1` — pin a `0.3.x` client for
 it. crate's own guide: [`/docs/migration/v1-to-v2`](https://crate.hosaka.fm/docs/migration/v1-to-v2).

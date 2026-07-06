@@ -229,6 +229,112 @@ describe('search', () => {
   });
 });
 
+describe('artistBandcampRelease', () => {
+  const HEX = 'a'.repeat(64);
+
+  it('happy path: GET /artist/{key}/bandcamp/{item} → present:true release with durations + artwork dims', async () => {
+    mock('GET', (p) => p.startsWith(`/api/v2/artist/${HEX}/bandcamp/`), 200, {
+      object: 'bandcamp.release',
+      present: true,
+      release: {
+        bandcamp_item_id: '2783508421',
+        cluster_id: HEX,
+        artist: 'Objekt',
+        title: 'Chicken Garaage',
+        release_date: '2024-05-01',
+        source_url: 'https://objekt.bandcamp.com/album/x',
+        tags: ['techno'],
+        label: null,
+        artwork: [
+          {
+            url: 'https://f4.bcbits.com/img/a1_16.jpg',
+            source: 'bandcamp',
+            grain: 'release',
+            license: 'x',
+            rehost: false,
+            width: 700,
+            height: 700,
+          },
+        ],
+        tracks: [
+          {
+            track_num: 1,
+            title: 'T',
+            duration_s: 401.4,
+            license_type: null,
+            track_url: 'https://x',
+          },
+        ],
+        economics: null,
+      },
+    });
+    const r = await kc().artistBandcampRelease(HEX, '2783508421');
+    expect(calls[0].path).toBe(`/api/v2/artist/${HEX}/bandcamp/2783508421`);
+    expect(r.present).toBe(true);
+    if (r.present) {
+      expect(r.release.tracks[0]?.duration_s).toBe(401.4);
+      expect(r.release.artwork[0]?.width).toBe(700);
+    }
+  });
+
+  it('honest gap: present:false is a normal 200 answer (wrong artist / unknown item), not a throw', async () => {
+    mock('GET', (p) => p.includes('/bandcamp/'), 200, {
+      object: 'bandcamp.release',
+      present: false,
+      note: 'Release 123 is not filed under artist x.',
+    });
+    const r = await kc().artistBandcampRelease('some-slug', '123');
+    expect(r.present).toBe(false);
+    if (!r.present) expect(r.note).toContain('not filed under');
+  });
+
+  it('URL-encodes both path params', async () => {
+    mock('GET', (p) => p.includes('/bandcamp/'), 200, {
+      object: 'bandcamp.release',
+      present: false,
+      note: 'n',
+    });
+    await kc().artistBandcampRelease('weird slug/name', '123');
+    expect(calls[0].path).toBe('/api/v2/artist/weird%20slug%2Fname/bandcamp/123');
+  });
+});
+
+describe('aura', () => {
+  const HEX = 'b'.repeat(64);
+
+  it('index: GET /aura with optional limit serialized', async () => {
+    mock('GET', (p) => p.startsWith('/api/v2/aura'), 200, {
+      state: 'present',
+      window_months: 18,
+      items: [],
+    });
+    const a = await kc().aura({ limit: 100 });
+    expect(calls[0].path).toContain('/api/v2/aura');
+    expect(calls[0].path).toContain('limit=100');
+    expect(a.state).toBe('present');
+  });
+
+  it('index: no params → bare /aura (no query string)', async () => {
+    mock('GET', (p) => p.startsWith('/api/v2/aura'), 200, {
+      state: 'present',
+      window_months: 18,
+      items: [],
+    });
+    await kc().aura();
+    expect(calls[0].path).toBe('/api/v2/aura');
+  });
+
+  it('artist: GET /aura/{cluster}; present:false honest-gap is a normal answer', async () => {
+    mock('GET', (p) => p.startsWith(`/api/v2/aura/${HEX}`), 200, {
+      present: false,
+      state: 'honest_gap',
+    });
+    const a = await kc().aura.artist(HEX);
+    expect(calls[0].path).toBe(`/api/v2/aura/${HEX}`);
+    expect(a.present).toBe(false);
+  });
+});
+
 describe('key-first auth', () => {
   it('a data method without an apiKey → CrateValidationError(api_key_required), no network', async () => {
     const err = await new Crate().resolve('Four Tet').catch((e) => e);

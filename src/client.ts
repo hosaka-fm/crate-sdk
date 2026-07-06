@@ -17,6 +17,8 @@ import type {
   ApiRootIndex,
   ArtistBandcampReleaseResponse,
   ArtistDossierContract,
+  AuraArtistResponse,
+  AuraIndexResponse,
   BreakoutsResponse,
   DossierManifest,
   FacetCounts,
@@ -99,6 +101,37 @@ export interface TastemakersApi {
    * ```
    */
   onesToWatch(opts?: RequestOptions): Promise<OnesToWatchResponse>;
+}
+
+/**
+ * `crate.aura` — a callable namespace. An artist's "aura" is how many INDEPENDENT
+ * signal dimensions (booking, radio, press, …) are converging on them inside an
+ * 18-month window, with measured 12-month break odds. Call it for the index
+ * (strongest first), or `.artist(clusterId)` for one artist's row.
+ */
+export interface AuraApi {
+  /**
+   * The aura index — artists whose signals are converging across several dimensions
+   * at once, strongest first. `state: 'degraded'` = a substrate read failed (items
+   * empty, still HTTP 200) — branch on it rather than assuming rows.
+   * @example
+   * ```ts
+   * const a = await crate.aura({ limit: 100 });
+   * a.items.forEach((x) => console.log(x.display, x.convergence_dim_count));
+   * ```
+   */
+  (params?: { limit?: number }, opts?: RequestOptions): Promise<AuraIndexResponse>;
+  /**
+   * One artist's aura row by 64-hex `cluster_id`. `present: false` is a normal answer
+   * (single-dimension artists are filtered by the universe rule; inactive artists age
+   * out of the window) — branch on `present`, don't treat it as an error.
+   * @example
+   * ```ts
+   * const a = await crate.aura.artist(clusterId);
+   * if (a.present) console.log(a.break_odds);
+   * ```
+   */
+  artist(clusterId: string, opts?: RequestOptions): Promise<AuraArtistResponse>;
 }
 
 /**
@@ -216,6 +249,8 @@ export class Crate {
 
   /** Tastemaker leaderboard + ones-to-watch. @see {@link TastemakersApi} */
   readonly tastemakers: TastemakersApi;
+  /** Multi-dimension convergence signals (index + per-artist). @see {@link AuraApi} */
+  readonly aura: AuraApi;
   /** Per-grain dossier contracts (artist / label / festival / manifest). @see {@link DossierApi} */
   readonly dossier: DossierApi;
   /** Beacon telemetry (per-search JWT required). @see {@link SearchEventsApi} */
@@ -283,6 +318,23 @@ export class Crate {
         opts,
       );
     this.tastemakers = tastemakers;
+
+    const aura = ((params?: { limit?: number }, opts?: RequestOptions) =>
+      this.#req<AuraIndexResponse>(
+        {
+          method: 'GET',
+          path: '/aura',
+          idempotent: true,
+          ...(params?.limit !== undefined ? { query: { limit: params.limit } } : {}),
+        },
+        opts,
+      )) as AuraApi;
+    aura.artist = (clusterId, opts?) =>
+      this.#req<AuraArtistResponse>(
+        { method: 'GET', path: `/aura/${encodeURIComponent(clusterId)}`, idempotent: true },
+        opts,
+      );
+    this.aura = aura;
 
     this.dossier = {
       artist: (slug, opts?) =>
