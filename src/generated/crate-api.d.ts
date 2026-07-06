@@ -24,6 +24,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/preview/artist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Keyless education teaser — a capped, render-ready subset of the artist dossier
+         * @description cycle-087 — the education surface behind the hosaka.fm 'ask about any artist' widget: crate's ONLY keyless data route, deliberately. NOT for products or agents — the teaser is a small capped subset (arc ≤ 6 rows, booked_with ≤ 3, no economics, no provenance); build on GET /api/v2/artist/{key} with a key instead. ?q= accepts a name, slug, or 64-hex cluster_id (canonicalized server-side; names resolve exactly, not fuzzy). Unresolved → 200 present:false honest-gap (same cache posture — negative results edge-cache too). Anonymous IP rate limit (sliding window); the limiter FAILS CLOSED here (503) because keyless has no other barrier; anonymous traffic load-sheds FIRST under saturation. CORS: Access-Control-Allow-Origin * (public, identical body for every caller; no Vary).
+         */
+        get: operations["getArtistPreview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2": {
         parameters: {
             query?: never;
@@ -1001,6 +1021,23 @@ export interface components {
                 state: "present" | "honest_gap";
                 releases: components["schemas"]["BandcampReleaseSummary"][];
             };
+            /** @description Rights-readiness for sync clearance (v2-only; cycle-088). MB leg live today: how identifiable (ISRC) and how registered (ISWC — the FACT, never the value) the artist's bridged catalogue is. Discogs-anchored — cluster-only artists honestly gap until the SoundCloud long-tail rollup lands (producer ask open); writer identity (ledger) joins additively when its grant lands. Counts only: no ISRC/ISWC values cross the wire. */
+            rights?: {
+                /** @enum {string} */
+                state: "present" | "honest_gap";
+                signals: {
+                    /** @description Distinct recordings reachable from the artist masters via the MB bridge. */
+                    recordingsBridged: number;
+                    /** @description …carrying ≥1 ISRC (identifiable recordings — the clearance prerequisite). */
+                    recordingsWithIsrc: number;
+                    /** @description Distinct ISRC codes across those recordings. */
+                    isrcCount: number;
+                    /** @description Distinct works (compositions) reachable via the bridge. */
+                    worksBridged: number;
+                    /** @description Works with a registered ISWC — the FACT only; the value is never exposed. */
+                    worksWithIswc: number;
+                } | null;
+            };
         };
         LabelDossierContract: {
             contract_version: string;
@@ -1458,6 +1495,99 @@ export interface operations {
             };
             /** @description Authentication failure */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getArtistPreview: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The teaser (present:true) or an honest-gap (present:false — name did not resolve) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        object: "artist.preview";
+                        /** @enum {boolean} */
+                        present: true;
+                        display: string;
+                        cluster_id: string | null;
+                        /** @enum {string|null} */
+                        resolved_via: "discogs" | "cluster" | null;
+                        emergence_tier: string | null;
+                        arc: {
+                            year: number;
+                            tier: string;
+                            label: string;
+                        }[];
+                        arc_truncated: boolean;
+                        booked_with: string[];
+                        press_count: number;
+                        note: string;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "artist.preview";
+                        /** @enum {boolean} */
+                        present: false;
+                        note: string;
+                    };
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
