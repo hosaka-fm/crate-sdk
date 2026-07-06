@@ -286,6 +286,36 @@
     "throws": []
   },
   {
+    "ns": "aura",
+    "fn": "aura",
+    "call": "crate.aura(params)",
+    "http": "GET",
+    "ep": "/api/v2/aura",
+    "auth": "key",
+    "ret": "AuraIndexResponse",
+    "retry": true,
+    "idem": true,
+    "sig": "crate.aura(params?: { limit?: number }, opts?: RequestOptions): Promise<AuraIndexResponse>",
+    "desc": "The aura index — artists whose signals are converging across several dimensions at once, strongest first. `state: 'degraded'` = a substrate read failed (items empty, still HTTP 200) — branch on it rather than assuming rows.",
+    "example": "const a = await crate.aura({ limit: 100 });\na.items.forEach((x) => console.log(x.display, x.convergence_dim_count));",
+    "throws": []
+  },
+  {
+    "ns": "aura",
+    "fn": "artist",
+    "call": "crate.aura.artist(clusterId)",
+    "http": "GET",
+    "ep": "/api/v2/aura/{cluster}",
+    "auth": "key",
+    "ret": "AuraArtistResponse",
+    "retry": true,
+    "idem": true,
+    "sig": "artist(clusterId: string, opts?: RequestOptions): Promise<AuraArtistResponse>",
+    "desc": "One artist's aura row by 64-hex `cluster_id`. `present: false` is a normal answer (single-dimension artists are filtered by the universe rule; inactive artists age out of the window) — branch on `present`, don't treat it as an error.",
+    "example": "const a = await crate.aura.artist(clusterId);\nif (a.present) console.log(a.break_odds);",
+    "throws": []
+  },
+  {
     "ns": "searchEvents",
     "fn": "observed",
     "call": "crate.searchEvents.observed(body)",

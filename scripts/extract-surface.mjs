@@ -11,10 +11,11 @@ const SRC = new URL('../src/client.ts', import.meta.url);
 const code = readFileSync(SRC, 'utf8');
 const sf = ts.createSourceFile('client.ts', code, ts.ScriptTarget.Latest, true);
 
-const IFACE_ORDER = ['DossierApi', 'TastemakersApi', 'SearchEventsApi'];
+const IFACE_ORDER = ['DossierApi', 'TastemakersApi', 'AuraApi', 'SearchEventsApi'];
 const IFACE_NS = {
   DossierApi: 'dossier',
   TastemakersApi: 'tastemakers',
+  AuraApi: 'aura',
   SearchEventsApi: 'searchEvents',
 };
 // method → CRATE_RESOURCES key, where the SDK method isn't a 1:1 resource.

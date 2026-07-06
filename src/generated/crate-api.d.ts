@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * A Bandcamp release, addressed under its artist (tracklist + durations + artwork + economics)
-         * @description cycle-085 — the full per-release Bandcamp dossier (title, release_date, tags, label, artwork hotlink URLs, tracklist WITH per-track duration_s, and the economics object), addressed cluster-first UNDER the artist. {key} = 64-hex cluster_id (canonical) or slug; {item} = bandcamp_item_id (list them via the artist dossier's bandcamp_releases facet). CLUSTER-FIRST INTEGRITY: the release must belong to the addressed artist — a real release filed under a DIFFERENT artist returns 200 present:false (honest-gap), never another artist's data. Honest gaps: artwork carries the fetchable CDN url (no width/height — a HEAD gets dimensions); per-track DIRECT stream URL is not stored (tokenized/expiring + ToS) — track_url is the track PAGE. Keyed (X-API-Key); ONE crate_reader checkout; unresolved → 200 present:false, NOT 404.
+         * @description cycle-085 — the full per-release Bandcamp dossier (title, release_date, tags, label, artwork hotlink URLs, tracklist WITH per-track duration_s, and the economics object), addressed cluster-first UNDER the artist. {key} = 64-hex cluster_id (canonical) or slug; {item} = bandcamp_item_id (list them via the artist dossier's bandcamp_releases facet). CLUSTER-FIRST INTEGRITY: the release must belong to the addressed artist — a real release filed under a DIFFERENT artist returns 200 present:false (honest-gap), never another artist's data. artwork carries the fetchable CDN url + delivered width/height (700×700 — the _16 locator's render dims, not source aspect; cycle-086). Honest gap: per-track DIRECT stream URL is not stored (tokenized/expiring + ToS) — track_url is the track PAGE. Keyed (X-API-Key); ONE crate_reader checkout; unresolved → 200 present:false, NOT 404.
          */
         get: operations["getArtistBandcampRelease"];
         put?: never;
@@ -445,6 +445,10 @@ export interface components {
              * @enum {boolean}
              */
             rehost: false;
+            /** @description Delivered pixel width of the hotlinked image. For bandcamp these are the _16 locator's render dims (700×700 square) — exactly the box the hotlink renders at, NOT the original artwork's source aspect (HEAD the url for non-square edge cases). Absent when the source carries no dims (coverartarchive). */
+            width?: number;
+            /** @description Delivered pixel height — see width. */
+            height?: number;
         };
         Freshness: {
             ridden_lag_s: number | null;
@@ -991,21 +995,11 @@ export interface components {
                 detailAnchor?: string;
             }[];
             generated_at: string;
-            /** @description Per-artist Bandcamp release list (cluster-first re-entry of the release grain demoted in the v2 cut). Populated on 64-hex cluster entry (the canonical v2 address); honest_gap otherwise. Summary rows only — fetch the full tracklist+durations+artwork+economics at GET /api/v2/artist/{key}/bandcamp/{item}. */
+            /** @description Per-artist Bandcamp release list (cluster-first re-entry of the release grain demoted in the v2 cut). Populated whenever the artist resolves to a cluster identity (64-hex entry, or a slug that falls back to the booking-graph cluster); honest_gap otherwise. Summary rows only — fetch the full tracklist+durations+artwork+economics at GET /api/v2/artist/{key}/bandcamp/{item}. */
             bandcamp_releases?: {
                 /** @enum {string} */
-                state?: "present" | "honest_gap";
-                releases?: {
-                    /** @description Address the full dossier at /api/v2/artist/{key}/bandcamp/{item}. */
-                    bandcamp_item_id?: string;
-                    artist?: string | null;
-                    title?: string | null;
-                    /** @description ISO date; slice(0,4) for the year. */
-                    release_date?: string | null;
-                    source_url?: string | null;
-                    tags?: string[];
-                    label?: Record<string, never> | null;
-                }[];
+                state: "present" | "honest_gap";
+                releases: components["schemas"]["BandcampReleaseSummary"][];
             };
         };
         LabelDossierContract: {

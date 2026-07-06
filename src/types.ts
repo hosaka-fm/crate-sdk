@@ -25,6 +25,12 @@ export type TastemakersResponse = Schemas['TastemakersResponse'];
 export type OnesToWatchResponse = Schemas['OnesToWatchResponse'];
 /** One Bandcamp release addressed under its artist — full tracklist (with `duration_s`), artwork, label, tags, economics. Carried by {@link ArtistBandcampReleaseResponse} and listed on `ArtistDossierContract.bandcamp_releases`. */
 export type BandcampRelease = Schemas['BandcampRelease'];
+/** The `crate.aura()` return — per-artist multi-dimension convergence rows, strongest first; `state: 'degraded'` = substrate read failed (items empty, still 200). */
+export type AuraIndexResponse =
+  operations['getAura']['responses'][200]['content']['application/json'];
+/** The `crate.aura.artist()` return — one artist's aura row, or the honest-gap `{ present: false }` (filtered by the universe rule, aged out, or degraded — see `state`). */
+export type AuraArtistResponse =
+  operations['getAuraByCluster']['responses'][200]['content']['application/json'];
 /** The `crate.artistBandcampRelease()` return: `{ present: true, release }` or the cluster-first honest-gap `{ present: false, note }` (release unknown, or filed under a different artist — never another artist's data). */
 export type ArtistBandcampReleaseResponse =
   operations['getArtistBandcampRelease']['responses'][200]['content']['application/json'];
