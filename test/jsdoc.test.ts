@@ -33,6 +33,7 @@ describe('ADX-5: JSDoc coverage on public Crate methods', () => {
     expect(methods.map((m) => m.name).sort()).toEqual(
       [
         'artist',
+        'artistBandcampRelease',
         'artistOrNull',
         'breakouts',
         'facets',

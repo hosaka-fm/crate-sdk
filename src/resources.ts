@@ -37,6 +37,14 @@ export const CRATE_RESOURCES = Object.freeze({
     retryable: true,
     idempotent: true,
   },
+  artistBandcampRelease: {
+    method: 'GET',
+    endpoint: '/api/v2/artist/{key}/bandcamp/{item}',
+    returns: 'ArtistBandcampReleaseResponse',
+    auth: 'key',
+    retryable: true,
+    idempotent: true,
+  },
   label: {
     method: 'GET',
     endpoint: '/api/v2/label/{key}',

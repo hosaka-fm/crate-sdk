@@ -5,7 +5,7 @@
 // are hand-authored in their owning modules (SDD §3.5). Cluster-first: master/bandcamp/wayfind/
 // usage are demoted in v2; release/master detail lives on `ArtistDossierContract.discography` and
 // Bandcamp standing on its `bandcamp_emergence` / `bandcamp_tastemaker` facets.
-import type { components } from './generated/crate-api';
+import type { components, operations } from './generated/crate-api';
 
 type Schemas = components['schemas'];
 
@@ -23,6 +23,11 @@ export type BreakoutsResponse = Schemas['BreakoutsResponse'];
 export type FacetCounts = Schemas['FacetCounts'];
 export type TastemakersResponse = Schemas['TastemakersResponse'];
 export type OnesToWatchResponse = Schemas['OnesToWatchResponse'];
+/** One Bandcamp release addressed under its artist — full tracklist (with `duration_s`), artwork, label, tags, economics. Carried by {@link ArtistBandcampReleaseResponse} and listed on `ArtistDossierContract.bandcamp_releases`. */
+export type BandcampRelease = Schemas['BandcampRelease'];
+/** The `crate.artistBandcampRelease()` return: `{ present: true, release }` or the cluster-first honest-gap `{ present: false, note }` (release unknown, or filed under a different artist — never another artist's data). */
+export type ArtistBandcampReleaseResponse =
+  operations['getArtistBandcampRelease']['responses'][200]['content']['application/json'];
 /** The 429 body shape — distinct from the generic `Error` schema (its `retry_after_seconds` is required). */
 export type RateLimited = Schemas['RateLimited'];
 

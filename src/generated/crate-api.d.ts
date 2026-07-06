@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/v2/artist/{key}/bandcamp/{item}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A Bandcamp release, addressed under its artist (tracklist + durations + artwork + economics)
+         * @description cycle-085 — the full per-release Bandcamp dossier (title, release_date, tags, label, artwork hotlink URLs, tracklist WITH per-track duration_s, and the economics object), addressed cluster-first UNDER the artist. {key} = 64-hex cluster_id (canonical) or slug; {item} = bandcamp_item_id (list them via the artist dossier's bandcamp_releases facet). CLUSTER-FIRST INTEGRITY: the release must belong to the addressed artist — a real release filed under a DIFFERENT artist returns 200 present:false (honest-gap), never another artist's data. Honest gaps: artwork carries the fetchable CDN url (no width/height — a HEAD gets dimensions); per-track DIRECT stream URL is not stored (tokenized/expiring + ToS) — track_url is the track PAGE. Keyed (X-API-Key); ONE crate_reader checkout; unresolved → 200 present:false, NOT 404.
+         */
+        get: operations["getArtistBandcampRelease"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2": {
         parameters: {
             query?: never;
@@ -971,6 +991,22 @@ export interface components {
                 detailAnchor?: string;
             }[];
             generated_at: string;
+            /** @description Per-artist Bandcamp release list (cluster-first re-entry of the release grain demoted in the v2 cut). Populated on 64-hex cluster entry (the canonical v2 address); honest_gap otherwise. Summary rows only — fetch the full tracklist+durations+artwork+economics at GET /api/v2/artist/{key}/bandcamp/{item}. */
+            bandcamp_releases?: {
+                /** @enum {string} */
+                state?: "present" | "honest_gap";
+                releases?: {
+                    /** @description Address the full dossier at /api/v2/artist/{key}/bandcamp/{item}. */
+                    bandcamp_item_id?: string;
+                    artist?: string | null;
+                    title?: string | null;
+                    /** @description ISO date; slice(0,4) for the year. */
+                    release_date?: string | null;
+                    source_url?: string | null;
+                    tags?: string[];
+                    label?: Record<string, never> | null;
+                }[];
+            };
         };
         LabelDossierContract: {
             contract_version: string;
@@ -1378,6 +1414,101 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getArtistBandcampRelease: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+                item: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The release dossier (present:true) or an honest-gap (present:false — not found, or not filed under this artist) */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        object: "bandcamp.release";
+                        /** @enum {boolean} */
+                        present: true;
+                        release: components["schemas"]["BandcampRelease"];
+                    } | {
+                        /** @enum {string} */
+                        object: "bandcamp.release";
+                        /** @enum {boolean} */
+                        present: false;
+                        note: string;
+                    };
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication failure */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     getApiIndex: {
         parameters: {
             query?: never;
