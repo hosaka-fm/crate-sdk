@@ -16,6 +16,7 @@ import {
 import type {
   ApiRootIndex,
   ArtistBandcampReleaseResponse,
+  ArtistMasterResponse,
   ArtistBrowseParams,
   ArtistBrowseResponse,
   ArtistDossierContract,
@@ -515,6 +516,34 @@ export class Crate {
       {
         method: 'GET',
         path: `/artist/${encodeURIComponent(key)}/bandcamp/${encodeURIComponent(item)}`,
+        idempotent: true,
+      },
+      opts,
+    );
+  }
+
+  /**
+   * Fetch one master (release-group) dossier addressed *under its artist* — the full
+   * rich contract (header, every signal section, artwork, provenance). The cluster-
+   * attached per-master grain: list `id`s from an artist dossier's `discography` facet,
+   * then hand `(key, id)` here for the detail.
+   *
+   * Cluster-first integrity: if the master is unknown, credited to a *different* artist,
+   * or bound only via a homonym name over-merge, the response is the honest gap
+   * `{ present: false, note }` — never another artist's dossier, never a 404. Branch on
+   * `present`; when present, `binding.observed` flags an over-merged (unverified) binding.
+   * @example
+   * ```ts
+   * const r = await crate.artistMaster(clusterId, '11772');
+   * if (r.present) console.log(r.master.header.title, r.binding.observed);
+   * ```
+   * @throws {CrateAPIError} on a non-2xx response. @see {@link Crate.artist}
+   */
+  artistMaster(key: string, id: string, opts?: RequestOptions): Promise<ArtistMasterResponse> {
+    return this.#req<ArtistMasterResponse>(
+      {
+        method: 'GET',
+        path: `/artist/${encodeURIComponent(key)}/master/${encodeURIComponent(id)}`,
         idempotent: true,
       },
       opts,

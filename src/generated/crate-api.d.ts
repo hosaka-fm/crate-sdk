@@ -44,6 +44,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/artist/{key}/master/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A master (release-group) dossier, addressed under its artist
+         * @description cycle-091 — the full per-master dossier (header, every signal section, artwork, provenance — the rich MasterDossierContract the master grain has always produced), addressed cluster-first UNDER the artist. {key} = 64-hex cluster_id (canonical) or slug; {id} = discogs_master_id (list them via the artist dossier's discography facet). CLUSTER-FIRST INTEGRITY: the master must be filed under the addressed artist AND authoritatively bound (not via a homonym name over-merge) — otherwise 200 present:false honest-gap, never another artist's master. When bound via an over-merged name cluster, binding.observed=true flags it OBSERVED/UNVERIFIED (mirrors the discography facet). Keyed (X-API-Key); malformed id → 400; unresolved/mismatch → 200 present:false, NOT 404. NOTE: the Discogs collector count (owner_count) is intentionally absent — retired as an anti-signal in cycle-082, not lost in the cluster cut.
+         */
+        get: operations["getArtistMaster"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/artists": {
         parameters: {
             query?: never;
@@ -1608,6 +1628,104 @@ export interface operations {
             };
             /** @description Validation failure (invalid query, malformed body, bad facet name) */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getArtistMaster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The master dossier (present:true) or an honest-gap (present:false — unknown, or not filed under this artist) */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        object: "master.dossier";
+                        /** @enum {boolean} */
+                        present: true;
+                        binding: {
+                            observed: boolean;
+                        };
+                        master: components["schemas"]["MasterDossierContract"];
+                    } | {
+                        /** @enum {string} */
+                        object: "master.dossier";
+                        /** @enum {boolean} */
+                        present: false;
+                        note: string;
+                    };
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication failure */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
