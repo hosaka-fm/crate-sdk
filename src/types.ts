@@ -46,6 +46,9 @@ export type AuraArtistResponse =
 /** The `crate.artistBandcampRelease()` return: `{ present: true, release }` or the cluster-first honest-gap `{ present: false, note }` (release unknown, or filed under a different artist — never another artist's data). */
 export type ArtistBandcampReleaseResponse =
   operations['getArtistBandcampRelease']['responses'][200]['content']['application/json'];
+/** The `crate.artistMaster()` return: `{ present: true, binding, master }` (the full per-master dossier) or the cluster-first honest-gap `{ present: false, note }` (master unknown, or not filed under this artist — never another artist's dossier). `binding.observed` flags an over-merged name cluster. */
+export type ArtistMasterResponse =
+  operations['getArtistMaster']['responses'][200]['content']['application/json'];
 /** The 429 body shape — distinct from the generic `Error` schema (its `retry_after_seconds` is required). */
 export type RateLimited = Schemas['RateLimited'];
 

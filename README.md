@@ -238,6 +238,7 @@ keyless, **beacon** = per-search JWT. All read methods auto-retry on a retryable
 | `crate.resolve(query)`                   | `GET /api/v2/resolve`                      | **key** | `IdentityResolution`            |
 | `crate.artist(key)`                      | `GET /api/v2/artist/{key}`                 | **key** | `ArtistDossierContract`         |
 | `crate.artistBandcampRelease(key, item)` | `GET /api/v2/artist/{key}/bandcamp/{item}` | **key** | `ArtistBandcampReleaseResponse` |
+| `crate.artistMaster(key, id)`            | `GET /api/v2/artist/{key}/master/{id}`     | **key** | `ArtistMasterResponse`          |
 | `crate.artistOrNull(key)`                | `GET /api/v2/artist/{key}`                 | **key** | `ArtistDossierContract \| null` |
 | `crate.label(key)`                       | `GET /api/v2/label/{key}`                  | **key** | `LabelDossierContract`          |
 | `crate.search(params)`                   | `GET /api/v2/search`                       | **key** | `SearchResponse`                |

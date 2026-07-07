@@ -229,6 +229,61 @@ describe('search', () => {
   });
 });
 
+describe('artistMaster', () => {
+  const HEX = 'c'.repeat(64);
+  it('happy path: GET /artist/{key}/master/{id} → present:true with the full dossier + binding', async () => {
+    mock('GET', (p) => p.startsWith(`/api/v2/artist/${HEX}/master/`), 200, {
+      object: 'master.dossier',
+      present: true,
+      binding: { observed: false },
+      master: {
+        contract_version: '1.0.0',
+        grain: 'master',
+        id: 11772,
+        header: {
+          title: 'Untrue',
+          artist: 'Burial',
+          year: 2007,
+          formats: [],
+          cube_quadrant: { code: null, label: null },
+        },
+        sections: [],
+        artwork: [],
+        freshness: { mirror_lag_s: null, seen_lag_s: null },
+        cache: { etag: 'x', maxAge: 60 },
+        provenance: [],
+        generated_at: '2026-07-08T00:00:00Z',
+      },
+    });
+    const r = await kc().artistMaster(HEX, '11772');
+    expect(calls[0].path).toBe(`/api/v2/artist/${HEX}/master/11772`);
+    expect(r.present).toBe(true);
+    if (r.present) {
+      expect(r.master.id).toBe(11772);
+      expect(r.binding.observed).toBe(false);
+    }
+  });
+  it('honest gap: present:false is a normal 200 (wrong artist / over-merge / unknown), not a throw', async () => {
+    mock('GET', (p) => p.includes('/master/'), 200, {
+      object: 'master.dossier',
+      present: false,
+      note: 'Master 11772 is not filed under artist x.',
+    });
+    const r = await kc().artistMaster('some-slug', '11772');
+    expect(r.present).toBe(false);
+    if (!r.present) expect(r.note).toContain('not filed under');
+  });
+  it('URL-encodes both path params', async () => {
+    mock('GET', (p) => p.includes('/master/'), 200, {
+      object: 'master.dossier',
+      present: false,
+      note: 'n',
+    });
+    await kc().artistMaster('weird slug/name', '11772');
+    expect(calls[0].path).toBe('/api/v2/artist/weird%20slug%2Fname/master/11772');
+  });
+});
+
 describe('artistBandcampRelease', () => {
   const HEX = 'a'.repeat(64);
 
