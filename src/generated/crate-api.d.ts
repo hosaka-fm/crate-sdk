@@ -821,7 +821,25 @@ export interface components {
                 state: string;
                 signals: {
                     count: number;
-                    related: unknown[];
+                    /** @description Co-booked neighbours, strongest first — bounded at 24 rows (the carrefour#124 contract cap). */
+                    related: {
+                        /** @description Co-artist's 64-hex cluster_id (the fleet identity-spine join key; carrefour#124) — null when the co-booking edge carries no cluster bind (consumers filter). Feed it straight to /api/v2/artist/{key}. */
+                        clusterId: string | null;
+                        /** @description Co-artist's resolved Discogs id, or null for the unsigned tail. */
+                        discogsArtistId: number | null;
+                        /** @description Co-artist's resolved MusicBrainz id, or null. */
+                        mbid: string | null;
+                        /** @description Display name (always present) — the carrefour#124 displayName source (co_artist_name_display). */
+                        name: string;
+                        /** @description Crate artist-page slug derived from the name. */
+                        slug: string;
+                        /** @description Distinct events the two artists were booked into together. */
+                        coEventCount: number;
+                        /** @description Distinct venues across those co-events. */
+                        coVenueCount: number;
+                        /** @description ISO date of the most recent co-booking, or null. */
+                        lastCoAt: string | null;
+                    }[];
                 };
             };
             emergence: {
@@ -1076,6 +1094,19 @@ export interface components {
                     worksBridged: number;
                     /** @description Works with a registered ISWC — the FACT only; the value is never exposed. */
                     worksWithIswc: number;
+                } | null;
+            };
+            /** @description Primary geography at the artist grain (v2-only; cycle-092): the producer-resolved scene location (seen.artist_primary_geography, cluster_id-keyed via the performing-entity spine — unsigned/no-Discogs artists carry it too). honest_gap when the producer holds no location for the cluster. */
+            geography?: {
+                /** @enum {string} */
+                state: "present" | "honest_gap";
+                signals: {
+                    /** @description Primary city, producer-resolved (e.g. Bristol). */
+                    city: string | null;
+                    /** @description Primary region/state, or null. */
+                    region: string | null;
+                    /** @description Primary country, or null. */
+                    country: string | null;
                 } | null;
             };
         };
