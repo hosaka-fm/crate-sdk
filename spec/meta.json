@@ -1,7 +1,7 @@
 {
   "spec_url": "https://crate.hosaka.fm/api/v2/openapi.json",
   "openapi": "3.1.0",
-  "info_version": "2.8.0",
-  "spec_sha256_jcs": "47a2ca6029311a2ed8dfe863d69d1eeac910e5d83833c9c9b4b3ef8bed5c5ec8",
+  "info_version": "2.9.0",
+  "spec_sha256_jcs": "7f2ec9dd9c1e9a0b4f8d95d9abf5f3819080c5e7586e56877c5a7919d4eb64e1",
   "generated_with": "openapi-typescript@7.13.0"
 }
