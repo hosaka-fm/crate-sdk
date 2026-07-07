@@ -77,6 +77,14 @@ export const CRATE_RESOURCES = Object.freeze({
     retryable: true,
     idempotent: true,
   },
+  artists: {
+    method: 'GET',
+    endpoint: '/api/v2/artists',
+    returns: 'ArtistBrowseResponse',
+    auth: 'key',
+    retryable: true,
+    idempotent: true,
+  },
   aura: {
     method: 'GET',
     endpoint: '/api/v2/aura',

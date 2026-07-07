@@ -35,6 +35,7 @@ describe('ADX-5: JSDoc coverage on public Crate methods', () => {
         'artist',
         'artistBandcampRelease',
         'artistOrNull',
+        'artists',
         'breakouts',
         'facets',
         'index',

@@ -241,6 +241,7 @@ keyless, **beacon** = per-search JWT. All read methods auto-retry on a retryable
 | `crate.artistOrNull(key)`                | `GET /api/v2/artist/{key}`                 | **key** | `ArtistDossierContract \| null` |
 | `crate.label(key)`                       | `GET /api/v2/label/{key}`                  | **key** | `LabelDossierContract`          |
 | `crate.search(params)`                   | `GET /api/v2/search`                       | **key** | `SearchResponse`                |
+| `crate.artists(params)`                  | `GET /api/v2/artists`                      | **key** | `ArtistBrowseResponse`          |
 | `crate.breakouts()`                      | `GET /api/v2/breakouts`                    | **key** | `BreakoutsResponse`             |
 | `crate.index()`                          | `GET /api/v2`                              | anon    | `ApiRootIndex`                  |
 | `crate.facets()`                         | `GET /api/v2/facets`                       | **key** | `FacetCounts`                   |

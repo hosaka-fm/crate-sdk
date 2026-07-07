@@ -16,6 +16,8 @@ import {
 import type {
   ApiRootIndex,
   ArtistBandcampReleaseResponse,
+  ArtistBrowseParams,
+  ArtistBrowseResponse,
   ArtistDossierContract,
   AuraArtistResponse,
   AuraIndexResponse,
@@ -610,6 +612,35 @@ export class Crate {
   search(params?: SearchParams, opts?: RequestOptions): Promise<SearchResponse> {
     return this.#req<SearchResponse>(
       { method: 'GET', path: '/search', query: searchQuery(params), idempotent: true },
+      opts,
+    );
+  }
+
+  /**
+   * Browse the artist grain — the discovery grid. Filter by `genre` + `style` (exact,
+   * case-sensitive — see {@link Crate.facets} for the live vocabulary; an unknown value
+   * returns an empty `items` with a `note`, never throws) and `tier`
+   * (breakout|rising|steady). Sorted by `discovery` (rising artists first) unless you
+   * pass `sort: 'reach'`. Each row carries `cluster_id` — feed a non-null one to
+   * {@link Crate.artist}. Offset pagination is capped at `offset + limit ≤ 500` (narrow
+   * with filters, don't page deep); a `_links.next` appears while more fits in-window.
+   * @example
+   * ```ts
+   * const grid = await crate.artists({ genre: 'Electronic', tier: 'rising' });
+   * grid.items.forEach((a) => console.log(a.display, a.emergence_tier, a.cluster_id));
+   * ```
+   * @throws {CrateAPIError} on a non-2xx response. @see {@link Crate.facets}
+   */
+  artists(params?: ArtistBrowseParams, opts?: RequestOptions): Promise<ArtistBrowseResponse> {
+    const query: Record<string, string | number> = {};
+    if (params?.genre !== undefined) query.genre = params.genre;
+    if (params?.style !== undefined) query.style = params.style;
+    if (params?.tier !== undefined) query.tier = params.tier;
+    if (params?.sort !== undefined) query.sort = params.sort;
+    if (params?.limit !== undefined) query.limit = params.limit;
+    if (params?.offset !== undefined) query.offset = params.offset;
+    return this.#req<ArtistBrowseResponse>(
+      { method: 'GET', path: '/artists', query, idempotent: true },
       opts,
     );
   }

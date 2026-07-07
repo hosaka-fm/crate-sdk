@@ -299,6 +299,62 @@ describe('artistBandcampRelease', () => {
   });
 });
 
+describe('artists (discovery grid)', () => {
+  it('serializes filters + sort into the query; parses items', async () => {
+    mock('GET', (p) => p.startsWith('/api/v2/artists'), 200, {
+      object: 'artist.browse',
+      state: 'present',
+      returned: 1,
+      filters_applied: { genre: 'Electronic', tier: 'rising', sort: 'discovery' },
+      items: [
+        {
+          display: 'VNSSA',
+          slug: 'vnssa',
+          discogs_artist_id: 123,
+          cluster_id: 'abcd',
+          primary_genre: 'Electronic',
+          primary_styles: ['Techno'],
+          emergence_tier: 'rising',
+          momentum_tier: 'rising',
+          owner_reach: null,
+        },
+      ],
+    });
+    const grid = await kc().artists({ genre: 'Electronic', tier: 'rising', limit: 24 });
+    const path = calls[0].path;
+    expect(path).toContain('genre=Electronic');
+    expect(path).toContain('tier=rising');
+    expect(path).toContain('limit=24');
+    expect(grid.state).toBe('present');
+    expect(grid.items[0]?.display).toBe('VNSSA');
+    expect(grid.items[0]?.owner_reach).toBeNull(); // k-anon suppressed, honest null
+  });
+
+  it('no params → bare /artists (server defaults apply)', async () => {
+    mock('GET', (p) => p.startsWith('/api/v2/artists'), 200, {
+      object: 'artist.browse',
+      state: 'present',
+      returned: 0,
+      filters_applied: { sort: 'discovery' },
+      items: [],
+    });
+    await kc().artists();
+    expect(calls[0].path).toBe('/api/v2/artists');
+  });
+
+  it('degraded is a normal 200 answer, not a throw', async () => {
+    mock('GET', (p) => p.startsWith('/api/v2/artists'), 200, {
+      object: 'artist.browse',
+      state: 'degraded',
+      returned: 0,
+      filters_applied: { sort: 'discovery' },
+      items: [],
+    });
+    const grid = await kc().artists({ genre: 'Electronic' });
+    expect(grid.state).toBe('degraded');
+  });
+});
+
 describe('aura', () => {
   const HEX = 'b'.repeat(64);
 
