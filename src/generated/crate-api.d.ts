@@ -684,6 +684,27 @@ export interface components {
                 track_url: string | null;
             }[];
             economics: components["schemas"]["BandcampReleaseEconomics"] & (Record<string, never> | null);
+            /** @description Supply scarcity × k-anon wishlist demand (the fleet's only made-vs-wanted ratio; mirror mig 0181). NULL means "no supply-scarcity signal on file" (the producer only scores releases that are limited or running low) — not "unknown". wishlist_demand is k-anon FLOORED by the producer (<5 distinct wishers → 0). */
+            scarcity?: {
+                /** @description Any limited-edition package on the release. */
+                is_limited: boolean;
+                /** @description Smallest limited-edition cap (creator-declared, public). */
+                edition_size: number | null;
+                /** @description Units remaining on the scarcest limited package. */
+                quantity_remaining: number | null;
+                /** @description DERIVED 1 - quantity_available/edition_size in [0,1]; null when edition_size unknown (Bandcamp never exposes quantity_sold). */
+                sell_through: number | null;
+                /** @description Bandcamp's own 'running low' warning on any package. */
+                low_stock: boolean;
+                is_preorder: boolean;
+                /** @description [0,1]: sell_through when edition_size known, else 0.8 if low_stock, else 0. */
+                scarcity_score: number;
+                /** @description Distinct wishers — k-anon floored to 0 below 5 by the producer. */
+                wishlist_demand: number;
+                /** @description Scarcity Pressure Index = scarcity_score · ln(1 + wishlist_demand) — "scarce AND wanted = about to be unobtainable". */
+                spi: number;
+                computed_at: string | null;
+            } | null;
         };
         BandcampReleaseSummary: {
             /**
@@ -1094,6 +1115,59 @@ export interface components {
                     worksBridged: number;
                     /** @description Works with a registered ISWC — the FACT only; the value is never exposed. */
                     worksWithIswc: number;
+                } | null;
+            };
+            /** @description WHO wrote / WHO produced, with names (v2-only; cycle-094): the artist's bridged catalogue joined to the MusicBrainz credit tables (mirror MB Phase-3), names + onward keys via mb_artists. Complements the rights facet's counts with the diligence NAMES. Performance role families (performer/vocal/instrument) are deliberately excluded — the desk, not the lineup. Discogs-anchored (masterIds) — cluster-only artists honestly gap. The subject is NOT excluded (self-written/self-produced is signal). */
+            credits?: {
+                /** @enum {string} */
+                state: "present" | "honest_gap";
+                signals: {
+                    /** @description Songwriting credits, strongest-first (≤12). */
+                    writing: {
+                        /** @description MB-canonical display name (null only when MB holds no name row). */
+                        name: string | null;
+                        /** @description Credited person's MusicBrainz id. */
+                        mbid: string;
+                        /** @description Onward Discogs id when MB binds one. */
+                        discogsArtistId: number | null;
+                        /** @description Onward 64-hex fleet cluster_id when bound — feed straight to /api/v2/artist/{key}. */
+                        clusterId: string | null;
+                        /** @description role-family@1 string (composer/lyricist/writer/… | producer/engineer/mix/…). */
+                        role: string;
+                        /** @description Distinct bridged works (writing) or recordings (production) carrying the credit. */
+                        count: number;
+                    }[];
+                    /** @description Production-desk credits, strongest-first (≤12). */
+                    production: {
+                        /** @description MB-canonical display name (null only when MB holds no name row). */
+                        name: string | null;
+                        /** @description Credited person's MusicBrainz id. */
+                        mbid: string;
+                        /** @description Onward Discogs id when MB binds one. */
+                        discogsArtistId: number | null;
+                        /** @description Onward 64-hex fleet cluster_id when bound — feed straight to /api/v2/artist/{key}. */
+                        clusterId: string | null;
+                        /** @description role-family@1 string (composer/lyricist/writer/… | producer/engineer/mix/…). */
+                        role: string;
+                        /** @description Distinct bridged works (writing) or recordings (production) carrying the credit. */
+                        count: number;
+                    }[];
+                } | null;
+            };
+            /** @description Placement/type history rollup (v2-only; cycle-094): the bridged catalogue’s MusicBrainz release-groups typed by secondary_types — "has this artist been synced/soundtracked before". COUNTS ONLY. null signals = the bridge reached no release-groups (unmeasured); a present row with soundtracks=0 is an answer ("measured — no placements"). */
+            placements?: {
+                /** @enum {string} */
+                state: "present" | "honest_gap";
+                signals: {
+                    /** @description Distinct MB release-groups reached (the measurement base). */
+                    releaseGroupsLinked: number;
+                    /** @description Release-groups typed Soundtrack — the placement signal. */
+                    soundtracks: number;
+                    compilations: number;
+                    remixes: number;
+                    liveReleases: number;
+                    /** @description Earliest MB first-release date among soundtrack groups (year-accurate). */
+                    earliestSoundtrack: string | null;
                 } | null;
             };
             /** @description Primary geography at the artist grain (v2-only; cycle-092): the producer-resolved scene location (seen.artist_primary_geography, cluster_id-keyed via the performing-entity spine — unsigned/no-Discogs artists carry it too). honest_gap when the producer holds no location for the cluster. */
