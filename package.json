@@ -1,6 +1,6 @@
 {
   "name": "@hosaka-fm/crate",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Official typed TypeScript client for the crate public API.",
   "keywords": [
     "crate",

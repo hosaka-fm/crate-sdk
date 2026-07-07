@@ -44,6 +44,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/artists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Browse the artist grain — filter by genre/style/tier, discovery-ranked
+         * @description cycle-090 — the visual-grid spine: the artist-grain browse/list surface (retires the search-derive workaround). genre + style are EXACT case-sensitive values (see GET /api/v2/facets for the live vocabulary; an unknown value → 200 with an empty items[] + a note, never a 400). tier=breakout|rising|steady filters to artists WITH live emergence data in that tier. sort defaults to 'discovery' (tier-weighted: breakout>rising>steady>untracked, then emergence momentum, then owner reach — the grid surfaces who's RISING, not the legacy giants); sort=reach gives raw owner-count order. Offset pagination, but the discovery-ranked window is CAPPED (offset+limit ≤ 500 — narrow with filters, don't page deep). owner_reach is k-anon floored producer-side (null when suppressed). cluster_id is the onward key: feed a non-null one to GET /api/v2/artist/{key}. Keyed (X-API-Key); ONE crate_reader checkout; read failure → 200 state:'degraded'.
+         */
+        get: operations["browseArtists"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2": {
         parameters: {
             query?: never;
@@ -1588,6 +1608,121 @@ export interface operations {
             };
             /** @description Validation failure (invalid query, malformed body, bad facet name) */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    browseArtists: {
+        parameters: {
+            query?: {
+                genre?: string;
+                style?: string;
+                tier?: "breakout" | "rising" | "steady";
+                sort?: "discovery" | "reach";
+                limit?: number;
+                offset?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The discovery grid page (state:'present'), or a fail-soft honest empty (state:'degraded') */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        object: "artist.browse";
+                        /** @enum {string} */
+                        state: "present" | "degraded";
+                        returned: number;
+                        filters_applied: {
+                            genre?: string;
+                            style?: string;
+                            tier?: string;
+                            /** @enum {string} */
+                            sort: "discovery" | "reach";
+                        };
+                        items: {
+                            display: string;
+                            slug: string;
+                            discogs_artist_id: number;
+                            cluster_id: string | null;
+                            primary_genre: string | null;
+                            primary_styles: string[];
+                            emergence_tier: string | null;
+                            momentum_tier: string | null;
+                            owner_reach: number | null;
+                        }[];
+                        note?: string;
+                        _links?: {
+                            next: string;
+                        };
+                    };
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication failure */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

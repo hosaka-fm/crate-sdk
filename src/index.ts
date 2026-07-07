@@ -7,7 +7,7 @@
 // See the README "Using from an AI agent" section for the error-recovery recipes.
 
 /** Package version (kept in sync with package.json; asserted by a test). */
-export const VERSION = '1.4.0';
+export const VERSION = '1.5.0';
 
 export { Crate } from './client';
 export type {

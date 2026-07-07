@@ -25,6 +25,18 @@ export type TastemakersResponse = Schemas['TastemakersResponse'];
 export type OnesToWatchResponse = Schemas['OnesToWatchResponse'];
 /** One Bandcamp release addressed under its artist — full tracklist (with `duration_s`), artwork, label, tags, economics. Carried by {@link ArtistBandcampReleaseResponse} and listed on `ArtistDossierContract.bandcamp_releases`. */
 export type BandcampRelease = Schemas['BandcampRelease'];
+/** The `crate.artists()` return — a page of the discovery grid: `state:'present'` rows (or `'degraded'` honest-empty), each row carrying `cluster_id` for the onward dossier. */
+export type ArtistBrowseResponse =
+  operations['browseArtists']['responses'][200]['content']['application/json'];
+/** Filters for `crate.artists()` (`GET /api/v2/artists`). All optional; genre/style are exact (see `crate.facets()`); tier is a closed enum; sort defaults to discovery. */
+export interface ArtistBrowseParams {
+  genre?: string;
+  style?: string;
+  tier?: 'breakout' | 'rising' | 'steady';
+  sort?: 'discovery' | 'reach';
+  limit?: number;
+  offset?: number;
+}
 /** The `crate.aura()` return — per-artist multi-dimension convergence rows, strongest first; `state: 'degraded'` = substrate read failed (items empty, still 200). */
 export type AuraIndexResponse =
   operations['getAura']['responses'][200]['content']['application/json'];
