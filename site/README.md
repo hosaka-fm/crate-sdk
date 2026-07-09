@@ -7,6 +7,10 @@ SDK's zero-runtime-dependency guarantee is untouched).
 
 Full design: [`grimoires/loa/proposals/crate-docs-site-architecture.md`](../grimoires/loa/proposals/crate-docs-site-architecture.md).
 
+> **Designers:** to restyle this site, start with [`DESIGN-ONBOARDING.md`](./DESIGN-ONBOARDING.md) —
+> where the styling lives (`src/styles/custom.css`), the design tokens, fonts, and which files are
+> safe to edit vs. regenerated.
+
 ## Commands
 
 ```sh
