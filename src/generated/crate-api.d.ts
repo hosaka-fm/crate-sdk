@@ -293,7 +293,7 @@ export interface paths {
         };
         /**
          * Generic cluster-keyed surface read (by registry name)
-         * @description The generic read behind every row in GET /api/v2/surface: one operation serves all 6 registered surfaces (public.spine_artist_temporal_profile, seen.radio_play_v1, seen.dj_champion, seen.radio_co_play, seen.song_station_journey, mirror.wantlist_demand_by_cluster_v1). {name} is the schema-qualified registry key — GET /api/v2/surface for the live list + each name's shape. ?cluster= is the 64-hex identity key in THAT surface's registered keyspace (a key from the wrong keyspace fails soft as an empty honest_gap, not an error — see the index for which keyspace {name} expects). cluster-row grain surfaces (cap 1/1) ignore ?after/?limit and answer with 0 or 1 rows; cluster-multirow/cluster-edge-list grains keyset-paginate via the opaque ?after cursor from a prior page's next_after (never OFFSET — pass it back verbatim, never construct or decode it). ?limit clamps to the surface's registered cap. Unknown {name} → 400 with a hint listing every valid name + doc_url + next (the index call). A per-row crate-side kill (registry enabled:false) → 404; the master kill (env CRATE_SURFACE_ENABLED=false) → 503. state:'degraded' (still HTTP 200, rows:[]) means the dedicated crate_surface_reader read pool is unconfigured or not yet granted on the replica — fail-closed: the code ships ahead of the DB role landing. Cursor durability: cursors are page-iteration handles, NOT bookmarks — some surfaces build them from producer-internal columns that can change across producer re-crawls (seen.radio_play_v1's play_key today), so a stored cursor may silently skip or repeat rows after a re-crawl; re-start from the first page for a fresh read (each surface's coverage_note in GET /api/v2/surface carries the current specifics).
+         * @description The generic read behind every row in GET /api/v2/surface: one operation serves all 30 registered surfaces (public.spine_artist_temporal_profile, seen.radio_play_v1, seen.dj_champion, seen.radio_co_play, seen.song_station_journey, mirror.wantlist_demand_by_cluster_v1, seen.master_propagation_timeline_cluster, seen.dj_tastemaker_score, seen.performing_entity, seen.artist_dossier, seen.artist_momentum, seen.artist_network_position, seen.artist_tier_presence, seen.artist_festival_co_appearance, seen.artist_cross_tier_network, seen.artist_brokerage, seen.artist_emergence_narrative_public, seen.artist_airplay_first_appearance, seen.artist_djset_first_appearance, seen.artist_emergence_lead_time, seen.artist_dated_appearance, seen.artist_primary_geography, seen.artist_identity_bridge, seen.live_demand, seen.bandcamp_artist_gravity, seen.bandcamp_artist_tastemaker_quality, seen.artist_djset_scout_signal, seen.label_djset_momentum, seen.artist_signal_passport, seen.artist_sc_rights_rollup_v1). {name} is the schema-qualified registry key — GET /api/v2/surface for the live list + each name's shape. ?cluster= is the 64-hex identity key in THAT surface's registered keyspace (a key from the wrong keyspace fails soft as an empty honest_gap, not an error — see the index for which keyspace {name} expects). cluster-row grain surfaces (cap 1/1) ignore ?after/?limit and answer with 0 or 1 rows; cluster-multirow/cluster-edge-list grains keyset-paginate via the opaque ?after cursor from a prior page's next_after (never OFFSET — pass it back verbatim, never construct or decode it). ?limit clamps to the surface's registered cap. Unknown {name} → 400 with a hint listing every valid name + doc_url + next (the index call). A per-row crate-side kill (registry enabled:false) → 404; the master kill (env CRATE_SURFACE_ENABLED=false) → 503. state:'degraded' (still HTTP 200, rows:[]) means the dedicated crate_surface_reader read pool is unconfigured or not yet granted on the replica — fail-closed: the code ships ahead of the DB role landing. Cursor durability: cursors are page-iteration handles, NOT bookmarks — some surfaces build them from producer-internal columns that can change across producer re-crawls (seen.radio_play_v1's play_key today), so a stored cursor may silently skip or repeat rows after a re-crawl; re-start from the first page for a fresh read (each surface's coverage_note in GET /api/v2/surface carries the current specifics).
          */
         get: operations["getSurfaceRows"];
         put?: never;
@@ -2763,10 +2763,10 @@ export interface operations {
                                 /** @enum {string} */
                                 type: "bytea";
                                 /**
-                                 * @description Which 64-hex identity keyspace ?cluster= must be drawn from. The two keyspaces are disjoint; a key from the wrong one fails soft as an empty honest_gap, never an error.
+                                 * @description Which 64-hex identity keyspace ?cluster= must be drawn from. The keyspaces are disjoint; a key from the wrong one fails soft as an empty honest_gap, never an error.
                                  * @enum {string}
                                  */
-                                keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording";
+                                keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
                                 /** @enum {string} */
                                 wire: "hex64";
                             };
@@ -2841,7 +2841,7 @@ export interface operations {
             };
             header?: never;
             path: {
-                name: "public.spine_artist_temporal_profile" | "seen.radio_play_v1" | "seen.dj_champion" | "seen.radio_co_play" | "seen.song_station_journey" | "mirror.wantlist_demand_by_cluster_v1";
+                name: "public.spine_artist_temporal_profile" | "seen.radio_play_v1" | "seen.dj_champion" | "seen.radio_co_play" | "seen.song_station_journey" | "mirror.wantlist_demand_by_cluster_v1" | "seen.master_propagation_timeline_cluster" | "seen.dj_tastemaker_score" | "seen.performing_entity" | "seen.artist_dossier" | "seen.artist_momentum" | "seen.artist_network_position" | "seen.artist_tier_presence" | "seen.artist_festival_co_appearance" | "seen.artist_cross_tier_network" | "seen.artist_brokerage" | "seen.artist_emergence_narrative_public" | "seen.artist_airplay_first_appearance" | "seen.artist_djset_first_appearance" | "seen.artist_emergence_lead_time" | "seen.artist_dated_appearance" | "seen.artist_primary_geography" | "seen.artist_identity_bridge" | "seen.live_demand" | "seen.bandcamp_artist_gravity" | "seen.bandcamp_artist_tastemaker_quality" | "seen.artist_djset_scout_signal" | "seen.label_djset_momentum" | "seen.artist_signal_passport" | "seen.artist_sc_rights_rollup_v1";
             };
             cookie?: never;
         };
@@ -2868,7 +2868,7 @@ export interface operations {
                         /** @enum {string} */
                         state: "present" | "honest_gap" | "degraded";
                         /** @enum {string} */
-                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording";
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
                         /** @enum {string} */
                         liveness: "populated" | "advisory" | "empty";
                         rows: {
@@ -2893,7 +2893,7 @@ export interface operations {
                         /** @enum {string} */
                         state: "present" | "honest_gap" | "degraded";
                         /** @enum {string} */
-                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording";
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
                         /** @enum {string} */
                         liveness: "populated" | "advisory" | "empty";
                         rows: {
@@ -2923,7 +2923,7 @@ export interface operations {
                         /** @enum {string} */
                         state: "present" | "honest_gap" | "degraded";
                         /** @enum {string} */
-                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording";
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
                         /** @enum {string} */
                         liveness: "populated" | "advisory" | "empty";
                         rows: {
@@ -2950,7 +2950,7 @@ export interface operations {
                         /** @enum {string} */
                         state: "present" | "honest_gap" | "degraded";
                         /** @enum {string} */
-                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording";
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
                         /** @enum {string} */
                         liveness: "populated" | "advisory" | "empty";
                         rows: {
@@ -2973,7 +2973,7 @@ export interface operations {
                         /** @enum {string} */
                         state: "present" | "honest_gap" | "degraded";
                         /** @enum {string} */
-                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording";
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
                         /** @enum {string} */
                         liveness: "populated" | "advisory" | "empty";
                         rows: {
@@ -2996,7 +2996,7 @@ export interface operations {
                         /** @enum {string} */
                         state: "present" | "honest_gap" | "degraded";
                         /** @enum {string} */
-                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording";
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
                         /** @enum {string} */
                         liveness: "populated" | "advisory" | "empty";
                         rows: {
@@ -3005,6 +3005,729 @@ export interface operations {
                             wantlist_demand: number | null;
                             distinct_masters_wanted: number | null;
                             computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.master_propagation_timeline_cluster";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            dj_canonical_name: string | null;
+                            dj_id: number | null;
+                            played_at: string;
+                            source: string;
+                            /** Format: uuid */
+                            tracklist_id: string;
+                            entry_id: number | null;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.dj_tastemaker_score";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            dj_cluster_id_hex: string;
+                            dj_canonical_name: string;
+                            total_masters_played: number | null;
+                            masters_played_first: number | null;
+                            masters_played_within_first_7d: number | null;
+                            cutting_edge_score: number | null;
+                            first_play_at: string | null;
+                            latest_play_at: string | null;
+                            rank: number | null;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.performing_entity";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            normalizer_version: string;
+                            artist_name_display: string;
+                            resolved_discogs_artist_id: number | null;
+                            /** Format: uuid */
+                            resolved_mbid: string | null;
+                            resolved_method: string | null;
+                            resolved_at: string | null;
+                            event_count: number | null;
+                            distinct_events: number | null;
+                            first_seen_at: string;
+                            last_seen_at: string;
+                            distinct_venues: number | null;
+                            distinct_areas: number | null;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_dossier";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            resolved_discogs_artist_id: number | null;
+                            tracklist_count: number | null;
+                            distinct_radio_sources: number | null;
+                            festival_appearances: number | null;
+                            distinct_festivals: number | null;
+                            most_recent_festival_at: string | null;
+                            culture_forward_festival_count: number | null;
+                            five_factor_score_weighted: number | null;
+                            event_count: number | null;
+                            distinct_events: number | null;
+                            first_seen_at: string | null;
+                            last_seen_at: string | null;
+                            distinct_venues: number | null;
+                            distinct_areas: number | null;
+                            /** Format: uuid */
+                            resolved_mbid: string | null;
+                            artist_name_display: string | null;
+                            has_radio_festival_signal: boolean;
+                            has_event_gravity: boolean;
+                            journalism_mention_count: number | null;
+                            journalism_article_count: number | null;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_momentum";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            events_recent: number | null;
+                            events_baseline: number | null;
+                            events_total: number | null;
+                            venues_recent: number | null;
+                            areas_recent: number | null;
+                            first_seen_at: string | null;
+                            last_seen_at: string | null;
+                            velocity: number | null;
+                            momentum_score: number | null;
+                            is_emerging: boolean;
+                            momentum_tier: string;
+                            artist_name_display: string | null;
+                            resolved_discogs_artist_id: number | null;
+                            /** Format: uuid */
+                            resolved_mbid: string | null;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_network_position";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            degree: number | null;
+                            weighted_degree: number | null;
+                            resolved_neighbours: number | null;
+                            resolved_neighbour_ratio: number | null;
+                            recent_degree: number | null;
+                            recent_resolved_neighbours: number | null;
+                            recent_resolved_ratio: number | null;
+                            establishment_delta: number | null;
+                            resolved_discogs_artist_id: number | null;
+                            /** Format: uuid */
+                            resolved_mbid: string | null;
+                            artist_name_display: string | null;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_tier_presence";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            club_obs: number | null;
+                            club_events: number | null;
+                            first_club_at: string | null;
+                            last_club_at: string | null;
+                            festival_obs: number | null;
+                            festival_editions: number | null;
+                            first_festival_at: string | null;
+                            last_festival_at: string | null;
+                            plays_clubs: boolean;
+                            plays_festivals: boolean;
+                            spans_tiers: boolean;
+                            resolved_discogs_artist_id: number | null;
+                            /** Format: uuid */
+                            resolved_mbid: string | null;
+                            artist_name_display: string | null;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_festival_co_appearance";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            co_cluster_id_hex: string;
+                            co_edition_count: number | null;
+                            co_festival_count: number | null;
+                            co_country_count: number | null;
+                            first_co_at: string | null;
+                            last_co_at: string | null;
+                            co_resolved_discogs_artist_id: number | null;
+                            /** Format: uuid */
+                            co_resolved_mbid: string | null;
+                            co_artist_name_display: string | null;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_cross_tier_network";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            club_co_artists: number | null;
+                            festival_co_artists: number | null;
+                            both_tier_co_artists: number | null;
+                            total_co_artists: number | null;
+                            cross_tier_ratio: number | null;
+                            spans_tiers: boolean;
+                            resolved_discogs_artist_id: number | null;
+                            /** Format: uuid */
+                            resolved_mbid: string | null;
+                            artist_name_display: string | null;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_brokerage";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            degree: number | null;
+                            core_size: number | null;
+                            core_ego_edges: number | null;
+                            ego_density: number | null;
+                            effective_size: number | null;
+                            efficiency: number | null;
+                            brokerage_score: number | null;
+                            brokerage_tier: string;
+                            resolved_discogs_artist_id: number | null;
+                            /** Format: uuid */
+                            resolved_mbid: string | null;
+                            artist_name_display: string | null;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_emergence_narrative_public";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            resolved_discogs_artist_id: number | null;
+                            artist_name_display: string | null;
+                            first_press_date: string | null;
+                            first_airplay_date: string | null;
+                            first_booking_date: string | null;
+                            first_underground_signal_date: string | null;
+                            first_underground_signal_source: string | null;
+                            press_to_airplay_days: number | null;
+                            underground_to_booking_days: number | null;
+                            total_press_articles: number | null;
+                            distinct_press_sources: number | null;
+                            airplay_count: number | null;
+                            distinct_stations: number | null;
+                            underground_source_count: number | null;
+                            source_count: number | null;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_airplay_first_appearance";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            first_airplay_date: string | null;
+                            latest_airplay_date: string | null;
+                            airplay_count: number | null;
+                            distinct_stations: number | null;
+                            distinct_venues: number | null;
+                            distinct_djs: number | null;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_djset_first_appearance";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            first_djset_date: string | null;
+                            latest_djset_date: string | null;
+                            djset_count: number | null;
+                            distinct_djs: number | null;
+                            distinct_venues: number | null;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_emergence_lead_time";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            first_press_date: string | null;
+                            first_airplay_date: string | null;
+                            first_booking_date: string | null;
+                            first_underground_signal_date: string | null;
+                            first_underground_signal_source: string | null;
+                            underground_source_count: number | null;
+                            source_count: number | null;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_dated_appearance";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            source_kind: string;
+                            first_appearance_date: string | null;
+                            latest_appearance_date: string | null;
+                            appearance_count: number | null;
+                            is_quarantined: boolean;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_primary_geography";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            area_id: string;
+                            primary_city: string | null;
+                            primary_region: string | null;
+                            primary_country: string | null;
+                            from_recent_window: boolean;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_identity_bridge";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            ra_artist_id: string;
+                            url_safe_name: string | null;
+                            ra_display_name: string | null;
+                            discogs_artist_id_claimed: number | null;
+                            discogs_url: string | null;
+                            bandcamp_url: string | null;
+                            soundcloud_url: string | null;
+                            instagram_url: string | null;
+                            website_url: string | null;
+                            country_name: string | null;
+                            ra_status: string | null;
+                            follower_count: number | null;
+                            first_event_id: string | null;
+                            first_event_title: string | null;
+                            first_event_date: string | null;
+                            fetched_at: string;
+                            spotify_url: string | null;
+                            youtube_url: string | null;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.live_demand";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            events_tracked: number | null;
+                            events_sold_out: number | null;
+                            distinct_providers: number | null;
+                            distinct_promoters: number | null;
+                            total_capacity_tracked: number | null;
+                            avg_fill_fraction: number | null;
+                            max_sell_through_per_day: number | null;
+                            max_sold_out_lead_days: number | null;
+                            max_demand_proxy: number | null;
+                            first_demand_event_date: string | null;
+                            latest_demand_event_date: string | null;
+                            demand_momentum_score: number | null;
+                            demand_tier: string;
+                            artist_name_display: string | null;
+                            resolved_discogs_artist_id: number | null;
+                            /** Format: uuid */
+                            resolved_mbid: string | null;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.bandcamp_artist_gravity";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            sample_artist_name: string | null;
+                            owner_reach: number | null;
+                            wishlist_demand: number | null;
+                            distinct_releases: number | null;
+                            demand_lead: number | null;
+                            demand_ratio: number | null;
+                            emergence_class: string | null;
+                            bandcamp_demand_edge_date: string | null;
+                            bandcamp_earliest_supported_date: string | null;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.bandcamp_artist_tastemaker_quality";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            sample_artist_name: string | null;
+                            supporter_cohort_size: number | null;
+                            aesq: number | null;
+                            aesq_median: number | null;
+                            aesq_rw: number | null;
+                            mean_first_buyer_earliness: number | null;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_djset_scout_signal";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            scouting_dj_count: number | null;
+                            max_dj_scout_score: number | null;
+                            max_dj_earliness: number | null;
+                            max_dj_brokerage: number | null;
+                            has_broker_cosign: boolean;
+                            has_early_dj_scout_cosign: boolean;
+                            earliest_djset_play: string | null;
+                            latest_djset_play: string | null;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.label_djset_momentum";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            label_cluster_id_hex: string;
+                            label_norm: string;
+                            play_count: number | null;
+                            distinct_djs: number | null;
+                            distinct_artists: number | null;
+                            distinct_tracklists: number | null;
+                            first_played_at: string | null;
+                            last_played_at: string | null;
+                            plays_last_365d: number | null;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_signal_passport";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            leading_signal_date: string | null;
+                            leading_signal_source: string | null;
+                            leading_known_since: string | null;
+                            leading_detection_days: number | null;
+                            leading_detection_class: string;
+                            convergence_dim_count: number | null;
+                            source_kind_count: number | null;
+                            velocity_bucket: string | null;
+                            break_odds: number | null;
+                            velocity_break_odds: number | null;
+                            break_odds_basis: string | null;
+                            first_signal_at: string | null;
+                            latest_appearance_at: string | null;
+                            has_break_event: boolean | null;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_sc_rights_rollup_v1";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            tracks_with_isrc: number | null;
+                            tracks_bound: number | null;
+                            tracks_with_registered_iswc: number | null;
+                            bind_routes_summary: string | null;
                         }[];
                         next_after: string | null;
                         coverage_note: string;
