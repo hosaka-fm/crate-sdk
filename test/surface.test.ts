@@ -4,6 +4,7 @@ import { Crate } from '../src/client';
 import {
   CrateNotFoundError,
   type CrateValidationError,
+  isCrateAPIError,
   isCrateValidationError,
 } from '../src/errors';
 
@@ -443,6 +444,162 @@ describe('aura', () => {
     const a = await kc().aura.artist(HEX);
     expect(calls[0].path).toBe(`/api/v2/aura/${HEX}`);
     expect(a.present).toBe(false);
+  });
+});
+
+describe('surfaces / surface (generic accessor, carrefour#135)', () => {
+  const HEX = 'd'.repeat(64);
+
+  it('surfaces(): bare GET /api/v2/surface — registry ledger', async () => {
+    mock('GET', (p) => p === '/api/v2/surface', 200, {
+      object: 'surface.index',
+      surfaces: [
+        {
+          name: 'seen.radio_play_v1',
+          producer: 'hosaka-fm/seen',
+          enabled: true,
+          grain: 'cluster-multirow',
+          key: {
+            column: 'cluster_id_hex',
+            type: 'bytea',
+            keyspace: 'pe-norm-v1-artist',
+            wire: 'hex64',
+          },
+          keyset: { columns: [{ column: 'played_on', type: 'timestamp' }], order: 'desc' },
+          cap: { default: 50, max: 200 },
+          coverage_note: 'seen radio plays, 2024-present',
+          advisory: null,
+          liveness: 'populated',
+        },
+      ],
+      count: 1,
+      generated_at: '2026-07-12T00:00:00Z',
+    });
+    const reg = await kc().surfaces();
+    expect(calls[0].path).toBe('/api/v2/surface');
+    expect(reg.surfaces[0]?.name).toBe('seen.radio_play_v1');
+    expect(reg.surfaces[0]?.key.keyspace).toBe('pe-norm-v1-artist');
+  });
+
+  it('surface(name, {cluster, limit}): GET /surface/{name}?cluster=&limit= — present rows', async () => {
+    mock('GET', (p) => p.startsWith('/api/v2/surface/seen.radio_play_v1'), 200, {
+      object: 'surface.rows',
+      surface: 'seen.radio_play_v1',
+      present: true,
+      state: 'present',
+      keyspace: 'pe-norm-v1-artist',
+      liveness: 'populated',
+      rows: [
+        {
+          cluster_id_hex: HEX,
+          song_cluster_id_hex: null,
+          source_type: 'radio',
+          station_key: 'nts-1',
+          dj_canonical_name: null,
+          position: 1,
+          extracted_title: null,
+          extracted_remix: null,
+          extracted_label: null,
+          played_on: '2026-07-01',
+          date_in_sanity_window: true,
+          is_quarantined: false,
+        },
+      ],
+      next_after: 'opaque-cursor-1',
+      coverage_note: 'x',
+      degraded_reason: null,
+      generated_at: '2026-07-12T00:00:00Z',
+    });
+    const page = await kc().surface('seen.radio_play_v1', { cluster: HEX, limit: 50 });
+    expect(decodeURIComponent(calls[0].path)).toBe(
+      `/api/v2/surface/seen.radio_play_v1?cluster=${HEX}&limit=50`,
+    );
+    expect(page.state).toBe('present');
+    expect(page.next_after).toBe('opaque-cursor-1');
+    if (page.surface === 'seen.radio_play_v1') {
+      expect(page.rows[0]?.station_key).toBe('nts-1');
+    }
+  });
+
+  it('no optional params → bare ?cluster= (no after/limit in the query)', async () => {
+    mock('GET', (p) => p.startsWith('/api/v2/surface/seen.dj_champion'), 200, {
+      object: 'surface.rows',
+      surface: 'seen.dj_champion',
+      present: false,
+      state: 'honest_gap',
+      keyspace: 'pe-norm-v1-artist',
+      liveness: 'populated',
+      rows: [],
+      next_after: null,
+      coverage_note: 'x',
+      degraded_reason: null,
+      generated_at: '2026-07-12T00:00:00Z',
+    });
+    await kc().surface('seen.dj_champion', { cluster: HEX });
+    expect(calls[0].path).toBe(`/api/v2/surface/seen.dj_champion?cluster=${HEX}`);
+  });
+
+  it('a page cursor is passed back to ?after= verbatim (never constructed/decoded)', async () => {
+    mock('GET', (p) => p.startsWith('/api/v2/surface/seen.radio_play_v1'), 200, {
+      object: 'surface.rows',
+      surface: 'seen.radio_play_v1',
+      present: false,
+      state: 'honest_gap',
+      keyspace: 'pe-norm-v1-artist',
+      liveness: 'populated',
+      rows: [],
+      next_after: null,
+      coverage_note: 'x',
+      degraded_reason: null,
+      generated_at: '2026-07-12T00:00:00Z',
+    });
+    const opaqueCursor = 'play_key:2026-07-01T00:00:00Z:abc123';
+    await kc().surface('seen.radio_play_v1', { cluster: HEX, after: opaqueCursor });
+    expect(decodeURIComponent(calls[0].path)).toContain(`after=${opaqueCursor}`);
+  });
+
+  it('honest_gap and degraded are normal 200 answers (present:false), not throws', async () => {
+    mock('GET', (p) => p.includes('/surface/mirror.wantlist_demand_by_cluster_v1'), 200, {
+      object: 'surface.rows',
+      surface: 'mirror.wantlist_demand_by_cluster_v1',
+      present: false,
+      state: 'degraded',
+      keyspace: 'pe-norm-v1-artist',
+      liveness: 'advisory',
+      rows: [],
+      next_after: null,
+      coverage_note: 'x',
+      degraded_reason: 'crate_surface_reader pool not granted on the replica',
+      generated_at: '2026-07-12T00:00:00Z',
+    });
+    const r = await kc().surface('mirror.wantlist_demand_by_cluster_v1', { cluster: HEX });
+    expect(r.state).toBe('degraded');
+    expect(r.present).toBe(false);
+  });
+
+  it('unknown {name} → CrateAPIError(invalid_name) is surfaced, not swallowed', async () => {
+    mock('GET', (p) => p.includes('/surface/'), 400, {
+      error: 'invalid_name',
+      message: "unknown surface 'bogus.name'",
+      hint: 'valid names: public.spine_artist_temporal_profile, seen.radio_play_v1, seen.dj_champion, seen.radio_co_play, seen.song_station_journey, mirror.wantlist_demand_by_cluster_v1',
+      doc_url: 'https://crate.hosaka.fm/docs/surfaces',
+      next: 'call crate.surfaces() for the live list',
+    });
+    const err = await kc()
+      .surface('bogus.name' as never, { cluster: HEX })
+      .catch((e) => e);
+    expect(isCrateAPIError(err)).toBe(true);
+    expect(err.code).toBe('invalid_name');
+    expect(err.hint).toContain('seen.radio_play_v1');
+    expect(err.next).toContain('surfaces');
+  });
+
+  it('surfaces() and surface() without an apiKey → CrateValidationError(api_key_required), no network', async () => {
+    const errIndex = await new Crate().surfaces().catch((e) => e);
+    expect(errIndex.code).toBe('api_key_required');
+    const errRows = await new Crate().surface('seen.dj_champion', { cluster: HEX }).catch((e) => e);
+    expect(errRows.code).toBe('api_key_required');
+    expect(calls).toHaveLength(0);
   });
 });
 
