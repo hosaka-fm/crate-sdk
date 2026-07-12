@@ -1,6 +1,6 @@
 # Designer Onboarding — crate-sdk Docs Site
 
-A practical guide to restyling **crate-sdk.hosaka.fm** without breaking the content pipeline. If you know CSS, you can confidently change the entire look of this site by editing **one file**. This doc tells you which file, what lives in it, and what you must *not* touch.
+A practical guide to restyling **crate-sdk.hosaka.fm** without breaking the content pipeline. If you know CSS, you can confidently change the entire look of this site by editing **one file**. This doc tells you which file, what lives in it, and what you must _not_ touch.
 
 ---
 
@@ -8,11 +8,11 @@ A practical guide to restyling **crate-sdk.hosaka.fm** without breaking the cont
 
 This is the public documentation site for `@hosaka-fm/crate`, a typed TypeScript client for the crate cluster-first music-catalogue API. Its audience is developers (TypeScript / Node.js) using the SDK, plus AI agents that read the machine-readable `llms.txt` surfaces.
 
-| | |
-|---|---|
-| **Live at** | https://crate-sdk.hosaka.fm |
-| **Intended feel** | Clean, technical, dark-first developer docs. A single grotesque typeface (ABC Schengen) throughout, with a warm brass accent (`#e0a23c`). |
-| **Key framing** | This site is a **static shell**. It authors almost no content of its own — nearly every page is *generated* from sources of truth elsewhere in the repo (the API spec, SDK TSDoc, hand-written guides). The shell owns presentation only: navigation, search, theming, and the splash landing page. |
+|                   |                                                                                                                                                                                                                                                                                                     |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Live at**       | https://crate-sdk.hosaka.fm                                                                                                                                                                                                                                                                         |
+| **Intended feel** | Clean, technical, dark-first developer docs. A single grotesque typeface (ABC Schengen) throughout, with a warm brass accent (`#e0a23c`).                                                                                                                                                           |
+| **Key framing**   | This site is a **static shell**. It authors almost no content of its own — nearly every page is _generated_ from sources of truth elsewhere in the repo (the API spec, SDK TSDoc, hand-written guides). The shell owns presentation only: navigation, search, theming, and the splash landing page. |
 
 Because content is generated, most of your styling work happens in CSS tokens and a handful of config/landing files — never in the per-page `.md` files, which get overwritten.
 
@@ -20,14 +20,14 @@ Because content is generated, most of your styling work happens in CSS tokens an
 
 ## 2. Tech stack & theming model
 
-| Layer | Technology |
-|---|---|
-| Static-site framework | [Astro](https://astro.build) v6 |
-| Docs theme | [Starlight](https://starlight.astro.build) v0.40 |
-| API reference pages | `starlight-openapi` plugin |
-| Agent surfaces (`llms.txt`) | `starlight-llms-txt` plugin |
-| Custom styling | One CSS file wired via Starlight's `customCss` |
-| Search | Pagefind (built into Starlight, no config) |
+| Layer                       | Technology                                       |
+| --------------------------- | ------------------------------------------------ |
+| Static-site framework       | [Astro](https://astro.build) v6                  |
+| Docs theme                  | [Starlight](https://starlight.astro.build) v0.40 |
+| API reference pages         | `starlight-openapi` plugin                       |
+| Agent surfaces (`llms.txt`) | `starlight-llms-txt` plugin                      |
+| Custom styling              | One CSS file wired via Starlight's `customCss`   |
+| Search                      | Pagefind (built into Starlight, no config)       |
 
 ### The mental model you need
 
@@ -54,27 +54,27 @@ customCss: ['./src/styles/custom.css'],
 
 ### Files you edit for look-and-feel
 
-| File | What it controls |
-|---|---|
-| `site/src/styles/custom.css` | **All visual styling** — `@font-face` declarations, font tokens, the brass accent ramp, heading weight/tracking. This is your primary file. |
-| `site/astro.config.mjs` | Site `title`, `description`, GitHub social link, sidebar structure, plugin wiring. |
-| `site/src/content/docs/index.mdx` | The splash / landing page — hero tagline, CTA buttons, and the feature `<CardGrid>`. Hand-authored, safe to edit. |
-| `site/src/content/docs/get-started/quickstart.md` | The quickstart page. Hand-authored (**not** generated), safe to edit. |
+| File                                              | What it controls                                                                                                                            |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `site/src/styles/custom.css`                      | **All visual styling** — `@font-face` declarations, font tokens, the brass accent ramp, heading weight/tracking. This is your primary file. |
+| `site/astro.config.mjs`                           | Site `title`, `description`, GitHub social link, sidebar structure, plugin wiring.                                                          |
+| `site/src/content/docs/index.mdx`                 | The splash / landing page — hero tagline, CTA buttons, and the feature `<CardGrid>`. Hand-authored, safe to edit.                           |
+| `site/src/content/docs/get-started/quickstart.md` | The quickstart page. Hand-authored (**not** generated), safe to edit.                                                                       |
 
 ### Files that are GENERATED — never hand-edit
 
 A prebuild script, `site/scripts/sync-content.mjs`, runs automatically before `npm run dev` and `npm run build` (via the `predev` / `prebuild` hooks in `package.json`). It **overwrites** the paths below on every run, and they are **git-ignored**. Any manual edit is silently lost.
 
-| Generated path | Regenerated from | Edit this instead |
-|---|---|---|
-| `site/src/content/docs/guides/*.md` | `docs/*.md` (repo root) | the source markdown in `docs/` |
-| `site/src/content/docs/sdk/*.md` | `meta/surface.json` (built from TSDoc) | the TSDoc in the SDK source |
-| `site/src/content/docs/concepts/index.md` | `spec/openapi.json` → `x-concepts[]` | the spec |
-| `site/src/content/docs/changelog.md` | `CHANGELOG.md` (repo root) | the changelog |
-| `site/spec/openapi.json` | `spec/openapi.json` (repo root) | the source spec |
-| `site/public/explorer/index.html` | `explorer/index.html` (repo root) | the source explorer |
+| Generated path                            | Regenerated from                       | Edit this instead              |
+| ----------------------------------------- | -------------------------------------- | ------------------------------ |
+| `site/src/content/docs/guides/*.md`       | `docs/*.md` (repo root)                | the source markdown in `docs/` |
+| `site/src/content/docs/sdk/*.md`          | `meta/surface.json` (built from TSDoc) | the TSDoc in the SDK source    |
+| `site/src/content/docs/concepts/index.md` | `spec/openapi.json` → `x-concepts[]`   | the spec                       |
+| `site/src/content/docs/changelog.md`      | `CHANGELOG.md` (repo root)             | the changelog                  |
+| `site/spec/openapi.json`                  | `spec/openapi.json` (repo root)        | the source spec                |
+| `site/public/explorer/index.html`         | `explorer/index.html` (repo root)      | the source explorer            |
 
-> Rule of thumb: if a page shows API/SDK/guide/changelog *content*, it is generated. If it is chrome, layout, colour, type, the splash, or the quickstart — it is yours to edit.
+> Rule of thumb: if a page shows API/SDK/guide/changelog _content_, it is generated. If it is chrome, layout, colour, type, the splash, or the quickstart — it is yours to edit.
 
 ---
 
@@ -84,16 +84,16 @@ A prebuild script, `site/scripts/sync-content.mjs`, runs automatically before `n
 
 The site uses **one typeface family, ABC Schengen (by Dinamo)**, in two cuts. Both are **variable fonts** spanning the full weight axis (`font-weight: 100 900`) from a single file each, served with `font-display: swap`.
 
-| CSS family name | File | Role |
-|---|---|---|
-| `'ABC Schengen'` | `ABCSchengenA-Variable.woff2` | Body text, headings, UI (the grotesque cut) |
-| `'ABC Schengen Mono'` | `ABCSchengenAMono-Variable.woff2` | Code blocks, tabular data |
+| CSS family name       | File                              | Role                                        |
+| --------------------- | --------------------------------- | ------------------------------------------- |
+| `'ABC Schengen'`      | `ABCSchengenA-Variable.woff2`     | Body text, headings, UI (the grotesque cut) |
+| `'ABC Schengen Mono'` | `ABCSchengenAMono-Variable.woff2` | Code blocks, tabular data                   |
 
 The `@font-face` blocks and the token wiring both live in `site/src/styles/custom.css`:
 
 ```css
 :root {
-  --sl-font:      'ABC Schengen', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --sl-font: 'ABC Schengen', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
   --sl-font-mono: 'ABC Schengen Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 ```
@@ -105,7 +105,13 @@ Starlight applies `--sl-font` to both body and headings, so those two tokens cov
 Set directly on the heading elements (not via a token), also in `custom.css`:
 
 ```css
-h1, h2, h3, h4, h5, h6, .site-title {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.site-title {
   font-weight: 600;
   letter-spacing: -0.01em;
   text-wrap: balance;
@@ -118,19 +124,19 @@ Only the **accent ramp** is overridden; all other Starlight colors (background, 
 
 **Dark mode (default — plain `:root`)**
 
-| Token | Value | Role |
-|---|---|---|
-| `--sl-color-accent-low` | `#3a2e12` | Subtle tinted accent background |
-| `--sl-color-accent` | `#e0a23c` | Primary brass — links, highlights, active state |
-| `--sl-color-accent-high` | `#f2d39a` | High-contrast accent text |
+| Token                    | Value     | Role                                            |
+| ------------------------ | --------- | ----------------------------------------------- |
+| `--sl-color-accent-low`  | `#3a2e12` | Subtle tinted accent background                 |
+| `--sl-color-accent`      | `#e0a23c` | Primary brass — links, highlights, active state |
+| `--sl-color-accent-high` | `#f2d39a` | High-contrast accent text                       |
 
 **Light mode (`:root[data-theme='light']`)**
 
-| Token | Value | Role |
-|---|---|---|
-| `--sl-color-accent-low` | `#f7e7c5` | Subtle tinted accent background |
-| `--sl-color-accent` | `#9a6a16` | Brass darkened for contrast on white |
-| `--sl-color-accent-high` | `#4e370c` | High-contrast accent text |
+| Token                    | Value     | Role                                 |
+| ------------------------ | --------- | ------------------------------------ |
+| `--sl-color-accent-low`  | `#f7e7c5` | Subtle tinted accent background      |
+| `--sl-color-accent`      | `#9a6a16` | Brass darkened for contrast on white |
+| `--sl-color-accent-high` | `#4e370c` | High-contrast accent text            |
 
 ### Spacing & layout
 
@@ -147,14 +153,16 @@ Each recipe is a concrete "edit this file, change this token/selector" action.
 Edit the six accent tokens in `site/src/styles/custom.css` (three for dark, three for light):
 
 ```css
-:root {                       /* dark (default) */
-  --sl-color-accent-low:  /* subtle tinted background */;
-  --sl-color-accent:      /* main accent — links, active state */;
+:root {
+  /* dark (default) */
+  --sl-color-accent-low: /* subtle tinted background */;
+  --sl-color-accent: /* main accent — links, active state */;
   --sl-color-accent-high: /* high-contrast accent text */;
 }
-:root[data-theme='light'] {   /* light */
-  --sl-color-accent-low:  /* subtle tinted background */;
-  --sl-color-accent:      /* darken for contrast on white */;
+:root[data-theme='light'] {
+  /* light */
+  --sl-color-accent-low: /* subtle tinted background */;
+  --sl-color-accent: /* darken for contrast on white */;
   --sl-color-accent-high: /* high-contrast accent text */;
 }
 ```
@@ -170,8 +178,12 @@ In `custom.css`: add a new `@font-face` block for your font, then point `--sl-fo
 Not currently overridden. Add to `custom.css`:
 
 ```css
-:root                       { --sl-color-bg: #0d0d0d; }  /* dark  */
-:root[data-theme='light']   { --sl-color-bg: #fafafa; }  /* light */
+:root {
+  --sl-color-bg: #0d0d0d;
+} /* dark  */
+:root[data-theme='light'] {
+  --sl-color-bg: #fafafa;
+} /* light */
 ```
 
 ### Change heading weight or tracking
@@ -190,17 +202,17 @@ Edit `site/src/content/docs/index.mdx`. The frontmatter `hero.tagline` and `hero
 
 ## 6. Content / page inventory
 
-| URL | Template | Source | Restyle per-page? |
-|---|---|---|---|
-| `/` | Splash | `site/src/content/docs/index.mdx` (hand-authored) | Yes — edit the file + tokens |
-| `/get-started/quickstart/` | Doc | `site/src/content/docs/get-started/quickstart.md` (hand-authored) | Yes |
-| `/concepts/` | Doc | Generated from spec `x-concepts[]` | Chrome only — content is generated |
-| `/guides/*` | Doc | Generated from `docs/*.md` | Chrome only |
-| `/sdk/*` | Doc (one per method) | Generated from `meta/surface.json` | Chrome only |
-| `/api/*` | OpenAPI reference | `starlight-openapi` from the spec | Chrome only |
-| `/explorer/` | Standalone SPA | Copied from `explorer/index.html` | Separate app — styled in its own source |
-| `/changelog/` | Doc | Generated from `CHANGELOG.md` | Chrome only |
-| `/llms.txt`, `/llms-full.txt`, `/llms-small.txt` | Text | `starlight-llms-txt` at build | Not styleable (plain text) |
+| URL                                              | Template             | Source                                                            | Restyle per-page?                       |
+| ------------------------------------------------ | -------------------- | ----------------------------------------------------------------- | --------------------------------------- |
+| `/`                                              | Splash               | `site/src/content/docs/index.mdx` (hand-authored)                 | Yes — edit the file + tokens            |
+| `/get-started/quickstart/`                       | Doc                  | `site/src/content/docs/get-started/quickstart.md` (hand-authored) | Yes                                     |
+| `/concepts/`                                     | Doc                  | Generated from spec `x-concepts[]`                                | Chrome only — content is generated      |
+| `/guides/*`                                      | Doc                  | Generated from `docs/*.md`                                        | Chrome only                             |
+| `/sdk/*`                                         | Doc (one per method) | Generated from `meta/surface.json`                                | Chrome only                             |
+| `/api/*`                                         | OpenAPI reference    | `starlight-openapi` from the spec                                 | Chrome only                             |
+| `/explorer/`                                     | Standalone SPA       | Copied from `explorer/index.html`                                 | Separate app — styled in its own source |
+| `/changelog/`                                    | Doc                  | Generated from `CHANGELOG.md`                                     | Chrome only                             |
+| `/llms.txt`, `/llms-full.txt`, `/llms-small.txt` | Text                 | `starlight-llms-txt` at build                                     | Not styleable (plain text)              |
 
 "Chrome only" means: you can restyle the theme (type, color, spacing) globally via `custom.css`, but you cannot edit the words on these pages here — edit the upstream source.
 
@@ -281,7 +293,7 @@ The canonical brand is **Hosaka FM** / **hosaka.fm**. Never introduce any other 
 
 ### Prefer tokens over component overrides
 
-All visual changes should go through `--sl-*` custom properties in `custom.css`. Starlight *does* allow swapping components (via a `components:` map in `astro.config.mjs`), but overriding the wrong component can break navigation, Pagefind search, or accessibility. Only reach for a component override if a CSS token genuinely can't express the change, and test thoroughly against Starlight's documented override API.
+All visual changes should go through `--sl-*` custom properties in `custom.css`. Starlight _does_ allow swapping components (via a `components:` map in `astro.config.mjs`), but overriding the wrong component can break navigation, Pagefind search, or accessibility. Only reach for a component override if a CSS token genuinely can't express the change, and test thoroughly against Starlight's documented override API.
 
 ### Keep the plugins wired
 
