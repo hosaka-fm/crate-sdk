@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "crate-api",
-    "version": "2.12.0",
-    "description": "# crate API (v2 — cluster-first)\n\ncrate is the **aggregation gateway** for a fleet of music-data producers. You ask it about an artist, a label, or a festival; it joins every signal the fleet can see about that entity and hands you back one composed picture — collector behavior, editorial coverage, live-circuit demand, breakout momentum, web presence — each piece labelled with where it came from and how fresh it is.\n\nTwo things make crate different from a typical catalogue API, and the rest of this doc exists to teach them:\n\n1. **Identity is a `cluster_id`, not a Discogs/MusicBrainz/Bandcamp id.** The same artist scattered across those platforms collapses to one canonical key. You resolve to it once, then key everything off it.\n2. **An empty answer is a first-class answer.** crate returns HTTP `200` and tells you plainly what it *can't* see (`present:false`, a null field, `state:\"honest_gap\"`) instead of `404`-ing or fabricating data. Only `4xx`/`5xx` are errors.\n\nv2 is **cluster-first**: the agent (artist / label / festival) is the prime resource, and sources (Bandcamp, Discogs) and releases **attach to it as dimensions** rather than being top-level nouns. If you do nothing else, internalize the cold-start recipe: **resolve a name or pasted link → `cluster_id` → dossier.** `GET /api/v2` returns this recipe live, and `GET /api/v2/resolve?q=<name>` is the front door.\n\n## Authentication\n\nThe API is keyed: every operation requires an `X-API-Key` header (`ck_(live|test)_<…>` format) **except** the two public front-door endpoints that opt out — `GET /api/v2` (the root index) and `GET /api/v2/openapi.json` (this spec). One family of endpoints uses a *different* credential entirely — see **beacons** below.\n\n## Concepts\n\n### `cluster_id` — the canonical artist identity\n\n`cluster_id` is crate's prime key for an artist: a `pe-norm-v1` hex string derived from the artist's name, designed so that the same artist's Discogs page, MusicBrainz entry, and Bandcamp profile all **collapse to one `cluster_id`**. Key *all* artist data off it.\n\n- It is an **opaque string** — pass it through verbatim. Never numericize it, parse it, or assume structure.\n- `cluster_id: null` is an **honest gap**, not an error: crate couldn't resolve a canonical identity for that lookup. Roughly half of the long-tail booking artists have neither a Discogs id nor an MBID, so `null` is normal.\n- You get one by calling `GET /api/v2/resolve` (from a name, a pasted link, or a foreign id). You then address the artist dossier directly as `GET /api/v2/artist/{key}`, where `{key}` is the 64-hex `cluster_id` **or** a human slug.\n- A 64-hex key resolves identity *directly* from the cluster — it deliberately skips the Discogs lookup so a hex address never silently re-anchors onto a same-name Discogs row. Foreign locators (`discogs:<id>`, `mbid:<uuid>`) are **not** canonical addresses: convert them via `/resolve` first, or `/artist/{key}` returns `400` (the response's `next` field is a ready-to-call `/resolve` URL).\n\n### dossier · grains — the composed per-entity picture\n\nA **dossier** is the full picture crate composes for one entity by joining every fleet signal. v2 has three agent **grains**:\n\n| grain | addressed by | what it is |\n|---|---|---|\n| `artist` | `GET /api/v2/artist/{key}` or `GET /api/v2/dossier/artist/{slug}` | identity + collector behavior + editorial + emergence + live presence + web + compositions + **discography** + **bandcamp** dimensions… |\n| `label` | `GET /api/v2/label/{key}` or `GET /api/v2/dossier/label/{slug}` | label identity + sublabel→parent lineage + collector behavior |\n| `festival` | `GET /api/v2/dossier/festival/{slug}` | de-fragmented festival identity + consolidated editions ⋈ lineup |\n\n**Releases are not a top-level grain in v2.** In the cluster-first model a release (a Discogs release-group, what a consumer calls a \"release\") **attaches to the artist** as the dossier's `discography` dimension, keyed by the artist's `cluster_id` — there is no standalone release resource. Likewise **Bandcamp is a dimension of the artist dossier** (`bandcamp_emergence` / `bandcamp_tastemaker`), not a top-level surface.\n\nEvery dossier facet carries a classified **`state`** (e.g. `present`, `empty`/absent, `honest_gap`) and the dossier ships a **provenance manifest** — an array where each entry names the `producer`, `sourceTable`, `refreshCadence`, `tier`, and `honestGapState` for a field. Read `GET /api/v2/dossier/manifest` (the data dictionary) to discover the entire field surface across grains — including grains that are deliberately *unavailable* (e.g. song, because the fleet has no track key; and the demoted master grain, whose detail now lives in the artist's `discography`) — without hitting every entity endpoint.\n\n### honest gap — empty is `200`, not `404`\n\nThis is crate's defining principle: **crate shows what it can see and is explicit about what it can't, rather than 404-ing or faking data.** An unresolved or empty lookup returns **HTTP `200`** with one of:\n\n- `present: false` (e.g. a dossier dimension with no match),\n- a `null` field (`cluster_id: null`, `identity: null`),\n- `state: \"honest_gap\"` on a dossier facet.\n\nBranch on the body, not the status, for \"did I get data?\". An unresolved artist slug returns `identity:null` at `200` — never `404`. Reserve your error handling for genuine **`4xx`/`5xx`**.\n\n### `resolved_via` · `resolved_from` — binding tier and match method\n\nWhen crate resolves an identity it tells you two orthogonal things:\n\n- **`resolved_via`** = the *binding tier*, i.e. how trustworthy the identity is:\n  - `'discogs'` — canonical, Discogs-bound (verified).\n  - `'cluster'` — **observed/unverified**: the identity came from the booking graph with no Discogs bind. Surface it flagged as unverified, never as canonical.\n  - `null` — did not resolve.\n- **`resolved_from`** = *how* you addressed it on `/resolve`: `'url'` (a pasted link), `'name'`, or `'locator'` (a foreign id). `matched_on` names the surface that matched; `note` explains a recognized-but-unresolved link (e.g. a Twitter URL crate recognizes but does not yet cross-reference).\n\nA 64-hex `cluster_id` address always yields `resolved_via: 'cluster'` (observed tier) by design.\n\n### the cube · `cube_quadrant` — the behavioral-signal model\n\nThe **cube** is crate's behavioral model of a release: a **3-bit code** (string, e.g. `\"101\"`) placing it on three independent behavioral axes — **who OWNS it (collector), who PLAYS it (DJ), who WRITES about it (critic)**. Each bit is `0`/`1`, so the eight quadrants run `\"000\"` (\"No signal\") through `\"111\"` (\"Full intersection\"): `\"100\"` = collector-only, `\"010\"` = DJ-only, `\"101\"` = collector + critic, and so on. The collector-vs-DJ split — *who owns it vs who plays it* — is the heart of the model. `cube_quadrant: null` means it isn't yet classified (an honest gap). You meet `cube_quadrant` (with companion `owner_count` / `dj_count` / `critic_count` magnitudes + a `link_to_cube` explorer deep-link) on the master-grain result rows of `GET /api/v2/search`.\n\n### tastemakers · breakouts — discovery surfaces\n\nTwo read-only discovery surfaces, served from offline-published snapshots (no DB checkout) and **fail-soft**: each returns a `state` of `present` / `empty` / `degraded`, where `degraded` is a `200` honest-gap (a read failure never `500`s), and `stale:true` flags a snapshot older than 7 days.\n\n- **tastemakers** (`GET /api/v2/tastemakers`, `…/ones-to-watch`) — influential curators and the richest artist-grain analytics crate has: rank, own-tier, brokerage score, corroborating axes, lead-times, Bandcamp demand. `?limit=` bounds each array (`1..200`).\n- **breakouts** (`GET /api/v2/breakouts`) — emerging artists on the rise (\"ones to watch\"): booking-momentum signal cross-validated against press. `?tier=breakout|rising` and `?corroboration=corroborated|booking_ahead` filter it; `?limit=` is clamped to `200`.\n\n### beacons — search-event telemetry (different credential)\n\n**Beacons** are client-side telemetry about search behavior: `POST /api/v2/search-events/observed` (a result was served from cache) and `…/refined` (the user changed facets). They are **not** authenticated with your `X-API-Key`. Each search response issues a **short-lived per-search JWT** bound to one `search_event_id`; send it as `Authorization: Bearer <token>`, and the token must match the body's `search_event_id`. Bodies are capped at 512 bytes and beacons are idempotent (a duplicate is a `204` no-op). Beacon `400`s carry a Zod *flattened* `details` object (not the array shape of normal validation errors), so they use a distinct error schema.\n\n### sparse fieldsets — `?fields=` (opt-out trim)\n\nThe artist dossier is **default-rich**: `GET /api/v2/artist/{key}` returns the whole dossier in one round-trip. If you want less, `?fields=identity,discography` **trims** to the named top-level facets (the envelope is always present). An unknown field returns `400 invalid_fields` with the exact valid set and a copy-pasteable `example` — so you never guess.\n\n### Bandcamp in v2 — analytical dimensions, and the link-only posture\n\nIn v2 Bandcamp is an **analytical dimension of the artist dossier**, not a release surface. Two facets carry it, both keyed by the artist's `cluster_id` and both **signals/metrics** (not per-release listings):\n\n- **`bandcamp_emergence`** — purchase-backed demand signals (emergence class, demand lead/ratio, owner reach, wishlist demand, distinct releases, earliest-wished date).\n- **`bandcamp_tastemaker`** — early-supporter quality scores (supporter-cohort size, aesthetic-quality scores, mean first-buyer earliness).\n\nPer-release Bandcamp listings — and the `bandcamp_item_id` / `track_url` per-release fields — are **not a v2 surface**; they belong to the v1 Bandcamp endpoints. (The discography dimension is the **Discogs** release-group attachment, keyed by `discogsMasterId` — distinct from Bandcamp.)\n\ncrate is **link-only** everywhere it does carry links: every artwork item is a hotlink `url` with `rehost:false` — crate never fetches or re-hosts bytes (a Cover Art Archive URL is best-effort and may `404` if no cover exists), and crate never stores Bandcamp audio streams (tokenized, expiring, out of ToS bounds).\n\n### Opaque ids — the universal rule\n\n`cluster_id` is **always a string, always opaque**. Round-trip it verbatim; do not parse, increment, numericize, or infer structure from it. (The same discipline applies to any id crate hands you.) This keeps your client correct across id-scheme changes.\n\n### Versioning\n\nThe **API major version lives in the URL path** (`/api/v2`). The spec's `info.version` (currently `2.12.0`) bumps on **every** spec change and is drift-guarded: the document is generated from code, so docs cannot drift from runtime behavior. Operations carry stable `operationId`s for codegen, and keyed `2xx` responses declare `X-RateLimit-Limit` / `X-RateLimit-Remaining` / `X-RateLimit-Reset` headers (back off on `429` using `retry_after_seconds` / `Retry-After`). v2 is the cluster-first stable major; the frozen v1 predecessor remains available during a time-boxed, announced deprecation — the route-by-route migration map is at `/docs/migration/v1-to-v2`.",
+    "version": "2.13.0",
+    "description": "# crate API (v2 — cluster-first)\n\ncrate is the **aggregation gateway** for a fleet of music-data producers. You ask it about an artist, a label, or a festival; it joins every signal the fleet can see about that entity and hands you back one composed picture — collector behavior, editorial coverage, live-circuit demand, breakout momentum, web presence — each piece labelled with where it came from and how fresh it is.\n\nTwo things make crate different from a typical catalogue API, and the rest of this doc exists to teach them:\n\n1. **Identity is a `cluster_id`, not a Discogs/MusicBrainz/Bandcamp id.** The same artist scattered across those platforms collapses to one canonical key. You resolve to it once, then key everything off it.\n2. **An empty answer is a first-class answer.** crate returns HTTP `200` and tells you plainly what it *can't* see (`present:false`, a null field, `state:\"honest_gap\"`) instead of `404`-ing or fabricating data. Only `4xx`/`5xx` are errors.\n\nv2 is **cluster-first**: the agent (artist / label / festival) is the prime resource, and sources (Bandcamp, Discogs) and releases **attach to it as dimensions** rather than being top-level nouns. If you do nothing else, internalize the cold-start recipe: **resolve a name or pasted link → `cluster_id` → dossier.** `GET /api/v2` returns this recipe live, and `GET /api/v2/resolve?q=<name>` is the front door.\n\n## Authentication\n\nThe API is keyed: every operation requires an `X-API-Key` header (`ck_(live|test)_<…>` format) **except** the two public front-door endpoints that opt out — `GET /api/v2` (the root index) and `GET /api/v2/openapi.json` (this spec). One family of endpoints uses a *different* credential entirely — see **beacons** below.\n\n## Concepts\n\n### `cluster_id` — the canonical artist identity\n\n`cluster_id` is crate's prime key for an artist: a `pe-norm-v1` hex string derived from the artist's name, designed so that the same artist's Discogs page, MusicBrainz entry, and Bandcamp profile all **collapse to one `cluster_id`**. Key *all* artist data off it.\n\n- It is an **opaque string** — pass it through verbatim. Never numericize it, parse it, or assume structure.\n- `cluster_id: null` is an **honest gap**, not an error: crate couldn't resolve a canonical identity for that lookup. Roughly half of the long-tail booking artists have neither a Discogs id nor an MBID, so `null` is normal.\n- You get one by calling `GET /api/v2/resolve` (from a name, a pasted link, or a foreign id). You then address the artist dossier directly as `GET /api/v2/artist/{key}`, where `{key}` is the 64-hex `cluster_id` **or** a human slug.\n- A 64-hex key resolves identity *directly* from the cluster — it deliberately skips the Discogs lookup so a hex address never silently re-anchors onto a same-name Discogs row. Foreign locators (`discogs:<id>`, `mbid:<uuid>`) are **not** canonical addresses: convert them via `/resolve` first, or `/artist/{key}` returns `400` (the response's `next` field is a ready-to-call `/resolve` URL).\n\n### dossier · grains — the composed per-entity picture\n\nA **dossier** is the full picture crate composes for one entity by joining every fleet signal. v2 has three agent **grains**:\n\n| grain | addressed by | what it is |\n|---|---|---|\n| `artist` | `GET /api/v2/artist/{key}` or `GET /api/v2/dossier/artist/{slug}` | identity + collector behavior + editorial + emergence + live presence + web + compositions + **discography** + **bandcamp** dimensions… |\n| `label` | `GET /api/v2/label/{key}` or `GET /api/v2/dossier/label/{slug}` | label identity + sublabel→parent lineage + collector behavior |\n| `festival` | `GET /api/v2/dossier/festival/{slug}` | de-fragmented festival identity + consolidated editions ⋈ lineup |\n\n**Releases are not a top-level grain in v2.** In the cluster-first model a release (a Discogs release-group, what a consumer calls a \"release\") **attaches to the artist** as the dossier's `discography` dimension, keyed by the artist's `cluster_id` — there is no standalone release resource. Likewise **Bandcamp is a dimension of the artist dossier** (`bandcamp_emergence` / `bandcamp_tastemaker`), not a top-level surface.\n\nEvery dossier facet carries a classified **`state`** (e.g. `present`, `empty`/absent, `honest_gap`) and the dossier ships a **provenance manifest** — an array where each entry names the `producer`, `sourceTable`, `refreshCadence`, `tier`, and `honestGapState` for a field. Read `GET /api/v2/dossier/manifest` (the data dictionary) to discover the entire field surface across grains — including grains that are deliberately *unavailable* (e.g. song, because the fleet has no track key; and the demoted master grain, whose detail now lives in the artist's `discography`) — without hitting every entity endpoint.\n\n### honest gap — empty is `200`, not `404`\n\nThis is crate's defining principle: **crate shows what it can see and is explicit about what it can't, rather than 404-ing or faking data.** An unresolved or empty lookup returns **HTTP `200`** with one of:\n\n- `present: false` (e.g. a dossier dimension with no match),\n- a `null` field (`cluster_id: null`, `identity: null`),\n- `state: \"honest_gap\"` on a dossier facet.\n\nBranch on the body, not the status, for \"did I get data?\". An unresolved artist slug returns `identity:null` at `200` — never `404`. Reserve your error handling for genuine **`4xx`/`5xx`**.\n\n### `resolved_via` · `resolved_from` — binding tier and match method\n\nWhen crate resolves an identity it tells you two orthogonal things:\n\n- **`resolved_via`** = the *binding tier*, i.e. how trustworthy the identity is:\n  - `'discogs'` — canonical, Discogs-bound (verified).\n  - `'cluster'` — **observed/unverified**: the identity came from the booking graph with no Discogs bind. Surface it flagged as unverified, never as canonical.\n  - `null` — did not resolve.\n- **`resolved_from`** = *how* you addressed it on `/resolve`: `'url'` (a pasted link), `'name'`, or `'locator'` (a foreign id). `matched_on` names the surface that matched; `note` explains a recognized-but-unresolved link (e.g. a Twitter URL crate recognizes but does not yet cross-reference).\n\nA 64-hex `cluster_id` address always yields `resolved_via: 'cluster'` (observed tier) by design.\n\n### the cube · `cube_quadrant` — the behavioral-signal model\n\nThe **cube** is crate's behavioral model of a release: a **3-bit code** (string, e.g. `\"101\"`) placing it on three independent behavioral axes — **who OWNS it (collector), who PLAYS it (DJ), who WRITES about it (critic)**. Each bit is `0`/`1`, so the eight quadrants run `\"000\"` (\"No signal\") through `\"111\"` (\"Full intersection\"): `\"100\"` = collector-only, `\"010\"` = DJ-only, `\"101\"` = collector + critic, and so on. The collector-vs-DJ split — *who owns it vs who plays it* — is the heart of the model. `cube_quadrant: null` means it isn't yet classified (an honest gap). You meet `cube_quadrant` (with companion `owner_count` / `dj_count` / `critic_count` magnitudes + a `link_to_cube` explorer deep-link) on the master-grain result rows of `GET /api/v2/search`.\n\n### tastemakers · breakouts — discovery surfaces\n\nTwo read-only discovery surfaces, served from offline-published snapshots (no DB checkout) and **fail-soft**: each returns a `state` of `present` / `empty` / `degraded`, where `degraded` is a `200` honest-gap (a read failure never `500`s), and `stale:true` flags a snapshot older than 7 days.\n\n- **tastemakers** (`GET /api/v2/tastemakers`, `…/ones-to-watch`) — influential curators and the richest artist-grain analytics crate has: rank, own-tier, brokerage score, corroborating axes, lead-times, Bandcamp demand. `?limit=` bounds each array (`1..200`).\n- **breakouts** (`GET /api/v2/breakouts`) — emerging artists on the rise (\"ones to watch\"): booking-momentum signal cross-validated against press. `?tier=breakout|rising` and `?corroboration=corroborated|booking_ahead` filter it; `?limit=` is clamped to `200`.\n\n### beacons — search-event telemetry (different credential)\n\n**Beacons** are client-side telemetry about search behavior: `POST /api/v2/search-events/observed` (a result was served from cache) and `…/refined` (the user changed facets). They are **not** authenticated with your `X-API-Key`. Each search response issues a **short-lived per-search JWT** bound to one `search_event_id`; send it as `Authorization: Bearer <token>`, and the token must match the body's `search_event_id`. Bodies are capped at 512 bytes and beacons are idempotent (a duplicate is a `204` no-op). Beacon `400`s carry a Zod *flattened* `details` object (not the array shape of normal validation errors), so they use a distinct error schema.\n\n### sparse fieldsets — `?fields=` (opt-out trim)\n\nThe artist dossier is **default-rich**: `GET /api/v2/artist/{key}` returns the whole dossier in one round-trip. If you want less, `?fields=identity,discography` **trims** to the named top-level facets (the envelope is always present). An unknown field returns `400 invalid_fields` with the exact valid set and a copy-pasteable `example` — so you never guess.\n\n### Bandcamp in v2 — analytical dimensions, and the link-only posture\n\nIn v2 Bandcamp is an **analytical dimension of the artist dossier**, not a release surface. Two facets carry it, both keyed by the artist's `cluster_id` and both **signals/metrics** (not per-release listings):\n\n- **`bandcamp_emergence`** — purchase-backed demand signals (emergence class, demand lead/ratio, owner reach, wishlist demand, distinct releases, earliest-wished date).\n- **`bandcamp_tastemaker`** — early-supporter quality scores (supporter-cohort size, aesthetic-quality scores, mean first-buyer earliness).\n\nPer-release Bandcamp listings — and the `bandcamp_item_id` / `track_url` per-release fields — are **not a v2 surface**; they belong to the v1 Bandcamp endpoints. (The discography dimension is the **Discogs** release-group attachment, keyed by `discogsMasterId` — distinct from Bandcamp.)\n\ncrate is **link-only** everywhere it does carry links: every artwork item is a hotlink `url` with `rehost:false` — crate never fetches or re-hosts bytes (a Cover Art Archive URL is best-effort and may `404` if no cover exists), and crate never stores Bandcamp audio streams (tokenized, expiring, out of ToS bounds).\n\n### Opaque ids — the universal rule\n\n`cluster_id` is **always a string, always opaque**. Round-trip it verbatim; do not parse, increment, numericize, or infer structure from it. (The same discipline applies to any id crate hands you.) This keeps your client correct across id-scheme changes.\n\n### Versioning\n\nThe **API major version lives in the URL path** (`/api/v2`). The spec's `info.version` (currently `2.13.0`) bumps on **every** spec change and is drift-guarded: the document is generated from code, so docs cannot drift from runtime behavior. Operations carry stable `operationId`s for codegen, and keyed `2xx` responses declare `X-RateLimit-Limit` / `X-RateLimit-Remaining` / `X-RateLimit-Reset` headers (back off on `429` using `retry_after_seconds` / `Retry-After`). v2 is the cluster-first stable major; the frozen v1 predecessor remains available during a time-boxed, announced deprecation — the route-by-route migration map is at `/docs/migration/v1-to-v2`.",
     "contact": {
       "name": "crate support",
       "email": "support@crate.hosaka.fm"
@@ -84,7 +84,7 @@
       },
       {
         "term": "versioning",
-        "eli5": "The API major version is the URL path (/api/v2). The spec's info.version (2.12.0) bumps on every spec change and is drift-guarded because the document is generated from code. v2 is the cluster-first stable major; the frozen v1 predecessor is in a time-boxed deprecation (migration map at /docs/migration/v1-to-v2). Operations carry stable operationIds; keyed 2xx responses declare X-RateLimit-* headers.",
+        "eli5": "The API major version is the URL path (/api/v2). The spec's info.version (2.13.0) bumps on every spec change and is drift-guarded because the document is generated from code. v2 is the cluster-first stable major; the frozen v1 predecessor is in a time-boxed deprecation (migration map at /docs/migration/v1-to-v2). Operations carry stable operationIds; keyed 2xx responses declare X-RateLimit-* headers.",
         "see": "info.version; GET /api/v2/openapi.json; the migration guide at /docs/migration/v1-to-v2"
       },
       {
@@ -7449,9 +7449,10 @@
                                 "type": "string",
                                 "enum": [
                                   "pe-norm-v1-artist",
-                                  "pe-norm-v1-recording"
+                                  "pe-norm-v1-recording",
+                                  "pe-norm-v1-label"
                                 ],
-                                "description": "Which 64-hex identity keyspace ?cluster= must be drawn from. The two keyspaces are disjoint; a key from the wrong one fails soft as an empty honest_gap, never an error."
+                                "description": "Which 64-hex identity keyspace ?cluster= must be drawn from. The keyspaces are disjoint; a key from the wrong one fails soft as an empty honest_gap, never an error."
                               },
                               "wire": {
                                 "type": "string",
@@ -7638,7 +7639,7 @@
     "/api/v2/surface/{name}": {
       "get": {
         "summary": "Generic cluster-keyed surface read (by registry name)",
-        "description": "The generic read behind every row in GET /api/v2/surface: one operation serves all 6 registered surfaces (public.spine_artist_temporal_profile, seen.radio_play_v1, seen.dj_champion, seen.radio_co_play, seen.song_station_journey, mirror.wantlist_demand_by_cluster_v1). {name} is the schema-qualified registry key — GET /api/v2/surface for the live list + each name's shape. ?cluster= is the 64-hex identity key in THAT surface's registered keyspace (a key from the wrong keyspace fails soft as an empty honest_gap, not an error — see the index for which keyspace {name} expects). cluster-row grain surfaces (cap 1/1) ignore ?after/?limit and answer with 0 or 1 rows; cluster-multirow/cluster-edge-list grains keyset-paginate via the opaque ?after cursor from a prior page's next_after (never OFFSET — pass it back verbatim, never construct or decode it). ?limit clamps to the surface's registered cap. Unknown {name} → 400 with a hint listing every valid name + doc_url + next (the index call). A per-row crate-side kill (registry enabled:false) → 404; the master kill (env CRATE_SURFACE_ENABLED=false) → 503. state:'degraded' (still HTTP 200, rows:[]) means the dedicated crate_surface_reader read pool is unconfigured or not yet granted on the replica — fail-closed: the code ships ahead of the DB role landing. Cursor durability: cursors are page-iteration handles, NOT bookmarks — some surfaces build them from producer-internal columns that can change across producer re-crawls (seen.radio_play_v1's play_key today), so a stored cursor may silently skip or repeat rows after a re-crawl; re-start from the first page for a fresh read (each surface's coverage_note in GET /api/v2/surface carries the current specifics).",
+        "description": "The generic read behind every row in GET /api/v2/surface: one operation serves all 30 registered surfaces (public.spine_artist_temporal_profile, seen.radio_play_v1, seen.dj_champion, seen.radio_co_play, seen.song_station_journey, mirror.wantlist_demand_by_cluster_v1, seen.master_propagation_timeline_cluster, seen.dj_tastemaker_score, seen.performing_entity, seen.artist_dossier, seen.artist_momentum, seen.artist_network_position, seen.artist_tier_presence, seen.artist_festival_co_appearance, seen.artist_cross_tier_network, seen.artist_brokerage, seen.artist_emergence_narrative_public, seen.artist_airplay_first_appearance, seen.artist_djset_first_appearance, seen.artist_emergence_lead_time, seen.artist_dated_appearance, seen.artist_primary_geography, seen.artist_identity_bridge, seen.live_demand, seen.bandcamp_artist_gravity, seen.bandcamp_artist_tastemaker_quality, seen.artist_djset_scout_signal, seen.label_djset_momentum, seen.artist_signal_passport, seen.artist_sc_rights_rollup_v1). {name} is the schema-qualified registry key — GET /api/v2/surface for the live list + each name's shape. ?cluster= is the 64-hex identity key in THAT surface's registered keyspace (a key from the wrong keyspace fails soft as an empty honest_gap, not an error — see the index for which keyspace {name} expects). cluster-row grain surfaces (cap 1/1) ignore ?after/?limit and answer with 0 or 1 rows; cluster-multirow/cluster-edge-list grains keyset-paginate via the opaque ?after cursor from a prior page's next_after (never OFFSET — pass it back verbatim, never construct or decode it). ?limit clamps to the surface's registered cap. Unknown {name} → 400 with a hint listing every valid name + doc_url + next (the index call). A per-row crate-side kill (registry enabled:false) → 404; the master kill (env CRATE_SURFACE_ENABLED=false) → 503. state:'degraded' (still HTTP 200, rows:[]) means the dedicated crate_surface_reader read pool is unconfigured or not yet granted on the replica — fail-closed: the code ships ahead of the DB role landing. Cursor durability: cursors are page-iteration handles, NOT bookmarks — some surfaces build them from producer-internal columns that can change across producer re-crawls (seen.radio_play_v1's play_key today), so a stored cursor may silently skip or repeat rows after a re-crawl; re-start from the first page for a fresh read (each surface's coverage_note in GET /api/v2/surface carries the current specifics).",
         "tags": [
           "Surface Registry"
         ],
@@ -7657,7 +7658,31 @@
                 "seen.dj_champion",
                 "seen.radio_co_play",
                 "seen.song_station_journey",
-                "mirror.wantlist_demand_by_cluster_v1"
+                "mirror.wantlist_demand_by_cluster_v1",
+                "seen.master_propagation_timeline_cluster",
+                "seen.dj_tastemaker_score",
+                "seen.performing_entity",
+                "seen.artist_dossier",
+                "seen.artist_momentum",
+                "seen.artist_network_position",
+                "seen.artist_tier_presence",
+                "seen.artist_festival_co_appearance",
+                "seen.artist_cross_tier_network",
+                "seen.artist_brokerage",
+                "seen.artist_emergence_narrative_public",
+                "seen.artist_airplay_first_appearance",
+                "seen.artist_djset_first_appearance",
+                "seen.artist_emergence_lead_time",
+                "seen.artist_dated_appearance",
+                "seen.artist_primary_geography",
+                "seen.artist_identity_bridge",
+                "seen.live_demand",
+                "seen.bandcamp_artist_gravity",
+                "seen.bandcamp_artist_tastemaker_quality",
+                "seen.artist_djset_scout_signal",
+                "seen.label_djset_momentum",
+                "seen.artist_signal_passport",
+                "seen.artist_sc_rights_rollup_v1"
               ],
               "description": "The schema-qualified registry key, e.g. seen.radio_play_v1. GET /api/v2/surface lists every valid name."
             },
@@ -7732,7 +7757,8 @@
                           "type": "string",
                           "enum": [
                             "pe-norm-v1-artist",
-                            "pe-norm-v1-recording"
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
                           ]
                         },
                         "liveness": {
@@ -7866,7 +7892,8 @@
                           "type": "string",
                           "enum": [
                             "pe-norm-v1-artist",
-                            "pe-norm-v1-recording"
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
                           ]
                         },
                         "liveness": {
@@ -8018,7 +8045,8 @@
                           "type": "string",
                           "enum": [
                             "pe-norm-v1-artist",
-                            "pe-norm-v1-recording"
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
                           ]
                         },
                         "liveness": {
@@ -8148,7 +8176,8 @@
                           "type": "string",
                           "enum": [
                             "pe-norm-v1-artist",
-                            "pe-norm-v1-recording"
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
                           ]
                         },
                         "liveness": {
@@ -8259,7 +8288,8 @@
                           "type": "string",
                           "enum": [
                             "pe-norm-v1-artist",
-                            "pe-norm-v1-recording"
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
                           ]
                         },
                         "liveness": {
@@ -8369,7 +8399,8 @@
                           "type": "string",
                           "enum": [
                             "pe-norm-v1-artist",
-                            "pe-norm-v1-recording"
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
                           ]
                         },
                         "liveness": {
@@ -8417,6 +8448,3838 @@
                               "wantlist_demand",
                               "distinct_masters_wanted",
                               "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.master_propagation_timeline_cluster"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "dj_canonical_name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "dj_id": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "played_at": {
+                                "type": "string"
+                              },
+                              "source": {
+                                "type": "string"
+                              },
+                              "tracklist_id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "entry_id": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "dj_canonical_name",
+                              "dj_id",
+                              "played_at",
+                              "source",
+                              "tracklist_id",
+                              "entry_id"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.dj_tastemaker_score"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "dj_cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "dj_canonical_name": {
+                                "type": "string"
+                              },
+                              "total_masters_played": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "masters_played_first": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "masters_played_within_first_7d": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "cutting_edge_score": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "first_play_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "latest_play_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "rank": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "dj_cluster_id_hex",
+                              "dj_canonical_name",
+                              "total_masters_played",
+                              "masters_played_first",
+                              "masters_played_within_first_7d",
+                              "cutting_edge_score",
+                              "first_play_at",
+                              "latest_play_at",
+                              "rank"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.performing_entity"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "normalizer_version": {
+                                "type": "string"
+                              },
+                              "artist_name_display": {
+                                "type": "string"
+                              },
+                              "resolved_discogs_artist_id": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "resolved_mbid": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "format": "uuid"
+                              },
+                              "resolved_method": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "resolved_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "event_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_events": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "first_seen_at": {
+                                "type": "string"
+                              },
+                              "last_seen_at": {
+                                "type": "string"
+                              },
+                              "distinct_venues": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_areas": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "computed_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "normalizer_version",
+                              "artist_name_display",
+                              "resolved_discogs_artist_id",
+                              "resolved_mbid",
+                              "resolved_method",
+                              "resolved_at",
+                              "event_count",
+                              "distinct_events",
+                              "first_seen_at",
+                              "last_seen_at",
+                              "distinct_venues",
+                              "distinct_areas",
+                              "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.artist_dossier"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "resolved_discogs_artist_id": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "tracklist_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_radio_sources": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "festival_appearances": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_festivals": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "most_recent_festival_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "culture_forward_festival_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "five_factor_score_weighted": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "event_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_events": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "first_seen_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "last_seen_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "distinct_venues": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_areas": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "resolved_mbid": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "format": "uuid"
+                              },
+                              "artist_name_display": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "has_radio_festival_signal": {
+                                "type": "boolean"
+                              },
+                              "has_event_gravity": {
+                                "type": "boolean"
+                              },
+                              "journalism_mention_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "journalism_article_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "computed_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "resolved_discogs_artist_id",
+                              "tracklist_count",
+                              "distinct_radio_sources",
+                              "festival_appearances",
+                              "distinct_festivals",
+                              "most_recent_festival_at",
+                              "culture_forward_festival_count",
+                              "five_factor_score_weighted",
+                              "event_count",
+                              "distinct_events",
+                              "first_seen_at",
+                              "last_seen_at",
+                              "distinct_venues",
+                              "distinct_areas",
+                              "resolved_mbid",
+                              "artist_name_display",
+                              "has_radio_festival_signal",
+                              "has_event_gravity",
+                              "journalism_mention_count",
+                              "journalism_article_count",
+                              "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.artist_momentum"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "events_recent": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "events_baseline": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "events_total": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "venues_recent": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "areas_recent": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "first_seen_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "last_seen_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "velocity": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "momentum_score": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "is_emerging": {
+                                "type": "boolean"
+                              },
+                              "momentum_tier": {
+                                "type": "string"
+                              },
+                              "artist_name_display": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "resolved_discogs_artist_id": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "resolved_mbid": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "format": "uuid"
+                              },
+                              "computed_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "events_recent",
+                              "events_baseline",
+                              "events_total",
+                              "venues_recent",
+                              "areas_recent",
+                              "first_seen_at",
+                              "last_seen_at",
+                              "velocity",
+                              "momentum_score",
+                              "is_emerging",
+                              "momentum_tier",
+                              "artist_name_display",
+                              "resolved_discogs_artist_id",
+                              "resolved_mbid",
+                              "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.artist_network_position"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "degree": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "weighted_degree": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "resolved_neighbours": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "resolved_neighbour_ratio": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "recent_degree": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "recent_resolved_neighbours": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "recent_resolved_ratio": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "establishment_delta": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "resolved_discogs_artist_id": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "resolved_mbid": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "format": "uuid"
+                              },
+                              "artist_name_display": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "computed_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "degree",
+                              "weighted_degree",
+                              "resolved_neighbours",
+                              "resolved_neighbour_ratio",
+                              "recent_degree",
+                              "recent_resolved_neighbours",
+                              "recent_resolved_ratio",
+                              "establishment_delta",
+                              "resolved_discogs_artist_id",
+                              "resolved_mbid",
+                              "artist_name_display",
+                              "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.artist_tier_presence"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "club_obs": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "club_events": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "first_club_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "last_club_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "festival_obs": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "festival_editions": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "first_festival_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "last_festival_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "plays_clubs": {
+                                "type": "boolean"
+                              },
+                              "plays_festivals": {
+                                "type": "boolean"
+                              },
+                              "spans_tiers": {
+                                "type": "boolean"
+                              },
+                              "resolved_discogs_artist_id": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "resolved_mbid": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "format": "uuid"
+                              },
+                              "artist_name_display": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "computed_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "club_obs",
+                              "club_events",
+                              "first_club_at",
+                              "last_club_at",
+                              "festival_obs",
+                              "festival_editions",
+                              "first_festival_at",
+                              "last_festival_at",
+                              "plays_clubs",
+                              "plays_festivals",
+                              "spans_tiers",
+                              "resolved_discogs_artist_id",
+                              "resolved_mbid",
+                              "artist_name_display",
+                              "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.artist_festival_co_appearance"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "co_cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "co_edition_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "co_festival_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "co_country_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "first_co_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "last_co_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "co_resolved_discogs_artist_id": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "co_resolved_mbid": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "format": "uuid"
+                              },
+                              "co_artist_name_display": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "computed_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "co_cluster_id_hex",
+                              "co_edition_count",
+                              "co_festival_count",
+                              "co_country_count",
+                              "first_co_at",
+                              "last_co_at",
+                              "co_resolved_discogs_artist_id",
+                              "co_resolved_mbid",
+                              "co_artist_name_display",
+                              "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.artist_cross_tier_network"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "club_co_artists": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "festival_co_artists": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "both_tier_co_artists": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "total_co_artists": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "cross_tier_ratio": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "spans_tiers": {
+                                "type": "boolean"
+                              },
+                              "resolved_discogs_artist_id": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "resolved_mbid": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "format": "uuid"
+                              },
+                              "artist_name_display": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "computed_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "club_co_artists",
+                              "festival_co_artists",
+                              "both_tier_co_artists",
+                              "total_co_artists",
+                              "cross_tier_ratio",
+                              "spans_tiers",
+                              "resolved_discogs_artist_id",
+                              "resolved_mbid",
+                              "artist_name_display",
+                              "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.artist_brokerage"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "degree": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "core_size": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "core_ego_edges": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "ego_density": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "effective_size": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "efficiency": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "brokerage_score": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "brokerage_tier": {
+                                "type": "string"
+                              },
+                              "resolved_discogs_artist_id": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "resolved_mbid": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "format": "uuid"
+                              },
+                              "artist_name_display": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "computed_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "degree",
+                              "core_size",
+                              "core_ego_edges",
+                              "ego_density",
+                              "effective_size",
+                              "efficiency",
+                              "brokerage_score",
+                              "brokerage_tier",
+                              "resolved_discogs_artist_id",
+                              "resolved_mbid",
+                              "artist_name_display",
+                              "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.artist_emergence_narrative_public"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "resolved_discogs_artist_id": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "artist_name_display": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "first_press_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "first_airplay_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "first_booking_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "first_underground_signal_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "first_underground_signal_source": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "press_to_airplay_days": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "underground_to_booking_days": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "total_press_articles": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_press_sources": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "airplay_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_stations": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "underground_source_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "source_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "computed_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "resolved_discogs_artist_id",
+                              "artist_name_display",
+                              "first_press_date",
+                              "first_airplay_date",
+                              "first_booking_date",
+                              "first_underground_signal_date",
+                              "first_underground_signal_source",
+                              "press_to_airplay_days",
+                              "underground_to_booking_days",
+                              "total_press_articles",
+                              "distinct_press_sources",
+                              "airplay_count",
+                              "distinct_stations",
+                              "underground_source_count",
+                              "source_count",
+                              "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.artist_airplay_first_appearance"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "first_airplay_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "latest_airplay_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "airplay_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_stations": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_venues": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_djs": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "computed_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "first_airplay_date",
+                              "latest_airplay_date",
+                              "airplay_count",
+                              "distinct_stations",
+                              "distinct_venues",
+                              "distinct_djs",
+                              "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.artist_djset_first_appearance"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "first_djset_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "latest_djset_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "djset_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_djs": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_venues": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "computed_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "first_djset_date",
+                              "latest_djset_date",
+                              "djset_count",
+                              "distinct_djs",
+                              "distinct_venues",
+                              "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.artist_emergence_lead_time"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "first_press_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "first_airplay_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "first_booking_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "first_underground_signal_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "first_underground_signal_source": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "underground_source_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "source_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "computed_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "first_press_date",
+                              "first_airplay_date",
+                              "first_booking_date",
+                              "first_underground_signal_date",
+                              "first_underground_signal_source",
+                              "underground_source_count",
+                              "source_count",
+                              "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.artist_dated_appearance"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "source_kind": {
+                                "type": "string"
+                              },
+                              "first_appearance_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "latest_appearance_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "appearance_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "is_quarantined": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "source_kind",
+                              "first_appearance_date",
+                              "latest_appearance_date",
+                              "appearance_count",
+                              "is_quarantined"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.artist_primary_geography"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "area_id": {
+                                "type": "string"
+                              },
+                              "primary_city": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "primary_region": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "primary_country": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "from_recent_window": {
+                                "type": "boolean"
+                              },
+                              "computed_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "area_id",
+                              "primary_city",
+                              "primary_region",
+                              "primary_country",
+                              "from_recent_window",
+                              "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.artist_identity_bridge"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "ra_artist_id": {
+                                "type": "string"
+                              },
+                              "url_safe_name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "ra_display_name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "discogs_artist_id_claimed": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "discogs_url": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "bandcamp_url": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "soundcloud_url": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "instagram_url": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "website_url": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "country_name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "ra_status": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "follower_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "first_event_id": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "first_event_title": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "first_event_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "fetched_at": {
+                                "type": "string"
+                              },
+                              "spotify_url": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "youtube_url": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "ra_artist_id",
+                              "url_safe_name",
+                              "ra_display_name",
+                              "discogs_artist_id_claimed",
+                              "discogs_url",
+                              "bandcamp_url",
+                              "soundcloud_url",
+                              "instagram_url",
+                              "website_url",
+                              "country_name",
+                              "ra_status",
+                              "follower_count",
+                              "first_event_id",
+                              "first_event_title",
+                              "first_event_date",
+                              "fetched_at",
+                              "spotify_url",
+                              "youtube_url"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.live_demand"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "events_tracked": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "events_sold_out": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_providers": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_promoters": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "total_capacity_tracked": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "avg_fill_fraction": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "max_sell_through_per_day": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "max_sold_out_lead_days": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "max_demand_proxy": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "first_demand_event_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "latest_demand_event_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "demand_momentum_score": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "demand_tier": {
+                                "type": "string"
+                              },
+                              "artist_name_display": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "resolved_discogs_artist_id": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "resolved_mbid": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "format": "uuid"
+                              },
+                              "computed_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "events_tracked",
+                              "events_sold_out",
+                              "distinct_providers",
+                              "distinct_promoters",
+                              "total_capacity_tracked",
+                              "avg_fill_fraction",
+                              "max_sell_through_per_day",
+                              "max_sold_out_lead_days",
+                              "max_demand_proxy",
+                              "first_demand_event_date",
+                              "latest_demand_event_date",
+                              "demand_momentum_score",
+                              "demand_tier",
+                              "artist_name_display",
+                              "resolved_discogs_artist_id",
+                              "resolved_mbid",
+                              "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.bandcamp_artist_gravity"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "sample_artist_name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "owner_reach": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "wishlist_demand": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_releases": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "demand_lead": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "demand_ratio": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "emergence_class": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "bandcamp_demand_edge_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "bandcamp_earliest_supported_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "computed_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "sample_artist_name",
+                              "owner_reach",
+                              "wishlist_demand",
+                              "distinct_releases",
+                              "demand_lead",
+                              "demand_ratio",
+                              "emergence_class",
+                              "bandcamp_demand_edge_date",
+                              "bandcamp_earliest_supported_date",
+                              "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.bandcamp_artist_tastemaker_quality"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "sample_artist_name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "supporter_cohort_size": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "aesq": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "aesq_median": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "aesq_rw": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "mean_first_buyer_earliness": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "computed_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "sample_artist_name",
+                              "supporter_cohort_size",
+                              "aesq",
+                              "aesq_median",
+                              "aesq_rw",
+                              "mean_first_buyer_earliness",
+                              "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.artist_djset_scout_signal"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "scouting_dj_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "max_dj_scout_score": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "max_dj_earliness": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "max_dj_brokerage": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "has_broker_cosign": {
+                                "type": "boolean"
+                              },
+                              "has_early_dj_scout_cosign": {
+                                "type": "boolean"
+                              },
+                              "earliest_djset_play": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "latest_djset_play": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "computed_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "scouting_dj_count",
+                              "max_dj_scout_score",
+                              "max_dj_earliness",
+                              "max_dj_brokerage",
+                              "has_broker_cosign",
+                              "has_early_dj_scout_cosign",
+                              "earliest_djset_play",
+                              "latest_djset_play",
+                              "computed_at"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.label_djset_momentum"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label_cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "label_norm": {
+                                "type": "string"
+                              },
+                              "play_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_djs": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_artists": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "distinct_tracklists": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "first_played_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "last_played_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "plays_last_365d": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "label_cluster_id_hex",
+                              "label_norm",
+                              "play_count",
+                              "distinct_djs",
+                              "distinct_artists",
+                              "distinct_tracklists",
+                              "first_played_at",
+                              "last_played_at",
+                              "plays_last_365d"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.artist_signal_passport"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "leading_signal_date": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "leading_signal_source": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "leading_known_since": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "leading_detection_days": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "leading_detection_class": {
+                                "type": "string"
+                              },
+                              "convergence_dim_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "source_kind_count": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "velocity_bucket": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "break_odds": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "velocity_break_odds": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "break_odds_basis": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "first_signal_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "latest_appearance_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "has_break_event": {
+                                "type": [
+                                  "boolean",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "leading_signal_date",
+                              "leading_signal_source",
+                              "leading_known_since",
+                              "leading_detection_days",
+                              "leading_detection_class",
+                              "convergence_dim_count",
+                              "source_kind_count",
+                              "velocity_bucket",
+                              "break_odds",
+                              "velocity_break_odds",
+                              "break_odds_basis",
+                              "first_signal_at",
+                              "latest_appearance_at",
+                              "has_break_event"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "seen.artist_sc_rights_rollup_v1"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "tracks_with_isrc": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "tracks_bound": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "tracks_with_registered_iswc": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "bind_routes_summary": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "tracks_with_isrc",
+                              "tracks_bound",
+                              "tracks_with_registered_iswc",
+                              "bind_routes_summary"
                             ]
                           }
                         },
@@ -9484,7 +13347,7 @@
     },
     {
       "term": "versioning",
-      "eli5": "The API major version is the URL path (/api/v2). The spec's info.version (2.12.0) bumps on every spec change and is drift-guarded because the document is generated from code. v2 is the cluster-first stable major; the frozen v1 predecessor is in a time-boxed deprecation (migration map at /docs/migration/v1-to-v2). Operations carry stable operationIds; keyed 2xx responses declare X-RateLimit-* headers.",
+      "eli5": "The API major version is the URL path (/api/v2). The spec's info.version (2.13.0) bumps on every spec change and is drift-guarded because the document is generated from code. v2 is the cluster-first stable major; the frozen v1 predecessor is in a time-boxed deprecation (migration map at /docs/migration/v1-to-v2). Operations carry stable operationIds; keyed 2xx responses declare X-RateLimit-* headers.",
       "see": "info.version; GET /api/v2/openapi.json; the migration guide at /docs/migration/v1-to-v2"
     },
     {
