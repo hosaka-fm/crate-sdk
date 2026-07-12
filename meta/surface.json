@@ -236,6 +236,46 @@
     ]
   },
   {
+    "ns": "client",
+    "fn": "surfaces",
+    "call": "crate.surfaces()",
+    "http": "GET",
+    "ep": "/api/v2/surface",
+    "auth": "key",
+    "ret": "SurfaceIndexResponse",
+    "retry": true,
+    "idem": true,
+    "sig": "surfaces(opts?: RequestOptions): Promise<SurfaceIndexResponse>",
+    "desc": "The generic surface registry — every queryable cluster-keyed producer surface crate exposes (cycle-096 / carrefour#135's confirmed-cost corollary: **one generic accessor**, not a method per surface), with its shape: grain, key (column + keyspace + wire format), keyset (pagination seek columns; `null` for cluster-row grain), cap, liveness, and a coverage note. Read a row here before calling surface on its `name` — it's the complete input contract for that call.",
+    "example": "const reg = await crate.surfaces();\nreg.surfaces.forEach((s) => console.log(s.name, s.key.keyspace, s.grain));",
+    "throws": [
+      [
+        "CrateAPIError",
+        "on a non-2xx response."
+      ]
+    ]
+  },
+  {
+    "ns": "client",
+    "fn": "surface",
+    "call": "crate.surface(name, params)",
+    "http": "GET",
+    "ep": "/api/v2/surface/{name}",
+    "auth": "key",
+    "ret": "SurfaceRowsResponse",
+    "retry": true,
+    "idem": true,
+    "sig": "surface(name: SurfaceName, params: SurfaceParams, opts?: RequestOptions): Promise<SurfaceRowsResponse>",
+    "desc": "The generic cluster-keyed surface read — one operation serves every row registered in surfaces. `name` is the schema-qualified registry key (pass it verbatim from a `surfaces()` row's `name`); `cluster` is the 64-hex identity key in THAT surface's registered keyspace — most surfaces are artist-grain, but `seen.song_station_journey` is keyed on a **recording**-grain cluster, not the artist (check the row's `key.keyspace` before calling). A key from the wrong keyspace fails soft as an empty `honest_gap`, never an error. `state` is one of `present` (rows), `honest_gap` (0 rows — a normal answer, not an error), or `degraded` (still HTTP 200, `rows: []` — the dedicated surface-reader pool/role hasn't landed on the replica yet; branch on it, don't retry expecting rows). cluster-row grain surfaces (cap 1/1) ignore `after`/`limit` and answer with 0-1 rows; cluster-multirow/cluster-edge-list grains keyset-paginate via the opaque `after` cursor from a prior page's `next_after` — pass it back **verbatim**, never construct or decode it. Cursor durability: cursors are **page-iteration handles, not durable bookmarks** — some surfaces build them from producer-internal columns that can change across producer re-crawls, so a stored cursor may silently skip or repeat rows later. Restart from the first page (omit `after`) for a fresh read rather than resuming a cursor saved from a previous session.",
+    "example": "const page = await crate.surface('seen.radio_play_v1', { cluster: clusterId, limit: 50 });\nif (page.state === 'present') page.rows.forEach((r) => console.log(r.station_key));\nconst next = page.next_after\n  ? await crate.surface('seen.radio_play_v1', { cluster: clusterId, after: page.next_after })\n  : null;",
+    "throws": [
+      [
+        "invalid_name",
+        "(400) for an unregistered/unknown `name` — the error carries every valid name + `doc_url` + `next` (call surfaces)."
+      ]
+    ]
+  },
+  {
     "ns": "dossier",
     "fn": "artist",
     "call": "crate.dossier.artist(slug)",

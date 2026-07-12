@@ -51,6 +51,29 @@ export type ArtistMasterResponse =
   operations['getArtistMaster']['responses'][200]['content']['application/json'];
 /** The 429 body shape — distinct from the generic `Error` schema (its `retry_after_seconds` is required). */
 export type RateLimited = Schemas['RateLimited'];
+/** The `crate.surfaces()` return — the queryable generic-surface registry ledger (cycle-096 / carrefour#135). */
+export type SurfaceIndexResponse =
+  operations['getSurfaceIndex']['responses'][200]['content']['application/json'];
+/** One `crate.surfaces()` row — the complete input contract for `crate.surface(row.name, …)`: grain, key (column/keyspace/wire), keyset (pagination columns, `null` for cluster-row grain), cap, liveness, coverage note. */
+export type SurfaceRegistryRow = SurfaceIndexResponse['surfaces'][number];
+/** The schema-qualified registry key accepted by `crate.surface(name, …)` — pass verbatim from a `crate.surfaces()` row's `name`. */
+export type SurfaceName = operations['getSurfaceRows']['parameters']['path']['name'];
+/** The `crate.surface(name, params)` return — a union over every registered surface's row shape, discriminated by `surface`. `state` is `present` (rows), `honest_gap` (0 rows, a normal answer), or `degraded` (still 200, `rows: []` — the read pool/role hasn't landed, not an error). */
+export type SurfaceRowsResponse =
+  operations['getSurfaceRows']['responses'][200]['content']['application/json'];
+/**
+ * Params for `crate.surface(name, params)` (`GET /api/v2/surface/{name}`). `cluster` is
+ * REQUIRED — the 64-hex identity key in `name`'s registered keyspace (see
+ * `crate.surfaces()`'s `key.keyspace`; most surfaces are artist-grain, but
+ * `seen.song_station_journey` is keyed on a **recording**-grain cluster). `after` is the
+ * opaque cursor from a prior page's `next_after` — pass back verbatim, never construct
+ * or decode it; cursors are page-iteration handles, not durable bookmarks.
+ */
+export interface SurfaceParams {
+  cluster: string;
+  after?: string;
+  limit?: number;
+}
 
 // --- Request / body contracts ---
 export type ObservedBeaconRequest = Schemas['ObservedBeaconRequest'];

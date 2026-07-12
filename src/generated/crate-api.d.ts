@@ -264,6 +264,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/surface": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Surface registry index — the queryable exposure ledger
+         * @description cycle-096 (carrefour#135): every generic cluster-keyed producer surface crate exposes, with its shape — grain, key (column + keyspace + wire format), keyset (pagination seek columns; null for cluster-row grain), cap, liveness, coverage_note, and advisory semantics. Read this before calling GET /api/v2/surface/{name} — it is the complete input contract for that call. Keyed (X-API-Key); pure/static (no DB checkout).
+         */
+        get: operations["getSurfaceIndex"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/surface/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Generic cluster-keyed surface read (by registry name)
+         * @description The generic read behind every row in GET /api/v2/surface: one operation serves all 6 registered surfaces (public.spine_artist_temporal_profile, seen.radio_play_v1, seen.dj_champion, seen.radio_co_play, seen.song_station_journey, mirror.wantlist_demand_by_cluster_v1). {name} is the schema-qualified registry key — GET /api/v2/surface for the live list + each name's shape. ?cluster= is the 64-hex identity key in THAT surface's registered keyspace (a key from the wrong keyspace fails soft as an empty honest_gap, not an error — see the index for which keyspace {name} expects). cluster-row grain surfaces (cap 1/1) ignore ?after/?limit and answer with 0 or 1 rows; cluster-multirow/cluster-edge-list grains keyset-paginate via the opaque ?after cursor from a prior page's next_after (never OFFSET — pass it back verbatim, never construct or decode it). ?limit clamps to the surface's registered cap. Unknown {name} → 400 with a hint listing every valid name + doc_url + next (the index call). A per-row crate-side kill (registry enabled:false) → 404; the master kill (env CRATE_SURFACE_ENABLED=false) → 503. state:'degraded' (still HTTP 200, rows:[]) means the dedicated crate_surface_reader read pool is unconfigured or not yet granted on the replica — fail-closed: the code ships ahead of the DB role landing. Cursor durability: cursors are page-iteration handles, NOT bookmarks — some surfaces build them from producer-internal columns that can change across producer re-crawls (seen.radio_play_v1's play_key today), so a stored cursor may silently skip or repeat rows after a re-crawl; re-start from the first page for a fresh read (each surface's coverage_note in GET /api/v2/surface carries the current specifics).
+         */
+        get: operations["getSurfaceRows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/tastemakers": {
         parameters: {
             query?: never;
@@ -2637,6 +2677,353 @@ export interface operations {
             };
             /** @description Validation failure (invalid query, malformed body, bad facet name) */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getSurfaceIndex: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The surface registry ledger. */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        object: "surface.index";
+                        surfaces: {
+                            /** @description Schema-qualified registry key — pass verbatim as {name} to GET /api/v2/surface/{name}. */
+                            name: string;
+                            /** @description Owning fleet repo (hosaka-fm/<repo>). */
+                            producer: string;
+                            /** @description crate-side kill switch for this row. false → GET /api/v2/surface/{name} 404s naming the disable (independent of the producer's own kill flag). */
+                            enabled: boolean;
+                            /**
+                             * @description cluster-row = one row, no paging (cap 1/1); cluster-multirow/cluster-edge-list page via the keyset.
+                             * @enum {string}
+                             */
+                            grain: "cluster-row" | "cluster-multirow" | "cluster-edge-list";
+                            key: {
+                                column: string;
+                                /** @enum {string} */
+                                type: "bytea";
+                                /**
+                                 * @description Which 64-hex identity keyspace ?cluster= must be drawn from. The two keyspaces are disjoint; a key from the wrong one fails soft as an empty honest_gap, never an error.
+                                 * @enum {string}
+                                 */
+                                keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording";
+                                /** @enum {string} */
+                                wire: "hex64";
+                            };
+                            /** @description Pagination seek columns for ?after=; null for cluster-row grain (a single-row lookup, never paged). */
+                            keyset: {
+                                columns: {
+                                    column: string;
+                                    type: string;
+                                }[];
+                                /** @enum {string} */
+                                order: "asc" | "desc";
+                            } | null;
+                            /** @description Row-count clamp for a single ?limit= page. */
+                            cap: {
+                                default: number;
+                                max: number;
+                            };
+                            coverage_note: string;
+                            advisory: string | null;
+                            /** @enum {string} */
+                            liveness: "populated" | "advisory" | "empty";
+                        }[];
+                        count: number;
+                        generated_at: string;
+                    };
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getSurfaceRows: {
+        parameters: {
+            query: {
+                cluster: string;
+                after?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                name: "public.spine_artist_temporal_profile" | "seen.radio_play_v1" | "seen.dj_champion" | "seen.radio_co_play" | "seen.song_station_journey" | "mirror.wantlist_demand_by_cluster_v1";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Surface rows (state:'present'), an honest_gap (present:false, rows:[] — never 404), or a degraded read (state:'degraded', the crate_surface_reader pool is unconfigured/ungranted). */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "public.spine_artist_temporal_profile";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            resolved_artist_discogs_id: number | null;
+                            master_count_with_year: number | null;
+                            earliest_release_year: number | null;
+                            latest_release_year: number | null;
+                            active_decades: (number | null)[];
+                            year_span: number | null;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.radio_play_v1";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            song_cluster_id_hex: string | null;
+                            source_type: string;
+                            station_key: string;
+                            dj_canonical_name: string | null;
+                            position: number | null;
+                            extracted_title: string | null;
+                            extracted_remix: string | null;
+                            extracted_label: string | null;
+                            played_on: string;
+                            date_in_sanity_window: boolean;
+                            is_quarantined: boolean;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.dj_champion";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            dj_cluster_id_hex: string;
+                            play_count: number | null;
+                            play_event_count: number | null;
+                            first_played_at: string;
+                            latest_played_at: string;
+                            first_corpus_play: string;
+                            days_after_first_corpus_play: number | null;
+                            is_early_champion: boolean;
+                            is_repeat_champion: boolean;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.radio_co_play";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            co_cluster_id_hex: string;
+                            co_play_count: number | null;
+                            distinct_stations: number | null;
+                            first_co_played_at: string;
+                            last_co_played_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.song_station_journey";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            station_key: string;
+                            first_played_on: string;
+                            last_played_on: string;
+                            play_count: number | null;
+                            journey_rank: number | null;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "mirror.wantlist_demand_by_cluster_v1";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            representative_name: string | null;
+                            wantlist_demand: number | null;
+                            distinct_masters_wanted: number | null;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    };
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

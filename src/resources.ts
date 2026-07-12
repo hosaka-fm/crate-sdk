@@ -77,6 +77,22 @@ export const CRATE_RESOURCES = Object.freeze({
     retryable: true,
     idempotent: true,
   },
+  surfaces: {
+    method: 'GET',
+    endpoint: '/api/v2/surface',
+    returns: 'SurfaceIndexResponse',
+    auth: 'key',
+    retryable: true,
+    idempotent: true,
+  },
+  surface: {
+    method: 'GET',
+    endpoint: '/api/v2/surface/{name}',
+    returns: 'SurfaceRowsResponse',
+    auth: 'key',
+    retryable: true,
+    idempotent: true,
+  },
   breakouts: {
     method: 'GET',
     endpoint: '/api/v2/breakouts',
