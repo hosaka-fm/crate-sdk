@@ -1140,7 +1140,7 @@ export interface components {
                 state: "present" | "honest_gap";
                 releases: components["schemas"]["BandcampReleaseSummary"][];
             };
-            /** @description Rights-readiness for sync clearance (v2-only; cycle-088). MB leg live today: how identifiable (ISRC) and how registered (ISWC — the FACT, never the value) the artist's bridged catalogue is. Discogs-anchored — cluster-only artists honestly gap until the SoundCloud long-tail rollup lands (producer ask open); writer identity (ledger) joins additively when its grant lands. Counts only: no ISRC/ISWC values cross the wire. */
+            /** @description Rights-readiness for sync clearance (v2-only). Two provenance dimensions, both counts-only (no ISRC/ISWC values cross the wire). `signals` (cycle-088, MB proxy): how identifiable (ISRC) and how registered (ISWC — the FACT) the artist's MB-bridged catalogue is; masterIds-keyed → null on the cluster path. `ledger` (cycle-101, CLUSTER-anchored): what the catalogue has been REGISTERED as in ledger's rights ledger, and who wrote it — registered works, works with a registered ISWC, distinct co-writers, plus a SoundCloud non-MB leg. MB-bridged (reach == the MB proxy) and coverage is sparse — honest-gap when a leg reaches nothing. Co-writer → performing-artist NAME is a deferred v2 (cowritersWithMbid marks the ceiling). */
             rights?: {
                 /** @enum {string} */
                 state: "present" | "honest_gap";
@@ -1155,6 +1155,26 @@ export interface components {
                     worksBridged: number;
                     /** @description Works with a registered ISWC — the FACT only; the value is never exposed. */
                     worksWithIswc: number;
+                } | null;
+                /** @description Rights-REGISTRATION dimension (cycle-101), cluster-anchored via the artist's catalogue ISRCs → ledger's ISRC↔work crosswalk → work-writer identity. null = neither the ledger nor the SoundCloud leg reached anything (honest gap). Counts only — no writer_person_key / ISRC / ISWC values. */
+                ledger: {
+                    /** @description Distinct works from the artist's catalogue registered in ledger's rights ledger (canonical_work_key). */
+                    registeredWorks: number;
+                    /** @description …of which carry a registered ISWC. */
+                    worksWithRegisteredIswc: number;
+                    /** @description Distinct co-writer/songwriter person_keys credited across those works (OUTPUT count; raw keys never exposed). */
+                    distinctCowriters: number;
+                    /** @description Distinct co-writer MB artist_mbids — the ceiling for the DEFERRED co-writer→performing-name mapping (~0 today; the ~22% path, carrefour#116). */
+                    cowritersWithMbid: number;
+                    /** @description SoundCloud rights-binding coverage (seen; non-MB, cluster-keyed). null when the cluster has no SoundCloud rows (pilot-scale). */
+                    soundcloud: {
+                        /** @description SoundCloud tracks carrying an ISRC. */
+                        tracksWithIsrc: number;
+                        /** @description …bound to a ledger work. */
+                        tracksBound: number;
+                        /** @description …whose work carries a registered ISWC. */
+                        tracksWithRegisteredIswc: number;
+                    } | null;
                 } | null;
             };
             /** @description WHO wrote / WHO produced, with names (v2-only; cycle-094): the artist's bridged catalogue joined to the MusicBrainz credit tables (mirror MB Phase-3), names + onward keys via mb_artists. Complements the rights facet's counts with the diligence NAMES. Performance role families (performer/vocal/instrument) are deliberately excluded — the desk, not the lineup. Discogs-anchored (masterIds) — cluster-only artists honestly gap. The subject is NOT excluded (self-written/self-produced is signal). */
