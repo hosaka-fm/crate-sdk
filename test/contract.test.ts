@@ -20,6 +20,16 @@ describe('version', () => {
   it('VERSION matches package.json (ADX-7)', () => {
     expect(pkg.VERSION).toBe(manifest.version);
   });
+
+  // ADX-11 — changelog drift guard: the shipped version MUST have a CHANGELOG entry.
+  // Prevents the 1.1.0→1.11.0 silent drift (the CHANGELOG had frozen at 1.0.0).
+  it('CHANGELOG.md has an entry for the current version', () => {
+    const changelog = readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
+    expect(
+      changelog.includes(`## [${manifest.version}]`),
+      `CHANGELOG.md is missing a "## [${manifest.version}]" entry — add one before shipping ${manifest.version}`
+    ).toBe(true);
+  });
 });
 
 describe('public API surface snapshot (ADX-10)', () => {
