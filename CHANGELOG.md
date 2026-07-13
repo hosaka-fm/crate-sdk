@@ -7,6 +7,15 @@ All notable changes to `@hosaka-fm/crate` are documented here. The format follow
 > **Stable from `1.0.0`.** The typed surface is regenerated from `spec/openapi.json`, so type
 > changes track the live crate API contract. Breaking API changes bump the major.
 
+## [1.14.0] - 2026-07-14
+
+### Changed
+
+- Regenerated types against `/api/v2` **2.17.0** — the artist `rights` facet gains a cluster-anchored
+  `ledger` rights-registration dimension (`registeredWorks` / `worksWithRegisteredIswc` /
+  `distinctCowriters` / `cowritersWithMbid` + a SoundCloud leg; counts only). Additive on
+  `ArtistDossierContract.rights`; operation set unchanged.
+
 ## [1.13.0] - 2026-07-13
 
 ### Changed
