@@ -27,7 +27,7 @@ describe('version', () => {
     const changelog = readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
     expect(
       changelog.includes(`## [${manifest.version}]`),
-      `CHANGELOG.md is missing a "## [${manifest.version}]" entry — add one before shipping ${manifest.version}`
+      `CHANGELOG.md is missing a "## [${manifest.version}]" entry — add one before shipping ${manifest.version}`,
     ).toBe(true);
   });
 });
