@@ -7,6 +7,14 @@ All notable changes to `@hosaka-fm/crate` are documented here. The format follow
 > **Stable from `1.0.0`.** The typed surface is regenerated from `spec/openapi.json`, so type
 > changes track the live crate API contract. Breaking API changes bump the major.
 
+## [1.13.0] - 2026-07-13
+
+### Changed
+
+- Regenerated types against `/api/v2` **2.16.0** — registry tranche-5 adds
+  `mirror.cluster_authority_ids_v1` (ISNI/VIAF/GND/LC/Discogs authority-ID crosswalk); **34
+  surfaces**. First `text[]`-typed response fields.
+
 ## [1.12.0] - 2026-07-13
 
 ### Changed
