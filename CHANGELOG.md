@@ -7,6 +7,14 @@ All notable changes to `@hosaka-fm/crate` are documented here. The format follow
 > **Stable from `1.0.0`.** The typed surface is regenerated from `spec/openapi.json`, so type
 > changes track the live crate API contract. Breaking API changes bump the major.
 
+## [1.12.0] - 2026-07-13
+
+### Changed
+
+- Regenerated types against `/api/v2` **2.15.0** — registry tranche-4 adds
+  `public.spine_artist_name_published_view` (ridden) and `seen.artist_signal_known_since` (the
+  detection-time ledger); **33 surfaces** total. Accessor API unchanged.
+
 ## [1.11.0] - 2026-07-13
 
 ### Changed

@@ -293,7 +293,7 @@ export interface paths {
         };
         /**
          * Generic cluster-keyed surface read (by registry name)
-         * @description The generic read behind every row in GET /api/v2/surface: one operation serves all 31 registered surfaces (public.spine_artist_temporal_profile, seen.radio_play_v1, seen.dj_champion, seen.radio_co_play, seen.song_station_journey, mirror.wantlist_demand_by_cluster_v1, seen.master_propagation_timeline_cluster, seen.dj_tastemaker_score, seen.performing_entity, seen.artist_dossier, seen.artist_momentum, seen.artist_network_position, seen.artist_tier_presence, seen.artist_festival_co_appearance, seen.artist_cross_tier_network, seen.artist_brokerage, seen.artist_emergence_narrative_public, seen.artist_airplay_first_appearance, seen.artist_djset_first_appearance, seen.artist_emergence_lead_time, seen.artist_dated_appearance, seen.artist_primary_geography, seen.artist_identity_bridge, seen.live_demand, seen.bandcamp_artist_gravity, seen.bandcamp_artist_tastemaker_quality, seen.artist_djset_scout_signal, seen.label_djset_momentum, seen.artist_signal_passport, seen.artist_sc_rights_rollup_v1, archive_api_v1.artist_mention_daily). {name} is the schema-qualified registry key — GET /api/v2/surface for the live list + each name's shape. ?cluster= is the 64-hex identity key in THAT surface's registered keyspace (a key from the wrong keyspace fails soft as an empty honest_gap, not an error — see the index for which keyspace {name} expects). cluster-row grain surfaces (cap 1/1) ignore ?after/?limit and answer with 0 or 1 rows; cluster-multirow/cluster-edge-list grains keyset-paginate via the opaque ?after cursor from a prior page's next_after (never OFFSET — pass it back verbatim, never construct or decode it). ?limit clamps to the surface's registered cap. Unknown {name} → 400 with a hint listing every valid name + doc_url + next (the index call). A per-row crate-side kill (registry enabled:false) → 404; the master kill (env CRATE_SURFACE_ENABLED=false) → 503. state:'degraded' (still HTTP 200, rows:[]) means the dedicated crate_surface_reader read pool is unconfigured or not yet granted on the replica — fail-closed: the code ships ahead of the DB role landing. Cursor durability: cursors are page-iteration handles, NOT bookmarks — some surfaces build them from producer-internal columns that can change across producer re-crawls (seen.radio_play_v1's play_key today), so a stored cursor may silently skip or repeat rows after a re-crawl; re-start from the first page for a fresh read (each surface's coverage_note in GET /api/v2/surface carries the current specifics).
+         * @description The generic read behind every row in GET /api/v2/surface: one operation serves all 33 registered surfaces (public.spine_artist_temporal_profile, seen.radio_play_v1, seen.dj_champion, seen.radio_co_play, seen.song_station_journey, mirror.wantlist_demand_by_cluster_v1, seen.master_propagation_timeline_cluster, seen.dj_tastemaker_score, seen.performing_entity, seen.artist_dossier, seen.artist_momentum, seen.artist_network_position, seen.artist_tier_presence, seen.artist_festival_co_appearance, seen.artist_cross_tier_network, seen.artist_brokerage, seen.artist_emergence_narrative_public, seen.artist_airplay_first_appearance, seen.artist_djset_first_appearance, seen.artist_emergence_lead_time, seen.artist_dated_appearance, seen.artist_primary_geography, seen.artist_identity_bridge, seen.live_demand, seen.bandcamp_artist_gravity, seen.bandcamp_artist_tastemaker_quality, seen.artist_djset_scout_signal, seen.label_djset_momentum, seen.artist_signal_passport, seen.artist_sc_rights_rollup_v1, archive_api_v1.artist_mention_daily, public.spine_artist_name_published_view, seen.artist_signal_known_since). {name} is the schema-qualified registry key — GET /api/v2/surface for the live list + each name's shape. ?cluster= is the 64-hex identity key in THAT surface's registered keyspace (a key from the wrong keyspace fails soft as an empty honest_gap, not an error — see the index for which keyspace {name} expects). cluster-row grain surfaces (cap 1/1) ignore ?after/?limit and answer with 0 or 1 rows; cluster-multirow/cluster-edge-list grains keyset-paginate via the opaque ?after cursor from a prior page's next_after (never OFFSET — pass it back verbatim, never construct or decode it). ?limit clamps to the surface's registered cap. Unknown {name} → 400 with a hint listing every valid name + doc_url + next (the index call). A per-row crate-side kill (registry enabled:false) → 404; the master kill (env CRATE_SURFACE_ENABLED=false) → 503. state:'degraded' (still HTTP 200, rows:[]) means the dedicated crate_surface_reader read pool is unconfigured or not yet granted on the replica — fail-closed: the code ships ahead of the DB role landing. Cursor durability: cursors are page-iteration handles, NOT bookmarks — some surfaces build them from producer-internal columns that can change across producer re-crawls (seen.radio_play_v1's play_key today), so a stored cursor may silently skip or repeat rows after a re-crawl; re-start from the first page for a fresh read (each surface's coverage_note in GET /api/v2/surface carries the current specifics).
          */
         get: operations["getSurfaceRows"];
         put?: never;
@@ -2841,7 +2841,7 @@ export interface operations {
             };
             header?: never;
             path: {
-                name: "public.spine_artist_temporal_profile" | "seen.radio_play_v1" | "seen.dj_champion" | "seen.radio_co_play" | "seen.song_station_journey" | "mirror.wantlist_demand_by_cluster_v1" | "seen.master_propagation_timeline_cluster" | "seen.dj_tastemaker_score" | "seen.performing_entity" | "seen.artist_dossier" | "seen.artist_momentum" | "seen.artist_network_position" | "seen.artist_tier_presence" | "seen.artist_festival_co_appearance" | "seen.artist_cross_tier_network" | "seen.artist_brokerage" | "seen.artist_emergence_narrative_public" | "seen.artist_airplay_first_appearance" | "seen.artist_djset_first_appearance" | "seen.artist_emergence_lead_time" | "seen.artist_dated_appearance" | "seen.artist_primary_geography" | "seen.artist_identity_bridge" | "seen.live_demand" | "seen.bandcamp_artist_gravity" | "seen.bandcamp_artist_tastemaker_quality" | "seen.artist_djset_scout_signal" | "seen.label_djset_momentum" | "seen.artist_signal_passport" | "seen.artist_sc_rights_rollup_v1" | "archive_api_v1.artist_mention_daily";
+                name: "public.spine_artist_temporal_profile" | "seen.radio_play_v1" | "seen.dj_champion" | "seen.radio_co_play" | "seen.song_station_journey" | "mirror.wantlist_demand_by_cluster_v1" | "seen.master_propagation_timeline_cluster" | "seen.dj_tastemaker_score" | "seen.performing_entity" | "seen.artist_dossier" | "seen.artist_momentum" | "seen.artist_network_position" | "seen.artist_tier_presence" | "seen.artist_festival_co_appearance" | "seen.artist_cross_tier_network" | "seen.artist_brokerage" | "seen.artist_emergence_narrative_public" | "seen.artist_airplay_first_appearance" | "seen.artist_djset_first_appearance" | "seen.artist_emergence_lead_time" | "seen.artist_dated_appearance" | "seen.artist_primary_geography" | "seen.artist_identity_bridge" | "seen.live_demand" | "seen.bandcamp_artist_gravity" | "seen.bandcamp_artist_tastemaker_quality" | "seen.artist_djset_scout_signal" | "seen.label_djset_momentum" | "seen.artist_signal_passport" | "seen.artist_sc_rights_rollup_v1" | "archive_api_v1.artist_mention_daily" | "public.spine_artist_name_published_view" | "seen.artist_signal_known_since";
             };
             cookie?: never;
         };
@@ -3751,6 +3751,55 @@ export interface operations {
                             mention_date: string;
                             mention_count: number | null;
                             max_extraction_confidence: number | null;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "public.spine_artist_name_published_view";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            /** Format: uuid */
+                            resolved_artist_mbid: string | null;
+                            resolved_artist_discogs_id: number | null;
+                            cluster_member_count: number | null;
+                            cluster_source_repo_count: number | null;
+                            cluster_first_observed_at: string | null;
+                            cluster_latest_observed_at: string | null;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.artist_signal_known_since";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            source_kind: string;
+                            first_appearance_date: string;
+                            known_since: string | null;
+                            backfill_class: string | null;
                         }[];
                         next_after: string | null;
                         coverage_note: string;
