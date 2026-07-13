@@ -7,6 +7,106 @@ All notable changes to `@hosaka-fm/crate` are documented here. The format follow
 > **Stable from `1.0.0`.** The typed surface is regenerated from `spec/openapi.json`, so type
 > changes track the live crate API contract. Breaking API changes bump the major.
 
+## [1.11.0] - 2026-07-13
+
+### Changed
+
+- Regenerated types against crate `/api/v2` **2.14.0** — registry tranche-3 adds
+  `archive_api_v1.artist_mention_daily` (ridden per-source dated mention aggregate), bringing the
+  generic surface registry to **31 surfaces**. Accessor API unchanged (`crate.surface(name, …)`).
+
+## [1.10.0] - 2026-07-13
+
+### Changed
+
+- Regenerated types against `/api/v2` **2.13.0** — registry tranche-2 adds **24 seen surfaces**
+  (30 total), the `pe-norm-v1-label` keyspace, and `numeric`/`uuid` field types. `SurfaceRows_*`
+  response unions now cover every accepted surface.
+
+## [1.9.0] - 2026-07-12
+
+### Added
+
+- **`crate.surfaces()`** → `GET /api/v2/surface` (the registry index) and
+  **`crate.surface(name, { cluster, after, limit })`** → `GET /api/v2/surface/{name}` — one generic
+  accessor for the whole cluster-keyed read layer, keyset-paginated via the opaque `after` cursor.
+
+### Changed
+
+- Regenerated against `/api/v2` **2.12.0** (registry go-live).
+
+## [1.8.0] - 2026-07-07
+
+### Changed
+
+- Regenerated against `/api/v2` **2.11.0** — MB Phase-3 scarcity + credits + placements facets.
+
+### Fixed
+
+- Corrected the `VERSION` constant, which `1.7.0` had shipped as `1.6.0` (an unprotected red merge).
+  The `contract.test.ts` `VERSION === package.json` gate (ADX-7) now guards this.
+
+## [1.7.0] - 2026-07-07
+
+### Changed
+
+- Regenerated against `/api/v2` **2.9.0** — typed `connections.related[]` with `clusterId`, plus the
+  geography facet.
+
+## [1.6.0] - 2026-07-07
+
+### Added
+
+- **`crate.artistMaster()`** — the master grain, cluster-attached.
+
+### Changed
+
+- Regenerated against `/api/v2` **2.8.0**.
+
+## [1.5.0] - 2026-07-07
+
+### Added
+
+- **`crate.artists()`** — the genre-browse discovery grid.
+
+### Changed
+
+- Regenerated against `/api/v2` **2.7.0**.
+
+## [1.4.0] - 2026-07-07
+
+### Changed
+
+- Regenerated against `/api/v2` **2.6.0** — rights-readiness facet + keyless education-preview types.
+
+## [1.3.0] - 2026-07-06
+
+### Added
+
+- **`crate.aura()`** — per-artist convergence aura.
+
+### Changed
+
+- Regenerated against `/api/v2` **2.4.1** (required-field tightening, artwork dimensions). Migration
+  guide corrected.
+
+## [1.2.0] - 2026-07-06
+
+### Added
+
+- **`crate.artistBandcampRelease()`** — the cluster-attached Bandcamp release grain.
+
+### Changed
+
+- Regenerated against `/api/v2` **2.3.0**.
+
+## [1.1.0] - 2026-07-03
+
+### Changed
+
+- Regenerated against `/api/v2` **2.2.0** — `search` gains `artist_cluster_id`, `resolve` gains
+  `candidates[]`, and `_links` are declared across dossiers.
+
 ## [1.0.0] - 2026-06-30
 
 First stable release. Targets crate's **cluster-first `/api/v2`** (OpenAPI `2.0.0`). The catalogue
