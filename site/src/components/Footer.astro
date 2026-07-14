@@ -1,0 +1,24 @@
+---
+// Footer override (crate-sdk docs). Wraps Starlight's default footer so the built-in
+// last-updated + prev/next pagination are preserved, then appends a fleet link row.
+// Reason for the override: Starlight 0.40 has no footer-links config, and a footer link
+// cannot be expressed via a CSS token. Keep this minimal — do not reimplement the default.
+import Default from '@astrojs/starlight/components/Footer.astro';
+---
+
+<Default><slot /></Default>
+<nav class="crate-site-footer" aria-label="Fleet links">
+  <a href="https://blog.hosaka.fm">Blog</a>
+</nav>
+
+<style>
+  .crate-site-footer {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--sl-color-hairline);
+    font-size: var(--sl-text-sm);
+  }
+  .crate-site-footer a {
+    color: var(--sl-color-accent);
+  }
+</style>
