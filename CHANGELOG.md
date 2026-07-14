@@ -7,6 +7,14 @@ All notable changes to `@hosaka-fm/crate` are documented here. The format follow
 > **Stable from `1.0.0`.** The typed surface is regenerated from `spec/openapi.json`, so type
 > changes track the live crate API contract. Breaking API changes bump the major.
 
+## [1.15.0] - 2026-07-14
+
+### Changed
+
+- Regenerated types against `/api/v2` **2.18.0** — registry **tranche-6**: `sync.placement_claim_by_cluster_v1`
+  (claim-grain screen-placement drill-in; first `sync` surface). Registry now **35 surfaces**; the
+  `GET /api/v2/surface/{name}` enum + response union gain the surface. Operation set unchanged.
+
 ## [1.14.0] - 2026-07-14
 
 ### Changed
