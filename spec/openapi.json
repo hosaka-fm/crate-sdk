@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "crate-api",
-    "version": "2.17.0",
-    "description": "# crate API (v2 — cluster-first)\n\ncrate is the **aggregation gateway** for a fleet of music-data producers. You ask it about an artist, a label, or a festival; it joins every signal the fleet can see about that entity and hands you back one composed picture — collector behavior, editorial coverage, live-circuit demand, breakout momentum, web presence — each piece labelled with where it came from and how fresh it is.\n\nTwo things make crate different from a typical catalogue API, and the rest of this doc exists to teach them:\n\n1. **Identity is a `cluster_id`, not a Discogs/MusicBrainz/Bandcamp id.** The same artist scattered across those platforms collapses to one canonical key. You resolve to it once, then key everything off it.\n2. **An empty answer is a first-class answer.** crate returns HTTP `200` and tells you plainly what it *can't* see (`present:false`, a null field, `state:\"honest_gap\"`) instead of `404`-ing or fabricating data. Only `4xx`/`5xx` are errors.\n\nv2 is **cluster-first**: the agent (artist / label / festival) is the prime resource, and sources (Bandcamp, Discogs) and releases **attach to it as dimensions** rather than being top-level nouns. If you do nothing else, internalize the cold-start recipe: **resolve a name or pasted link → `cluster_id` → dossier.** `GET /api/v2` returns this recipe live, and `GET /api/v2/resolve?q=<name>` is the front door.\n\n## Authentication\n\nThe API is keyed: every operation requires an `X-API-Key` header (`ck_(live|test)_<…>` format) **except** the two public front-door endpoints that opt out — `GET /api/v2` (the root index) and `GET /api/v2/openapi.json` (this spec). One family of endpoints uses a *different* credential entirely — see **beacons** below.\n\n## Concepts\n\n### `cluster_id` — the canonical artist identity\n\n`cluster_id` is crate's prime key for an artist: a `pe-norm-v1` hex string derived from the artist's name, designed so that the same artist's Discogs page, MusicBrainz entry, and Bandcamp profile all **collapse to one `cluster_id`**. Key *all* artist data off it.\n\n- It is an **opaque string** — pass it through verbatim. Never numericize it, parse it, or assume structure.\n- `cluster_id: null` is an **honest gap**, not an error: crate couldn't resolve a canonical identity for that lookup. Roughly half of the long-tail booking artists have neither a Discogs id nor an MBID, so `null` is normal.\n- You get one by calling `GET /api/v2/resolve` (from a name, a pasted link, or a foreign id). You then address the artist dossier directly as `GET /api/v2/artist/{key}`, where `{key}` is the 64-hex `cluster_id` **or** a human slug.\n- A 64-hex key resolves identity *directly* from the cluster — it deliberately skips the Discogs lookup so a hex address never silently re-anchors onto a same-name Discogs row. Foreign locators (`discogs:<id>`, `mbid:<uuid>`) are **not** canonical addresses: convert them via `/resolve` first, or `/artist/{key}` returns `400` (the response's `next` field is a ready-to-call `/resolve` URL).\n\n### dossier · grains — the composed per-entity picture\n\nA **dossier** is the full picture crate composes for one entity by joining every fleet signal. v2 has three agent **grains**:\n\n| grain | addressed by | what it is |\n|---|---|---|\n| `artist` | `GET /api/v2/artist/{key}` or `GET /api/v2/dossier/artist/{slug}` | identity + collector behavior + editorial + emergence + live presence + web + compositions + **discography** + **bandcamp** dimensions… |\n| `label` | `GET /api/v2/label/{key}` or `GET /api/v2/dossier/label/{slug}` | label identity + sublabel→parent lineage + collector behavior |\n| `festival` | `GET /api/v2/dossier/festival/{slug}` | de-fragmented festival identity + consolidated editions ⋈ lineup |\n\n**Releases are not a top-level grain in v2.** In the cluster-first model a release (a Discogs release-group, what a consumer calls a \"release\") **attaches to the artist** as the dossier's `discography` dimension, keyed by the artist's `cluster_id` — there is no standalone release resource. Likewise **Bandcamp is a dimension of the artist dossier** (`bandcamp_emergence` / `bandcamp_tastemaker`), not a top-level surface.\n\nEvery dossier facet carries a classified **`state`** (e.g. `present`, `empty`/absent, `honest_gap`) and the dossier ships a **provenance manifest** — an array where each entry names the `producer`, `sourceTable`, `refreshCadence`, `tier`, and `honestGapState` for a field. Read `GET /api/v2/dossier/manifest` (the data dictionary) to discover the entire field surface across grains — including grains that are deliberately *unavailable* (e.g. song, because the fleet has no track key; and the demoted master grain, whose detail now lives in the artist's `discography`) — without hitting every entity endpoint.\n\n### honest gap — empty is `200`, not `404`\n\nThis is crate's defining principle: **crate shows what it can see and is explicit about what it can't, rather than 404-ing or faking data.** An unresolved or empty lookup returns **HTTP `200`** with one of:\n\n- `present: false` (e.g. a dossier dimension with no match),\n- a `null` field (`cluster_id: null`, `identity: null`),\n- `state: \"honest_gap\"` on a dossier facet.\n\nBranch on the body, not the status, for \"did I get data?\". An unresolved artist slug returns `identity:null` at `200` — never `404`. Reserve your error handling for genuine **`4xx`/`5xx`**.\n\n### `resolved_via` · `resolved_from` — binding tier and match method\n\nWhen crate resolves an identity it tells you two orthogonal things:\n\n- **`resolved_via`** = the *binding tier*, i.e. how trustworthy the identity is:\n  - `'discogs'` — canonical, Discogs-bound (verified).\n  - `'cluster'` — **observed/unverified**: the identity came from the booking graph with no Discogs bind. Surface it flagged as unverified, never as canonical.\n  - `null` — did not resolve.\n- **`resolved_from`** = *how* you addressed it on `/resolve`: `'url'` (a pasted link), `'name'`, or `'locator'` (a foreign id). `matched_on` names the surface that matched; `note` explains a recognized-but-unresolved link (e.g. a Twitter URL crate recognizes but does not yet cross-reference).\n\nA 64-hex `cluster_id` address always yields `resolved_via: 'cluster'` (observed tier) by design.\n\n### the cube · `cube_quadrant` — the behavioral-signal model\n\nThe **cube** is crate's behavioral model of a release: a **3-bit code** (string, e.g. `\"101\"`) placing it on three independent behavioral axes — **who OWNS it (collector), who PLAYS it (DJ), who WRITES about it (critic)**. Each bit is `0`/`1`, so the eight quadrants run `\"000\"` (\"No signal\") through `\"111\"` (\"Full intersection\"): `\"100\"` = collector-only, `\"010\"` = DJ-only, `\"101\"` = collector + critic, and so on. The collector-vs-DJ split — *who owns it vs who plays it* — is the heart of the model. `cube_quadrant: null` means it isn't yet classified (an honest gap). You meet `cube_quadrant` (with companion `owner_count` / `dj_count` / `critic_count` magnitudes + a `link_to_cube` explorer deep-link) on the master-grain result rows of `GET /api/v2/search`.\n\n### tastemakers · breakouts — discovery surfaces\n\nTwo read-only discovery surfaces, served from offline-published snapshots (no DB checkout) and **fail-soft**: each returns a `state` of `present` / `empty` / `degraded`, where `degraded` is a `200` honest-gap (a read failure never `500`s), and `stale:true` flags a snapshot older than 7 days.\n\n- **tastemakers** (`GET /api/v2/tastemakers`, `…/ones-to-watch`) — influential curators and the richest artist-grain analytics crate has: rank, own-tier, brokerage score, corroborating axes, lead-times, Bandcamp demand. `?limit=` bounds each array (`1..200`).\n- **breakouts** (`GET /api/v2/breakouts`) — emerging artists on the rise (\"ones to watch\"): booking-momentum signal cross-validated against press. `?tier=breakout|rising` and `?corroboration=corroborated|booking_ahead` filter it; `?limit=` is clamped to `200`.\n\n### beacons — search-event telemetry (different credential)\n\n**Beacons** are client-side telemetry about search behavior: `POST /api/v2/search-events/observed` (a result was served from cache) and `…/refined` (the user changed facets). They are **not** authenticated with your `X-API-Key`. Each search response issues a **short-lived per-search JWT** bound to one `search_event_id`; send it as `Authorization: Bearer <token>`, and the token must match the body's `search_event_id`. Bodies are capped at 512 bytes and beacons are idempotent (a duplicate is a `204` no-op). Beacon `400`s carry a Zod *flattened* `details` object (not the array shape of normal validation errors), so they use a distinct error schema.\n\n### sparse fieldsets — `?fields=` (opt-out trim)\n\nThe artist dossier is **default-rich**: `GET /api/v2/artist/{key}` returns the whole dossier in one round-trip. If you want less, `?fields=identity,discography` **trims** to the named top-level facets (the envelope is always present). An unknown field returns `400 invalid_fields` with the exact valid set and a copy-pasteable `example` — so you never guess.\n\n### Bandcamp in v2 — analytical dimensions, and the link-only posture\n\nIn v2 Bandcamp is an **analytical dimension of the artist dossier**, not a release surface. Two facets carry it, both keyed by the artist's `cluster_id` and both **signals/metrics** (not per-release listings):\n\n- **`bandcamp_emergence`** — purchase-backed demand signals (emergence class, demand lead/ratio, owner reach, wishlist demand, distinct releases, earliest-wished date).\n- **`bandcamp_tastemaker`** — early-supporter quality scores (supporter-cohort size, aesthetic-quality scores, mean first-buyer earliness).\n\nPer-release Bandcamp listings — and the `bandcamp_item_id` / `track_url` per-release fields — are **not a v2 surface**; they belong to the v1 Bandcamp endpoints. (The discography dimension is the **Discogs** release-group attachment, keyed by `discogsMasterId` — distinct from Bandcamp.)\n\ncrate is **link-only** everywhere it does carry links: every artwork item is a hotlink `url` with `rehost:false` — crate never fetches or re-hosts bytes (a Cover Art Archive URL is best-effort and may `404` if no cover exists), and crate never stores Bandcamp audio streams (tokenized, expiring, out of ToS bounds).\n\n### Opaque ids — the universal rule\n\n`cluster_id` is **always a string, always opaque**. Round-trip it verbatim; do not parse, increment, numericize, or infer structure from it. (The same discipline applies to any id crate hands you.) This keeps your client correct across id-scheme changes.\n\n### Versioning\n\nThe **API major version lives in the URL path** (`/api/v2`). The spec's `info.version` (currently `2.17.0`) bumps on **every** spec change and is drift-guarded: the document is generated from code, so docs cannot drift from runtime behavior. Operations carry stable `operationId`s for codegen, and keyed `2xx` responses declare `X-RateLimit-Limit` / `X-RateLimit-Remaining` / `X-RateLimit-Reset` headers (back off on `429` using `retry_after_seconds` / `Retry-After`). v2 is the cluster-first stable major; the frozen v1 predecessor remains available during a time-boxed, announced deprecation — the route-by-route migration map is at `/docs/migration/v1-to-v2`.",
+    "version": "2.18.0",
+    "description": "# crate API (v2 — cluster-first)\n\ncrate is the **aggregation gateway** for a fleet of music-data producers. You ask it about an artist, a label, or a festival; it joins every signal the fleet can see about that entity and hands you back one composed picture — collector behavior, editorial coverage, live-circuit demand, breakout momentum, web presence — each piece labelled with where it came from and how fresh it is.\n\nTwo things make crate different from a typical catalogue API, and the rest of this doc exists to teach them:\n\n1. **Identity is a `cluster_id`, not a Discogs/MusicBrainz/Bandcamp id.** The same artist scattered across those platforms collapses to one canonical key. You resolve to it once, then key everything off it.\n2. **An empty answer is a first-class answer.** crate returns HTTP `200` and tells you plainly what it *can't* see (`present:false`, a null field, `state:\"honest_gap\"`) instead of `404`-ing or fabricating data. Only `4xx`/`5xx` are errors.\n\nv2 is **cluster-first**: the agent (artist / label / festival) is the prime resource, and sources (Bandcamp, Discogs) and releases **attach to it as dimensions** rather than being top-level nouns. If you do nothing else, internalize the cold-start recipe: **resolve a name or pasted link → `cluster_id` → dossier.** `GET /api/v2` returns this recipe live, and `GET /api/v2/resolve?q=<name>` is the front door.\n\n## Authentication\n\nThe API is keyed: every operation requires an `X-API-Key` header (`ck_(live|test)_<…>` format) **except** the two public front-door endpoints that opt out — `GET /api/v2` (the root index) and `GET /api/v2/openapi.json` (this spec). One family of endpoints uses a *different* credential entirely — see **beacons** below.\n\n## Concepts\n\n### `cluster_id` — the canonical artist identity\n\n`cluster_id` is crate's prime key for an artist: a `pe-norm-v1` hex string derived from the artist's name, designed so that the same artist's Discogs page, MusicBrainz entry, and Bandcamp profile all **collapse to one `cluster_id`**. Key *all* artist data off it.\n\n- It is an **opaque string** — pass it through verbatim. Never numericize it, parse it, or assume structure.\n- `cluster_id: null` is an **honest gap**, not an error: crate couldn't resolve a canonical identity for that lookup. Roughly half of the long-tail booking artists have neither a Discogs id nor an MBID, so `null` is normal.\n- You get one by calling `GET /api/v2/resolve` (from a name, a pasted link, or a foreign id). You then address the artist dossier directly as `GET /api/v2/artist/{key}`, where `{key}` is the 64-hex `cluster_id` **or** a human slug.\n- A 64-hex key resolves identity *directly* from the cluster — it deliberately skips the Discogs lookup so a hex address never silently re-anchors onto a same-name Discogs row. Foreign locators (`discogs:<id>`, `mbid:<uuid>`) are **not** canonical addresses: convert them via `/resolve` first, or `/artist/{key}` returns `400` (the response's `next` field is a ready-to-call `/resolve` URL).\n\n### dossier · grains — the composed per-entity picture\n\nA **dossier** is the full picture crate composes for one entity by joining every fleet signal. v2 has three agent **grains**:\n\n| grain | addressed by | what it is |\n|---|---|---|\n| `artist` | `GET /api/v2/artist/{key}` or `GET /api/v2/dossier/artist/{slug}` | identity + collector behavior + editorial + emergence + live presence + web + compositions + **discography** + **bandcamp** dimensions… |\n| `label` | `GET /api/v2/label/{key}` or `GET /api/v2/dossier/label/{slug}` | label identity + sublabel→parent lineage + collector behavior |\n| `festival` | `GET /api/v2/dossier/festival/{slug}` | de-fragmented festival identity + consolidated editions ⋈ lineup |\n\n**Releases are not a top-level grain in v2.** In the cluster-first model a release (a Discogs release-group, what a consumer calls a \"release\") **attaches to the artist** as the dossier's `discography` dimension, keyed by the artist's `cluster_id` — there is no standalone release resource. Likewise **Bandcamp is a dimension of the artist dossier** (`bandcamp_emergence` / `bandcamp_tastemaker`), not a top-level surface.\n\nEvery dossier facet carries a classified **`state`** (e.g. `present`, `empty`/absent, `honest_gap`) and the dossier ships a **provenance manifest** — an array where each entry names the `producer`, `sourceTable`, `refreshCadence`, `tier`, and `honestGapState` for a field. Read `GET /api/v2/dossier/manifest` (the data dictionary) to discover the entire field surface across grains — including grains that are deliberately *unavailable* (e.g. song, because the fleet has no track key; and the demoted master grain, whose detail now lives in the artist's `discography`) — without hitting every entity endpoint.\n\n### honest gap — empty is `200`, not `404`\n\nThis is crate's defining principle: **crate shows what it can see and is explicit about what it can't, rather than 404-ing or faking data.** An unresolved or empty lookup returns **HTTP `200`** with one of:\n\n- `present: false` (e.g. a dossier dimension with no match),\n- a `null` field (`cluster_id: null`, `identity: null`),\n- `state: \"honest_gap\"` on a dossier facet.\n\nBranch on the body, not the status, for \"did I get data?\". An unresolved artist slug returns `identity:null` at `200` — never `404`. Reserve your error handling for genuine **`4xx`/`5xx`**.\n\n### `resolved_via` · `resolved_from` — binding tier and match method\n\nWhen crate resolves an identity it tells you two orthogonal things:\n\n- **`resolved_via`** = the *binding tier*, i.e. how trustworthy the identity is:\n  - `'discogs'` — canonical, Discogs-bound (verified).\n  - `'cluster'` — **observed/unverified**: the identity came from the booking graph with no Discogs bind. Surface it flagged as unverified, never as canonical.\n  - `null` — did not resolve.\n- **`resolved_from`** = *how* you addressed it on `/resolve`: `'url'` (a pasted link), `'name'`, or `'locator'` (a foreign id). `matched_on` names the surface that matched; `note` explains a recognized-but-unresolved link (e.g. a Twitter URL crate recognizes but does not yet cross-reference).\n\nA 64-hex `cluster_id` address always yields `resolved_via: 'cluster'` (observed tier) by design.\n\n### the cube · `cube_quadrant` — the behavioral-signal model\n\nThe **cube** is crate's behavioral model of a release: a **3-bit code** (string, e.g. `\"101\"`) placing it on three independent behavioral axes — **who OWNS it (collector), who PLAYS it (DJ), who WRITES about it (critic)**. Each bit is `0`/`1`, so the eight quadrants run `\"000\"` (\"No signal\") through `\"111\"` (\"Full intersection\"): `\"100\"` = collector-only, `\"010\"` = DJ-only, `\"101\"` = collector + critic, and so on. The collector-vs-DJ split — *who owns it vs who plays it* — is the heart of the model. `cube_quadrant: null` means it isn't yet classified (an honest gap). You meet `cube_quadrant` (with companion `owner_count` / `dj_count` / `critic_count` magnitudes + a `link_to_cube` explorer deep-link) on the master-grain result rows of `GET /api/v2/search`.\n\n### tastemakers · breakouts — discovery surfaces\n\nTwo read-only discovery surfaces, served from offline-published snapshots (no DB checkout) and **fail-soft**: each returns a `state` of `present` / `empty` / `degraded`, where `degraded` is a `200` honest-gap (a read failure never `500`s), and `stale:true` flags a snapshot older than 7 days.\n\n- **tastemakers** (`GET /api/v2/tastemakers`, `…/ones-to-watch`) — influential curators and the richest artist-grain analytics crate has: rank, own-tier, brokerage score, corroborating axes, lead-times, Bandcamp demand. `?limit=` bounds each array (`1..200`).\n- **breakouts** (`GET /api/v2/breakouts`) — emerging artists on the rise (\"ones to watch\"): booking-momentum signal cross-validated against press. `?tier=breakout|rising` and `?corroboration=corroborated|booking_ahead` filter it; `?limit=` is clamped to `200`.\n\n### beacons — search-event telemetry (different credential)\n\n**Beacons** are client-side telemetry about search behavior: `POST /api/v2/search-events/observed` (a result was served from cache) and `…/refined` (the user changed facets). They are **not** authenticated with your `X-API-Key`. Each search response issues a **short-lived per-search JWT** bound to one `search_event_id`; send it as `Authorization: Bearer <token>`, and the token must match the body's `search_event_id`. Bodies are capped at 512 bytes and beacons are idempotent (a duplicate is a `204` no-op). Beacon `400`s carry a Zod *flattened* `details` object (not the array shape of normal validation errors), so they use a distinct error schema.\n\n### sparse fieldsets — `?fields=` (opt-out trim)\n\nThe artist dossier is **default-rich**: `GET /api/v2/artist/{key}` returns the whole dossier in one round-trip. If you want less, `?fields=identity,discography` **trims** to the named top-level facets (the envelope is always present). An unknown field returns `400 invalid_fields` with the exact valid set and a copy-pasteable `example` — so you never guess.\n\n### Bandcamp in v2 — analytical dimensions, and the link-only posture\n\nIn v2 Bandcamp is an **analytical dimension of the artist dossier**, not a release surface. Two facets carry it, both keyed by the artist's `cluster_id` and both **signals/metrics** (not per-release listings):\n\n- **`bandcamp_emergence`** — purchase-backed demand signals (emergence class, demand lead/ratio, owner reach, wishlist demand, distinct releases, earliest-wished date).\n- **`bandcamp_tastemaker`** — early-supporter quality scores (supporter-cohort size, aesthetic-quality scores, mean first-buyer earliness).\n\nPer-release Bandcamp listings — and the `bandcamp_item_id` / `track_url` per-release fields — are **not a v2 surface**; they belong to the v1 Bandcamp endpoints. (The discography dimension is the **Discogs** release-group attachment, keyed by `discogsMasterId` — distinct from Bandcamp.)\n\ncrate is **link-only** everywhere it does carry links: every artwork item is a hotlink `url` with `rehost:false` — crate never fetches or re-hosts bytes (a Cover Art Archive URL is best-effort and may `404` if no cover exists), and crate never stores Bandcamp audio streams (tokenized, expiring, out of ToS bounds).\n\n### Opaque ids — the universal rule\n\n`cluster_id` is **always a string, always opaque**. Round-trip it verbatim; do not parse, increment, numericize, or infer structure from it. (The same discipline applies to any id crate hands you.) This keeps your client correct across id-scheme changes.\n\n### Versioning\n\nThe **API major version lives in the URL path** (`/api/v2`). The spec's `info.version` (currently `2.18.0`) bumps on **every** spec change and is drift-guarded: the document is generated from code, so docs cannot drift from runtime behavior. Operations carry stable `operationId`s for codegen, and keyed `2xx` responses declare `X-RateLimit-Limit` / `X-RateLimit-Remaining` / `X-RateLimit-Reset` headers (back off on `429` using `retry_after_seconds` / `Retry-After`). v2 is the cluster-first stable major; the frozen v1 predecessor remains available during a time-boxed, announced deprecation — the route-by-route migration map is at `/docs/migration/v1-to-v2`.",
     "contact": {
       "name": "crate support",
       "email": "support@crate.hosaka.fm"
@@ -84,7 +84,7 @@
       },
       {
         "term": "versioning",
-        "eli5": "The API major version is the URL path (/api/v2). The spec's info.version (2.17.0) bumps on every spec change and is drift-guarded because the document is generated from code. v2 is the cluster-first stable major; the frozen v1 predecessor is in a time-boxed deprecation (migration map at /docs/migration/v1-to-v2). Operations carry stable operationIds; keyed 2xx responses declare X-RateLimit-* headers.",
+        "eli5": "The API major version is the URL path (/api/v2). The spec's info.version (2.18.0) bumps on every spec change and is drift-guarded because the document is generated from code. v2 is the cluster-first stable major; the frozen v1 predecessor is in a time-boxed deprecation (migration map at /docs/migration/v1-to-v2). Operations carry stable operationIds; keyed 2xx responses declare X-RateLimit-* headers.",
         "see": "info.version; GET /api/v2/openapi.json; the migration guide at /docs/migration/v1-to-v2"
       },
       {
@@ -7698,7 +7698,7 @@
     "/api/v2/surface/{name}": {
       "get": {
         "summary": "Generic cluster-keyed surface read (by registry name)",
-        "description": "The generic read behind every row in GET /api/v2/surface: one operation serves all 34 registered surfaces (public.spine_artist_temporal_profile, seen.radio_play_v1, seen.dj_champion, seen.radio_co_play, seen.song_station_journey, mirror.wantlist_demand_by_cluster_v1, seen.master_propagation_timeline_cluster, seen.dj_tastemaker_score, seen.performing_entity, seen.artist_dossier, seen.artist_momentum, seen.artist_network_position, seen.artist_tier_presence, seen.artist_festival_co_appearance, seen.artist_cross_tier_network, seen.artist_brokerage, seen.artist_emergence_narrative_public, seen.artist_airplay_first_appearance, seen.artist_djset_first_appearance, seen.artist_emergence_lead_time, seen.artist_dated_appearance, seen.artist_primary_geography, seen.artist_identity_bridge, seen.live_demand, seen.bandcamp_artist_gravity, seen.bandcamp_artist_tastemaker_quality, seen.artist_djset_scout_signal, seen.label_djset_momentum, seen.artist_signal_passport, seen.artist_sc_rights_rollup_v1, archive_api_v1.artist_mention_daily, public.spine_artist_name_published_view, seen.artist_signal_known_since, mirror.cluster_authority_ids_v1). {name} is the schema-qualified registry key — GET /api/v2/surface for the live list + each name's shape. ?cluster= is the 64-hex identity key in THAT surface's registered keyspace (a key from the wrong keyspace fails soft as an empty honest_gap, not an error — see the index for which keyspace {name} expects). cluster-row grain surfaces (cap 1/1) ignore ?after/?limit and answer with 0 or 1 rows; cluster-multirow/cluster-edge-list grains keyset-paginate via the opaque ?after cursor from a prior page's next_after (never OFFSET — pass it back verbatim, never construct or decode it). ?limit clamps to the surface's registered cap. Unknown {name} → 400 with a hint listing every valid name + doc_url + next (the index call). A per-row crate-side kill (registry enabled:false) → 404; the master kill (env CRATE_SURFACE_ENABLED=false) → 503. state:'degraded' (still HTTP 200, rows:[]) means the dedicated crate_surface_reader read pool is unconfigured or not yet granted on the replica — fail-closed: the code ships ahead of the DB role landing. Cursor durability: cursors are page-iteration handles, NOT bookmarks — some surfaces build them from producer-internal columns that can change across producer re-crawls (seen.radio_play_v1's play_key today), so a stored cursor may silently skip or repeat rows after a re-crawl; re-start from the first page for a fresh read (each surface's coverage_note in GET /api/v2/surface carries the current specifics).",
+        "description": "The generic read behind every row in GET /api/v2/surface: one operation serves all 35 registered surfaces (public.spine_artist_temporal_profile, seen.radio_play_v1, seen.dj_champion, seen.radio_co_play, seen.song_station_journey, mirror.wantlist_demand_by_cluster_v1, seen.master_propagation_timeline_cluster, seen.dj_tastemaker_score, seen.performing_entity, seen.artist_dossier, seen.artist_momentum, seen.artist_network_position, seen.artist_tier_presence, seen.artist_festival_co_appearance, seen.artist_cross_tier_network, seen.artist_brokerage, seen.artist_emergence_narrative_public, seen.artist_airplay_first_appearance, seen.artist_djset_first_appearance, seen.artist_emergence_lead_time, seen.artist_dated_appearance, seen.artist_primary_geography, seen.artist_identity_bridge, seen.live_demand, seen.bandcamp_artist_gravity, seen.bandcamp_artist_tastemaker_quality, seen.artist_djset_scout_signal, seen.label_djset_momentum, seen.artist_signal_passport, seen.artist_sc_rights_rollup_v1, archive_api_v1.artist_mention_daily, public.spine_artist_name_published_view, seen.artist_signal_known_since, mirror.cluster_authority_ids_v1, sync.placement_claim_by_cluster_v1). {name} is the schema-qualified registry key — GET /api/v2/surface for the live list + each name's shape. ?cluster= is the 64-hex identity key in THAT surface's registered keyspace (a key from the wrong keyspace fails soft as an empty honest_gap, not an error — see the index for which keyspace {name} expects). cluster-row grain surfaces (cap 1/1) ignore ?after/?limit and answer with 0 or 1 rows; cluster-multirow/cluster-edge-list grains keyset-paginate via the opaque ?after cursor from a prior page's next_after (never OFFSET — pass it back verbatim, never construct or decode it). ?limit clamps to the surface's registered cap. Unknown {name} → 400 with a hint listing every valid name + doc_url + next (the index call). A per-row crate-side kill (registry enabled:false) → 404; the master kill (env CRATE_SURFACE_ENABLED=false) → 503. state:'degraded' (still HTTP 200, rows:[]) means the dedicated crate_surface_reader read pool is unconfigured or not yet granted on the replica — fail-closed: the code ships ahead of the DB role landing. Cursor durability: cursors are page-iteration handles, NOT bookmarks — some surfaces build them from producer-internal columns that can change across producer re-crawls (seen.radio_play_v1's play_key today), so a stored cursor may silently skip or repeat rows after a re-crawl; re-start from the first page for a fresh read (each surface's coverage_note in GET /api/v2/surface carries the current specifics).",
         "tags": [
           "Surface Registry"
         ],
@@ -7745,7 +7745,8 @@
                 "archive_api_v1.artist_mention_daily",
                 "public.spine_artist_name_published_view",
                 "seen.artist_signal_known_since",
-                "mirror.cluster_authority_ids_v1"
+                "mirror.cluster_authority_ids_v1",
+                "sync.placement_claim_by_cluster_v1"
               ],
               "description": "The schema-qualified registry key, e.g. seen.radio_play_v1. GET /api/v2/surface lists every valid name."
             },
@@ -12998,6 +12999,202 @@
                         "degraded_reason",
                         "generated_at"
                       ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "object": {
+                          "type": "string",
+                          "enum": [
+                            "surface.rows"
+                          ]
+                        },
+                        "surface": {
+                          "type": "string",
+                          "enum": [
+                            "sync.placement_claim_by_cluster_v1"
+                          ]
+                        },
+                        "present": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "present",
+                            "honest_gap",
+                            "degraded"
+                          ]
+                        },
+                        "keyspace": {
+                          "type": "string",
+                          "enum": [
+                            "pe-norm-v1-artist",
+                            "pe-norm-v1-recording",
+                            "pe-norm-v1-label"
+                          ]
+                        },
+                        "liveness": {
+                          "type": "string",
+                          "enum": [
+                            "populated",
+                            "advisory",
+                            "empty"
+                          ]
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cluster_id_hex": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "discogs_master_id": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "recording_mbid": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "format": "uuid"
+                              },
+                              "screen_title": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "media_type": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "resolved_year": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "placement_tier": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "published_confidence": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "confidence_score": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "resolution_source": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "convergent": {
+                                "type": [
+                                  "boolean",
+                                  "null"
+                                ]
+                              },
+                              "tmdb_id": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "supervisor_name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "agency_name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "attribution_confidence": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "attribution_source_url": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "cluster_id_hex",
+                              "discogs_master_id",
+                              "recording_mbid",
+                              "screen_title",
+                              "media_type",
+                              "resolved_year",
+                              "placement_tier",
+                              "published_confidence",
+                              "confidence_score",
+                              "resolution_source",
+                              "convergent",
+                              "tmdb_id",
+                              "supervisor_name",
+                              "agency_name",
+                              "attribution_confidence",
+                              "attribution_source_url"
+                            ]
+                          }
+                        },
+                        "next_after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "coverage_note": {
+                          "type": "string"
+                        },
+                        "degraded_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "generated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "object",
+                        "surface",
+                        "present",
+                        "state",
+                        "keyspace",
+                        "liveness",
+                        "rows",
+                        "next_after",
+                        "coverage_note",
+                        "degraded_reason",
+                        "generated_at"
+                      ]
                     }
                   ]
                 }
@@ -14030,7 +14227,7 @@
     },
     {
       "term": "versioning",
-      "eli5": "The API major version is the URL path (/api/v2). The spec's info.version (2.17.0) bumps on every spec change and is drift-guarded because the document is generated from code. v2 is the cluster-first stable major; the frozen v1 predecessor is in a time-boxed deprecation (migration map at /docs/migration/v1-to-v2). Operations carry stable operationIds; keyed 2xx responses declare X-RateLimit-* headers.",
+      "eli5": "The API major version is the URL path (/api/v2). The spec's info.version (2.18.0) bumps on every spec change and is drift-guarded because the document is generated from code. v2 is the cluster-first stable major; the frozen v1 predecessor is in a time-boxed deprecation (migration map at /docs/migration/v1-to-v2). Operations carry stable operationIds; keyed 2xx responses declare X-RateLimit-* headers.",
       "see": "info.version; GET /api/v2/openapi.json; the migration guide at /docs/migration/v1-to-v2"
     },
     {
