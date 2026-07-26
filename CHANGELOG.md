@@ -7,6 +7,26 @@ All notable changes to `@hosaka-fm/crate` are documented here. The format follow
 > **Stable from `1.0.0`.** The typed surface is regenerated from `spec/openapi.json`, so type
 > changes track the live crate API contract. Breaking API changes bump the major.
 
+## [1.16.0] - 2026-07-26
+
+### Changed
+
+- Regenerated types against `/api/v2` **2.34.0** — a catch-up across sixteen spec minors
+  (2.18.0 → 2.34.0). New typed surface:
+  - **`GET /api/v2/tracks`** — title-first track discovery, with `?fuzzy=true` (substring),
+    `?source=mb|bandcamp|all` (the new **Bandcamp track corpus** reaches underground/self-released
+    titles the MB-linked catalogue can't), and a per-result `sources` provenance array.
+  - **`GET /api/v2/resolve`** gains `?isrc=<code>` and `?artist=&track=` locator arms (recording →
+    primary-artist cluster), plus the name-mint fallback so off-master artists resolve to a cluster
+    instead of `null` (typed via the existing resolve response).
+  - **`GET /api/v2/semantics/dictionary`** — the fleet substrate dictionary.
+  - Artist-dossier facets **`authorship`**, **`lineage`**, **`facts`** + **`visibility`**,
+    **`debut`**, and **`marketplace`**.
+  - **`GET /api/v2/aura`** gains the `about` legibility block.
+  - Surface registry **35 → 42** (tranches 7–10): the `GET /api/v2/surface/{name}` enum + response
+    union gain the new surfaces.
+- Operation set grows accordingly (now 26 paths). Additive — no breaking changes to existing types.
+
 ## [1.15.0] - 2026-07-14
 
 ### Changed
