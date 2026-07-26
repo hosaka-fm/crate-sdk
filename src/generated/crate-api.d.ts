@@ -153,7 +153,7 @@ export interface paths {
         };
         /**
          * Resolve any identifier (name · pasted link · id) → canonical cluster_id
-         * @description The cluster-first front door: converts ANY identifier into the canonical cluster_id + slug + the full locator set. Query ONE of ?url= | ?q= | ?cluster=<64-hex> | ?discogs=<int> | ?mbid=<uuid>. The onward _links point into /api/v2. Keyed (X-API-Key); unresolved → 200 nulls (honest-gap), not 404.
+         * @description The cluster-first front door: converts ANY identifier into the canonical cluster_id + slug + the full locator set. Query ONE of ?url= | ?q= | ?cluster=<64-hex> | ?discogs=<int> | ?mbid=<uuid> | ?isrc=<code> | ?artist=<name>&track=<title>. The `isrc=` and `artist=&track=` arms lift distributed-catalogue tracks off the ?q= name floor — both bind via the recording→artist spine to the performing-artist cluster (a code/track outranks a bare ?q= name when both are sent). The onward _links point into /api/v2. Keyed (X-API-Key); unresolved → 200 nulls (honest-gap), not 404.
          */
         get: operations["resolveIdentity"];
         put?: never;
@@ -176,6 +176,142 @@ export interface paths {
          * @description Faceted master-grain search (lexical; ?nl=true runs the Haiku interpretation pipeline). Keyed (X-API-Key). Read the facets in the response, then re-query with facet filters to refine.
          */
         get: operations["searchCatalogue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/tracks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Track-title search — who has a track called X
+         * @description Title-first track discovery: a track title → the artist clusters that have a recording of it, ranked by how many releases carry that artist's rendition (a ubiquity proxy), each with onward /artist links. The title-first complement to `GET /api/v2/resolve?artist=&track=` (which needs the artist and returns one identity). CORPUS (`?source=`): default `mb` = MusicBrainz-linked Discogs tracklists (catalogued/physical-release music); `bandcamp` = the Bandcamp track corpus (reaches the underground/self-released tail — a Bandcamp-only cut returns 0 under `mb`); `all` = both merged per cluster (each result carries a `sources` array). MATCH MODES: default = EXACT (case/punctuation-insensitive whole title); `?fuzzy=true` = case-insensitive SUBSTRING (≥3 chars, so "angel ech" finds "Angel Echoes"). The response echoes which ran in `mode`. HONEST LIMITS: (1) fuzzy is substring, not typo/phonetic; (2) common titles fan out (e.g. "Intro") — the ranking is then from a bounded candidate set with `truncated:true`, so narrow via `?artist=&track=` on /resolve (fuzzy fans out sooner); (3) `mb` coverage is MB-linked catalogue (uneven — thinner for electronic/underground; use `bandcamp`/`all` there). Keyed (X-API-Key); no match → 200 with `results:[]` (honest gap), never 404.
+         */
+        get: {
+            parameters: {
+                query: {
+                    title: string;
+                    fuzzy?: "true" | "false";
+                    source?: "mb" | "bandcamp" | "all";
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Ranked artist clusters with a track of that title (or an empty honest-gap list) */
+                200: {
+                    headers: {
+                        /** @description Requests allowed in the current window. */
+                        "X-RateLimit-Limit"?: number;
+                        /** @description Requests remaining in the current window. */
+                        "X-RateLimit-Remaining"?: number;
+                        /** @description Unix epoch (seconds) when the current window resets. */
+                        "X-RateLimit-Reset"?: number;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /**
+                             * @description 'ok' = the read ran (an empty results is a genuine no-match); 'degraded' = a substrate read failed (timeout/transient) so results is empty-by-failure, NOT a no-match — retry. For source=all, 'degraded' means ≥1 corpus read failed so results may be partial.
+                             * @enum {string}
+                             */
+                            state: "ok" | "degraded";
+                            /**
+                             * @description Which corpus was searched (echo of ?source=; default mb). all = both corpora merged per cluster.
+                             * @enum {string}
+                             */
+                            source: "mb" | "bandcamp" | "all";
+                            /**
+                             * @description Which match ran — 'exact' (default) or 'fuzzy' (?fuzzy=true substring).
+                             * @enum {string}
+                             */
+                            mode: "exact" | "fuzzy";
+                            /** @description The title as received (verbatim echo). */
+                            titleQuery: string;
+                            /** @description exact: the alphanumeric-normalized form matched; fuzzy: the lowercased substring matched. */
+                            normalized: string;
+                            /** @description true when the exact-title match exceeded the candidate cap — the ranking is from a bounded sample; narrow via /resolve?artist=&track=. */
+                            truncated: boolean;
+                            /** @description Number of result rows (artist clusters). */
+                            count: number;
+                            results: {
+                                /** @description Representative as-credited artist string — descriptive, never a join key. */
+                                artistCredit: string | null;
+                                /** @description The performing artist's 64-hex cluster_id — the canonical onward key. */
+                                clusterId: string;
+                                /** @description Distinct releases carrying this artist's track of that title (the ranking signal). For source=all, the sum across corpora (Discogs + Bandcamp). */
+                                releases: number;
+                                /** @description Distinct recordings of that title by this artist (original + remixes/live collapse here). */
+                                recordings: number;
+                                /** @description Which corpus/corpora this cluster's hit came from — the provenance for source=all (e.g. ["mb"], ["bandcamp"], or both). */
+                                sources: ("mb" | "bandcamp")[];
+                                /** @description Onward v2 addresses. */
+                                _links: {
+                                    artist: string;
+                                    artist_dossier: string;
+                                };
+                            }[];
+                        };
+                    };
+                };
+                /** @description Validation failure (invalid query, malformed body, bad facet name) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RateLimited"];
+                    };
+                };
+                /** @description Internal server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Database pool exhausted — retry after 5s */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Request deadline (15s) or query timeout exceeded */
+                504: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         put?: never;
         post?: never;
         delete?: never;
@@ -233,7 +369,7 @@ export interface paths {
         };
         /**
          * Aura index — multi-dimension convergence signals, strongest first
-         * @description Per-artist "aura": how many independent signal dimensions (booking, radio, press, …) are converging on an artist inside an 18-month window, with seen's measured 12-month break odds. Sorted convergence_dim_count DESC, break_odds DESC, latest_appearance_at DESC. Keyed (X-API-Key); ?limit= clamped 1..200 (default 50). Fail-soft: a substrate read failure → 200 state:'degraded' (never a 500). Aggregate-only by construction.
+         * @description Per-artist "aura": how many independent signal dimensions (booking, radio, press, …) are converging on an artist inside an 18-month window, with seen's measured 12-month break odds. Sorted convergence_dim_count DESC, break_odds DESC, latest_appearance_at DESC. Keyed (X-API-Key); ?limit= clamped 1..200 (default 50). Fail-soft: a substrate read failure → 200 state:'degraded' (never a 500). Aggregate-only by construction. Every response carries an `about` legibility block (what the metrics mean, approximate scope/scale, honest limits) — aura measures convergence across the signals hosaka observes (DEEP, not a global popularity meter); `break_odds` is a base rate at a convergence depth, not a per-artist forecast.
          */
         get: operations["getAura"];
         put?: never;
@@ -273,9 +409,104 @@ export interface paths {
         };
         /**
          * Surface registry index — the queryable exposure ledger
-         * @description cycle-096 (carrefour#135): every generic cluster-keyed producer surface crate exposes, with its shape — grain, key (column + keyspace + wire format), keyset (pagination seek columns; null for cluster-row grain), cap, liveness, coverage_note, and advisory semantics. Read this before calling GET /api/v2/surface/{name} — it is the complete input contract for that call. Keyed (X-API-Key); pure/static (no DB checkout).
+         * @description cycle-096 (carrefour#135): every generic cluster-keyed producer surface crate exposes, with its shape — grain, key (column + keyspace + wire format), keyset (pagination seek columns; null for cluster-row grain), cap, liveness, coverage_note, and advisory semantics. Since 2.20.0 (carrefour#139 Phase-1) each row also carries the producer-authored `semantics` facade (scope, scale bands, honest limits, caveats — verbatim at pin; null until authored) and a `dictionary_url` pointer to the fleet substrate dictionary. Read this before calling GET /api/v2/surface/{name} — it is the complete input contract for that call. Keyed (X-API-Key); pure/static (no DB checkout).
          */
         get: operations["getSurfaceIndex"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/semantics/dictionary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fleet substrate dictionary (the semantics glossary behind dictionary_url)
+         * @description The compiled fleet substrate dictionary — clock classes, alias-screening law, k-anon floors, grain vocabulary, and every producer `semantics` entry rendered verbatim. wintermute compiles it; crate serves it (carrefour#139 OQ-4: the producer repo is org-visible, so crate is the canonical serving path — this is the URL `GET /api/v2/surface`'s `dictionary_url` points at). Body is markdown; the envelope carries `source` + `source_sha` + `vendored_at` so you can tell which pin you're reading. Refreshed on producer pin-bumps (crate re-vendors). Keyed (X-API-Key); pure/static (no DB checkout).
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The dictionary body (markdown) + source provenance. */
+                200: {
+                    headers: {
+                        /** @description Requests allowed in the current window. */
+                        "X-RateLimit-Limit"?: number;
+                        /** @description Requests remaining in the current window. */
+                        "X-RateLimit-Remaining"?: number;
+                        /** @description Unix epoch (seconds) when the current window resets. */
+                        "X-RateLimit-Reset"?: number;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            object: "semantics.dictionary";
+                            /** @enum {string} */
+                            format: "markdown";
+                            /** @description Producer provenance: <repo>@<sha> <path> (<ref>). */
+                            source: string;
+                            /** @description The git blob SHA of the vendored dictionary — the freshness key. */
+                            source_sha: string;
+                            /** @description Date crate last re-vendored the body (YYYY-MM-DD). */
+                            vendored_at: string;
+                            note: string;
+                            /** @description The dictionary, verbatim markdown. */
+                            body: string;
+                        };
+                    };
+                };
+                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RateLimited"];
+                    };
+                };
+                /** @description Internal server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Database pool exhausted — retry after 5s */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Request deadline (15s) or query timeout exceeded */
+                504: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         put?: never;
         post?: never;
         delete?: never;
@@ -293,7 +524,7 @@ export interface paths {
         };
         /**
          * Generic cluster-keyed surface read (by registry name)
-         * @description The generic read behind every row in GET /api/v2/surface: one operation serves all 35 registered surfaces (public.spine_artist_temporal_profile, seen.radio_play_v1, seen.dj_champion, seen.radio_co_play, seen.song_station_journey, mirror.wantlist_demand_by_cluster_v1, seen.master_propagation_timeline_cluster, seen.dj_tastemaker_score, seen.performing_entity, seen.artist_dossier, seen.artist_momentum, seen.artist_network_position, seen.artist_tier_presence, seen.artist_festival_co_appearance, seen.artist_cross_tier_network, seen.artist_brokerage, seen.artist_emergence_narrative_public, seen.artist_airplay_first_appearance, seen.artist_djset_first_appearance, seen.artist_emergence_lead_time, seen.artist_dated_appearance, seen.artist_primary_geography, seen.artist_identity_bridge, seen.live_demand, seen.bandcamp_artist_gravity, seen.bandcamp_artist_tastemaker_quality, seen.artist_djset_scout_signal, seen.label_djset_momentum, seen.artist_signal_passport, seen.artist_sc_rights_rollup_v1, archive_api_v1.artist_mention_daily, public.spine_artist_name_published_view, seen.artist_signal_known_since, mirror.cluster_authority_ids_v1, sync.placement_claim_by_cluster_v1). {name} is the schema-qualified registry key — GET /api/v2/surface for the live list + each name's shape. ?cluster= is the 64-hex identity key in THAT surface's registered keyspace (a key from the wrong keyspace fails soft as an empty honest_gap, not an error — see the index for which keyspace {name} expects). cluster-row grain surfaces (cap 1/1) ignore ?after/?limit and answer with 0 or 1 rows; cluster-multirow/cluster-edge-list grains keyset-paginate via the opaque ?after cursor from a prior page's next_after (never OFFSET — pass it back verbatim, never construct or decode it). ?limit clamps to the surface's registered cap. Unknown {name} → 400 with a hint listing every valid name + doc_url + next (the index call). A per-row crate-side kill (registry enabled:false) → 404; the master kill (env CRATE_SURFACE_ENABLED=false) → 503. state:'degraded' (still HTTP 200, rows:[]) means the dedicated crate_surface_reader read pool is unconfigured or not yet granted on the replica — fail-closed: the code ships ahead of the DB role landing. Cursor durability: cursors are page-iteration handles, NOT bookmarks — some surfaces build them from producer-internal columns that can change across producer re-crawls (seen.radio_play_v1's play_key today), so a stored cursor may silently skip or repeat rows after a re-crawl; re-start from the first page for a fresh read (each surface's coverage_note in GET /api/v2/surface carries the current specifics).
+         * @description The generic read behind every row in GET /api/v2/surface: one operation serves all 42 registered surfaces (public.spine_artist_temporal_profile, seen.radio_play_v1, seen.dj_champion, seen.radio_co_play, seen.song_station_journey, mirror.wantlist_demand_by_cluster_v1, seen.master_propagation_timeline_cluster, seen.dj_tastemaker_score, seen.performing_entity, seen.artist_dossier, seen.artist_momentum, seen.artist_network_position, seen.artist_tier_presence, seen.artist_festival_co_appearance, seen.artist_cross_tier_network, seen.artist_brokerage, seen.artist_emergence_narrative_public, seen.artist_airplay_first_appearance, seen.artist_djset_first_appearance, seen.artist_emergence_lead_time, seen.artist_dated_appearance, seen.artist_primary_geography, seen.artist_identity_bridge, seen.live_demand, seen.bandcamp_artist_gravity, seen.bandcamp_artist_tastemaker_quality, seen.artist_djset_scout_signal, seen.label_djset_momentum, seen.artist_signal_passport, seen.artist_sc_rights_rollup_v1, archive_api_v1.artist_mention_daily, public.spine_artist_name_published_view, seen.artist_signal_known_since, mirror.cluster_authority_ids_v1, sync.placement_claim_by_cluster_v1, deadwax.pressing_provenance_depth_by_cluster_v1, mirror.listen_flow_by_cluster_v1, mirror.cluster_alias_v1, wintermute.cluster_arrival_ledger_v1, seen.radar_only_artists_v1, sync.placement_arrival_by_cluster_v1, wintermute.cluster_arrival_wide_v1). {name} is the schema-qualified registry key — GET /api/v2/surface for the live list + each name's shape. ?cluster= is the 64-hex identity key in THAT surface's registered keyspace (a key from the wrong keyspace fails soft as an empty honest_gap, not an error — see the index for which keyspace {name} expects). cluster-row grain surfaces (cap 1/1) ignore ?after/?limit and answer with 0 or 1 rows; cluster-multirow/cluster-edge-list grains keyset-paginate via the opaque ?after cursor from a prior page's next_after (never OFFSET — pass it back verbatim, never construct or decode it). ?limit clamps to the surface's registered cap. Unknown {name} → 400 with a hint listing every valid name + doc_url + next (the index call). A per-row crate-side kill (registry enabled:false) → 404; the master kill (env CRATE_SURFACE_ENABLED=false) → 503. state:'degraded' (still HTTP 200, rows:[]) means the dedicated crate_surface_reader read pool is unconfigured or not yet granted on the replica — fail-closed: the code ships ahead of the DB role landing. Cursor durability: cursors are page-iteration handles, NOT bookmarks — some surfaces build them from producer-internal columns that can change across producer re-crawls (seen.radio_play_v1's play_key today), so a stored cursor may silently skip or repeat rows after a re-crawl; re-start from the first page for a fresh read (each surface's coverage_note in GET /api/v2/surface carries the current specifics).
          */
         get: operations["getSurfaceRows"];
         put?: never;
@@ -1175,6 +1406,185 @@ export interface components {
                         /** @description …whose work carries a registered ISWC. */
                         tracksWithRegisteredIswc: number;
                     } | null;
+                } | null;
+            };
+            /** @description Discogs MARKETPLACE supply/price for the artist's catalogue (v2-only; mirror.marketplace_signal_by_cluster_v1, cluster-anchored — both entry paths reach it). The demand model's third leg beside collection reach (signals.ownerReach) and wantlist level: how many releases are priced on the market, total copies for sale (supply pressure), the market floor, and typical/ceiling sale levels. `latest` is the newest weekly snapshot (the producer-contracted current state); `series` tells you how much history stands behind it. PUBLIC release-level marketplace facts deduped to release before rollup — not collector behaviour. Amounts within-currency (USD — all live data). null signals = no marketplace data observed for the cluster (honest gap, never zeros). */
+            marketplace?: {
+                /** @enum {string} */
+                state: "present" | "honest_gap";
+                signals: {
+                    /** @description ISO 4217 — 'USD' for all live data (amounts are within-currency, USD-filtered at source). */
+                    currency: string;
+                    latest: {
+                        /** @description Snapshot date (YYYY-MM-DD) these numbers were observed — the newest weekly snapshot. */
+                        snapshotDate: string;
+                        /** @description Distinct releases by this artist-cluster with a marketplace price observed (catalogue/market fact, NOT a user count). */
+                        pricedReleaseCount: number;
+                        /** @description Sum of copies-for-sale across the cluster's priced releases — supply pressure. */
+                        totalCopiesForSale: number;
+                        /** @description Market floor: lowest listing across the cluster's releases (USD). null = not observed. */
+                        minPrice: number | null;
+                        /** @description Typical sale level: median of per-release sales medians (USD). null = not observed. */
+                        medianSales: number | null;
+                        /** @description Historical ceiling: max of per-release sales maxima (USD). null = not observed. */
+                        maxSales: number | null;
+                    };
+                    series: {
+                        /** @description Weekly snapshots observed for this cluster (>= 1) — the depth behind `latest`. */
+                        snapshots: number;
+                        /** @description Earliest snapshot date (YYYY-MM-DD) — the start of this cluster's observed series. */
+                        firstSnapshotDate: string;
+                    };
+                } | null;
+            };
+            /** @description First-release DEBUT anchor (v2-only; mirror.artist_first_release_v1 — MusicBrainz's earliest dated release-group crediting the artist, plus the dated-release-group count behind it). An "in the MusicBrainz index" catalogue claim, never a biography fact. Served via the EXACT Discogs↔MB bind only (Discogs-resolved artists; cluster-path artists read honest_gap — cluster/name keying was measured to graft homonym facts and is deliberately refused). Dates are YEAR-only granularity: month/day are Jan-1 placeholders. Rare MB source-date errors exist at the extremes — treat implausible years as source noise, not fact. null signals = no dated MB release or no Discogs↔MB bind (honest gap). */
+            debut?: {
+                /** @enum {string} */
+                state: "present" | "honest_gap";
+                signals: {
+                    /** @description Earliest dated MB release-group (YYYY-MM-DD; YEAR-only granularity — month/day are Jan-1 placeholders). */
+                    firstReleaseDate: string;
+                    /** @description Dated release-groups crediting the artist in MusicBrainz — the catalogue span behind the date. */
+                    releaseGroupCount: number;
+                    /** @description The MB artist the debut belongs to (the exact Discogs-bound entry) — an onward MusicBrainz key. */
+                    artistMbid: string;
+                    /** @description Distinct MB artists bound to this Discogs id (>1 = MB-side duplicates; the earliest is served). */
+                    mbidMatches: number;
+                    /** @description Producer refresh timestamp (monthly MB dump cadence). */
+                    computedAt: string;
+                } | null;
+            };
+            /** @description Structured Wikidata biographical facts (v2-only; mirror.artist_facts_v1, CC0 — re-publishable, no attribution): origin city/country (human-readable + QIDs), birth/death dates, official website, and genre/label/influence QID arrays. As-recorded-in-Wikidata claims, not verified biography. Discogs-resolved artists join 1:1 on the producer's PK; cluster-path artists are served only when EXACTLY ONE facts row binds the cluster (the surface's cluster key is name-minted and homonyms co-merge by design — an ambiguous bind reads honest_gap, never a guess). genresQids/recordLabelsQids/influencedByQids are RAW Q-numbers — do NOT render as text (label resolution is a planned producer v1.1); influencedByQids is SPARSE and non-canonical (gate any influence UI; MusicBrainz-native edges are the canonical lineage source). null signals = not-yet-enriched or ambiguous bind (absent == unknown). */
+            facts?: {
+                /** @enum {string} */
+                state: "present" | "honest_gap";
+                signals: {
+                    /** @description Wikidata self QID — provenance + onward key. */
+                    wikidataQid: string;
+                    /** @description MusicBrainz artist id (unique on the surface) — onward key. */
+                    mbid: string;
+                    /** @description Human-readable origin city (Wikidata; dense field). */
+                    originCity: string | null;
+                    originCityQid: string | null;
+                    /** @description Human-readable origin country. */
+                    originCountry: string | null;
+                    originCountryQid: string | null;
+                    /** @description As recorded in Wikidata (YYYY-MM-DD) — a catalogue claim, not a verified biography fact. */
+                    birthDate: string | null;
+                    deathDate: string | null;
+                    /** @description The artist's own site per Wikidata P856 (link-only). */
+                    officialWebsite: string | null;
+                    /** @description RAW Wikidata Q-numbers (P136) — resolve before rendering; never display as text. */
+                    genresQids: string[];
+                    /** @description RAW Q-numbers (P264) — same caveat. */
+                    recordLabelsQids: string[];
+                    /** @description RAW Q-numbers (P737) — SPARSE + non-canonical (<5% populated); MB-native edges are canonical. */
+                    influencedByQids: string[];
+                    /** @description Upstream Wikidata enrichment time — the honest "as of" for these facts. */
+                    lastEnrichedAt: string;
+                } | null;
+            };
+            /** @description Institutional-visibility badge (v2-only; seen.radar_only_artists_v1): every dimension-converging artist (>=2 independent live-circuit dimensions in 18 months) classed canon_alive | canon_quiet | uncanonized_alive | uncanonized_quiet. institutionallyInvisible (= no authority record anywhere in the public catalogue system) is the producer's badge cut; radarOnly (uncanonized_quiet) is the strict cut. PRODUCER CAVEATS, verbatim: 'alive' = ListenBrainz-corpus presence — a coverage-biased LOWER bound (Western/indie/electronic lean; sub-k-anon clusters read as no-flow) — quiet ≠ dead; some uncanonized rows are name-variant/persona sibling mints of catalogued artists; composition not timing — no lead/lag claim. Flow magnitudes are mirror's k>=5 values verbatim (null = no k>=5 catalogued flow, never zero). null signals = not dimension-converging (universe floor), not a verdict on the artist. */
+            visibility?: {
+                /** @enum {string} */
+                state: "present" | "honest_gap";
+                signals: {
+                    /**
+                     * @description The producer's frozen four-quadrant vocabulary.
+                     * @enum {string}
+                     */
+                    institutionalVisibility: "canon_alive" | "canon_quiet" | "uncanonized_alive" | "uncanonized_quiet";
+                    /** @description The badge cut: NO authority record (Wikidata/GND/LCNAF/ISNI/Discogs) anywhere — ~72% of convergers, rising with depth. */
+                    institutionallyInvisible: boolean;
+                    /** @description Strict cut: converging with no authority record AND no catalogued listens — visible to nothing public except the live circuit. */
+                    radarOnly: boolean;
+                    hasAuthorityRecord: boolean;
+                    /** @description ListenBrainz k>=5 presence — coverage-biased lower bound; false ≠ unheard. */
+                    hasListenFlow: boolean;
+                    /** @description Convergence depth (>=2 by universe construction). */
+                    independentDimensions: number | null;
+                    /** @description Comma-joined independent dimension list. */
+                    dimensions: string | null;
+                    firstSignal: string | null;
+                    latestSignal: string | null;
+                    spanDays: number | null;
+                    inBookingCircuit: boolean | null;
+                    /** @description Mirror's k>=5 value verbatim; null = no k>=5 flow, never zero. */
+                    listenCount: number | null;
+                    distinctListenerCount: number | null;
+                    lastListenedAt: string | null;
+                } | null;
+            };
+            /** @description Creative-LINEAGE facet (v2-only; MusicBrainz's recording→recording derivation graph — mirror.mb_recording_relations, ~238K remix/sample/edit/dj-mix/mashup edges — made per-artist-addressable through the mb_recording_artist_credits bridge). DIRECTION is verified against live titles: in an edge src→dst, src is the DERIVATIVE and dst is the SOURCE. So `asDerivative` counts the artist's recordings that remix/sample/edit another recording; `asSource` counts recordings another recording derived from. IMPORTANT billing-grain caveat: MB credits a remix recording to the ORIGINAL artist (a Photomachine remix of a Four Tet track is credited "Four Tet"), so `asDerivative` largely reflects OTHERS remixing this artist's work — read these as GRAPH PARTICIPATION, never as authorship ("this artist remixed N others" is NOT a valid reading). Discogs-resolved artists aggregate their MB-duplicate mbids; cluster-path artists are served only when EXACTLY ONE mb_artists row binds the cluster (name-minted cluster keys co-merge homonyms — an ambiguous bind reads honest_gap). `edges` is a capped, deterministic, balanced sample (≤12 per direction) — the counts are the full totals. otherArtistCredit is the AS-CREDITED billing string (never a join key). null signals = no edges in the graph (honest gap; ~97% of artists). */
+            lineage?: {
+                /** @enum {string} */
+                state: "present" | "honest_gap";
+                signals: {
+                    /** @description The artist's recordings that are the DERIVATIVE end (remix/sample/edit OF another recording). Graph participation, not authorship. */
+                    asDerivative: {
+                        remix: number;
+                        sample: number;
+                        edit: number;
+                        djMix: number;
+                        mashup: number;
+                        /** @description Sum across rel types (edges in this direction). */
+                        total: number;
+                    } | null;
+                    /** @description The artist's recordings that are the SOURCE end (another recording derived from them). */
+                    asSource: {
+                        remix: number;
+                        sample: number;
+                        edit: number;
+                        djMix: number;
+                        mashup: number;
+                        /** @description Sum across rel types (edges in this direction). */
+                        total: number;
+                    } | null;
+                    /** @description Capped balanced sample (≤12/direction) of concrete edges — illustrative, not the whole graph (counts are the totals). */
+                    edges: {
+                        /**
+                         * @description MB relation type, verbatim.
+                         * @enum {string}
+                         */
+                        relType: "remix" | "sample" | "edit" | "dj-mix" | "mashup";
+                        /**
+                         * @description 'derived' = this artist's recording derives from the counterparty; 'source' = the counterparty derives from this artist's recording.
+                         * @enum {string}
+                         */
+                        direction: "derived" | "source";
+                        /** @description Counterparty recording MB gid — onward key. */
+                        otherRecordingMbid: string;
+                        /** @description Counterparty recording title (MB), or null if unresolved. */
+                        otherRecordingName: string | null;
+                        /** @description Counterparty AS-CREDITED billing string — descriptive only, never a join key. */
+                        otherArtistCredit: string | null;
+                    }[];
+                    /** @description MB artist mbids the key resolved to (>1 on the Discogs path = MB-side dupes; cluster path is gated to 1). */
+                    artistMbidCount: number;
+                } | null;
+            };
+            /** @description AUTHORSHIP facet (v2-only; mirror.songwriter_signals_v1, cluster-grain — one row per pe-norm-v1 cluster credited on ≥1 MusicBrainz work). This is the "who WROTE it" axis, distinct from `rights` (what the recorded catalogue is registered as + its co-writers). `worksWritten` = DISTINCT MB works credited in ANY role; `roles` is the per-role DISTINCT-work breakdown (composer/lyricist/writer/arranger — a work can hold >1 role, so the parts may exceed the whole). `recordingsOfWorks` = DISTINCT recordings of those works (catalogue realisation, not commercial releases). The enrichment legs are HONEST-SPARSE (~10% of works): `worksWithRights` = works matched in ledger's rights rollup; `worksWithPlacement` + `placementTitleReach` = film/TV placement reach. IMPORTANT coverage caveat: MusicBrainz authorship coverage is UNEVEN — strong for classical/composed repertoire, THIN for producer/electronic credits MB records as performance rather than authorship (a well-known electronic artist can read worksWritten=3 here while carrying dozens of recorded-catalogue registered works on the `rights` facet). A 0 on an enrichment leg is "not observed", never "no rights". Cluster-keyed on both entry paths (Discogs resolves discogs→cluster); a homonym-merged cluster blends its co-merged artists' authorship (a spine property, not re-adjudicated here). null signals = the cluster is credited on no MB work (honest gap — the norm for performers who aren't recorded writers). Counts only; non-user-derived at source. */
+            authorship?: {
+                /** @enum {string} */
+                state: "present" | "honest_gap";
+                signals: {
+                    /** @description DISTINCT MB works this cluster is credited on in any role (≥1 when present). */
+                    worksWritten: number;
+                    /** @description Per-role DISTINCT-work breakdown; parts may sum above worksWritten (a work can hold >1 role). */
+                    roles: {
+                        composer: number;
+                        lyricist: number;
+                        writer: number;
+                        arranger: number;
+                    };
+                    /** @description DISTINCT recordings of their works (MB recordings, not commercial releases). */
+                    recordingsOfWorks: number;
+                    /** @description Works matched in ledger's rights rollup — HONEST-SPARSE; 0 = not observed, not "no rights". */
+                    worksWithRights: number;
+                    /** @description Works with a film/TV placement signal — honest-sparse. */
+                    worksWithPlacement: number;
+                    /** @description Σ resolved screen titles across their placed works. */
+                    placementTitleReach: number;
                 } | null;
             };
             /** @description WHO wrote / WHO produced, with names (v2-only; cycle-094): the artist's bridged catalogue joined to the MusicBrainz credit tables (mirror MB Phase-3), names + onward keys via mb_artists. Complements the rights facet's counts with the diligence NAMES. Performance role families (performer/vocal/instrument) are deliberately excluded — the desk, not the lineup. Discogs-anchored (masterIds) — cluster-only artists honestly gap. The subject is NOT excluded (self-written/self-produced is signal). */
@@ -2220,6 +2630,9 @@ export interface operations {
                 cluster?: string;
                 discogs?: string;
                 mbid?: string;
+                isrc?: string;
+                artist?: string;
+                track?: string;
             };
             header?: never;
             path?: never;
@@ -2561,7 +2974,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Aura rows strongest-first (state present), or the degraded honest-gap state */
+            /** @description Aura rows strongest-first (state present), or the degraded honest-gap state; plus the `about` legibility block */
             200: {
                 headers: {
                     /** @description Requests allowed in the current window. */
@@ -2579,6 +2992,24 @@ export interface operations {
                          * @enum {string}
                          */
                         state: "present" | "degraded";
+                        /** @description Legibility block: what the metrics mean, approximate scope/scale, and honest limits. Identical on every response — cache or ignore it. */
+                        about: {
+                            /** @description Plain-English meaning of each metric (no formula disclosure). */
+                            what: {
+                                convergence_dim_count: string;
+                                break_odds: string;
+                                dimensions: string;
+                            };
+                            /** @description Approximate scope/scale of the aura universe — static bands, dated (refreshed on re-measure). */
+                            scope: {
+                                universe: string;
+                                dimensions: number;
+                                window_months: number;
+                                as_of: string;
+                            };
+                            /** @description DEEP-not-global caveats: how to read — and not over-read — the signal. */
+                            honest_limits: string[];
+                        };
                         items: {
                             /** @description The 64-hex cluster_id — the canonical fleet identity address (resolve names/links via /api/v2/resolve). */
                             cluster_id: string;
@@ -2808,6 +3239,12 @@ export interface operations {
                             advisory: string | null;
                             /** @enum {string} */
                             liveness: "populated" | "advisory" | "empty";
+                            /** @description Producer-authored semantics facade (carrefour#139 Phase-1), copied VERBATIM from the producer contract at the pinned sha: audience_blurb, scale_bands, honest_limits, caveats, clock_class, formula_protected, as_of. Formula-protected by construction — crate refuses formula-leaking entries at acceptance. null until the producer authors a block (facades land per-surface as producers publish them). */
+                            semantics: {
+                                [key: string]: unknown;
+                            } | null;
+                            /** @description The fleet substrate dictionary (wintermute-compiled, carrefour#139): fleet chapters (clock classes, alias screening, k-anon, grain vocabulary) + producer semantics entries rendered verbatim at pins. One URL for the whole registry — crate-served at GET /api/v2/semantics/dictionary (OQ-4: crate proxies the org-visible producer doc so external consumers can read it). */
+                            dictionary_url: string | null;
                         }[];
                         count: number;
                         generated_at: string;
@@ -2861,7 +3298,7 @@ export interface operations {
             };
             header?: never;
             path: {
-                name: "public.spine_artist_temporal_profile" | "seen.radio_play_v1" | "seen.dj_champion" | "seen.radio_co_play" | "seen.song_station_journey" | "mirror.wantlist_demand_by_cluster_v1" | "seen.master_propagation_timeline_cluster" | "seen.dj_tastemaker_score" | "seen.performing_entity" | "seen.artist_dossier" | "seen.artist_momentum" | "seen.artist_network_position" | "seen.artist_tier_presence" | "seen.artist_festival_co_appearance" | "seen.artist_cross_tier_network" | "seen.artist_brokerage" | "seen.artist_emergence_narrative_public" | "seen.artist_airplay_first_appearance" | "seen.artist_djset_first_appearance" | "seen.artist_emergence_lead_time" | "seen.artist_dated_appearance" | "seen.artist_primary_geography" | "seen.artist_identity_bridge" | "seen.live_demand" | "seen.bandcamp_artist_gravity" | "seen.bandcamp_artist_tastemaker_quality" | "seen.artist_djset_scout_signal" | "seen.label_djset_momentum" | "seen.artist_signal_passport" | "seen.artist_sc_rights_rollup_v1" | "archive_api_v1.artist_mention_daily" | "public.spine_artist_name_published_view" | "seen.artist_signal_known_since" | "mirror.cluster_authority_ids_v1" | "sync.placement_claim_by_cluster_v1";
+                name: "public.spine_artist_temporal_profile" | "seen.radio_play_v1" | "seen.dj_champion" | "seen.radio_co_play" | "seen.song_station_journey" | "mirror.wantlist_demand_by_cluster_v1" | "seen.master_propagation_timeline_cluster" | "seen.dj_tastemaker_score" | "seen.performing_entity" | "seen.artist_dossier" | "seen.artist_momentum" | "seen.artist_network_position" | "seen.artist_tier_presence" | "seen.artist_festival_co_appearance" | "seen.artist_cross_tier_network" | "seen.artist_brokerage" | "seen.artist_emergence_narrative_public" | "seen.artist_airplay_first_appearance" | "seen.artist_djset_first_appearance" | "seen.artist_emergence_lead_time" | "seen.artist_dated_appearance" | "seen.artist_primary_geography" | "seen.artist_identity_bridge" | "seen.live_demand" | "seen.bandcamp_artist_gravity" | "seen.bandcamp_artist_tastemaker_quality" | "seen.artist_djset_scout_signal" | "seen.label_djset_momentum" | "seen.artist_signal_passport" | "seen.artist_sc_rights_rollup_v1" | "archive_api_v1.artist_mention_daily" | "public.spine_artist_name_published_view" | "seen.artist_signal_known_since" | "mirror.cluster_authority_ids_v1" | "sync.placement_claim_by_cluster_v1" | "deadwax.pressing_provenance_depth_by_cluster_v1" | "mirror.listen_flow_by_cluster_v1" | "mirror.cluster_alias_v1" | "wintermute.cluster_arrival_ledger_v1" | "seen.radar_only_artists_v1" | "sync.placement_arrival_by_cluster_v1" | "wintermute.cluster_arrival_wide_v1";
             };
             cookie?: never;
         };
@@ -3880,6 +4317,7 @@ export interface operations {
                         liveness: "populated" | "advisory" | "empty";
                         rows: {
                             cluster_id_hex: string;
+                            claim_key: string | null;
                             discogs_master_id: number | null;
                             /** Format: uuid */
                             recording_mbid: string | null;
@@ -3896,6 +4334,195 @@ export interface operations {
                             agency_name: string | null;
                             attribution_confidence: string | null;
                             attribution_source_url: string | null;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "deadwax.pressing_provenance_depth_by_cluster_v1";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            surface_version: number | null;
+                            distinct_pressings: number | null;
+                            distinct_masters: number | null;
+                            distinct_matrix_clusters: number | null;
+                            pressings_with_audiophile_credit: number | null;
+                            matrix_authoritative_share: number | null;
+                            bind_is_heuristic: boolean | null;
+                            computed_at: string | null;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "mirror.listen_flow_by_cluster_v1";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            listen_count: number | null;
+                            distinct_listener_count: number | null;
+                            distinct_recording_count: number | null;
+                            first_listened_at: string;
+                            last_listened_at: string;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "mirror.cluster_alias_v1";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            alias_cluster_id_hex: string;
+                            canonical_cluster_id_hex: string;
+                            bind_arm: string;
+                            computed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "wintermute.cluster_arrival_ledger_v1";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            layer: string;
+                            event_time: string | null;
+                            event_grain: string | null;
+                            detection_time: string | null;
+                            detection_class: string | null;
+                            alias_bridged: boolean;
+                            bind_arms: string[] | null;
+                            source_relation: string;
+                            source_column: string;
+                            coverage_note: string;
+                            quality_flags?: unknown;
+                            composed_at: string;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "seen.radar_only_artists_v1";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string;
+                            artist_name: string | null;
+                            independent_dimensions: number | null;
+                            dimensions: string | null;
+                            first_signal: string | null;
+                            latest_signal: string | null;
+                            span_days: number | null;
+                            in_booking_circuit: boolean | null;
+                            has_authority_record: boolean;
+                            has_listen_flow: boolean;
+                            institutional_visibility: string;
+                            listen_count: number | null;
+                            distinct_listener_count: number | null;
+                            last_listened_at: string | null;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "sync.placement_arrival_by_cluster_v1";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string | null;
+                            first_placement_year: number | null;
+                            grain: string | null;
+                            source_note: string | null;
+                        }[];
+                        next_after: string | null;
+                        coverage_note: string;
+                        degraded_reason: string | null;
+                        generated_at: string;
+                    } | {
+                        /** @enum {string} */
+                        object: "surface.rows";
+                        /** @enum {string} */
+                        surface: "wintermute.cluster_arrival_wide_v1";
+                        present: boolean;
+                        /** @enum {string} */
+                        state: "present" | "honest_gap" | "degraded";
+                        /** @enum {string} */
+                        keyspace: "pe-norm-v1-artist" | "pe-norm-v1-recording" | "pe-norm-v1-label";
+                        /** @enum {string} */
+                        liveness: "populated" | "advisory" | "empty";
+                        rows: {
+                            cluster_id_hex: string | null;
+                            listen_first_at: string | null;
+                            bandcamp_first_at: string | null;
+                            attention_first_at: string | null;
+                            authority_first_at: string | null;
+                            seen_event_first_at: string | null;
+                            seen_known_since: string | null;
+                            editorial_first_at: string | null;
+                            catalogue_first_at: string | null;
+                            any_alias_bridged: boolean | null;
+                            layers_present: number | null;
+                            placement_first_at: string | null;
                         }[];
                         next_after: string | null;
                         coverage_note: string;
