@@ -1,17 +1,20 @@
 name: Spec staleness
 
 # Tier-2 drift check (NETWORK). Schedule-only + manual — NEVER gates PR CI, so an
-# upstream spec change overnight can't turn unrelated PRs red. On drift it opens a
-# regen issue; the fix is `npm run generate` + commit (which the Tier-1 offline
-# gate in ci.yml then enforces byte-for-byte).
+# upstream spec change overnight can't turn unrelated PRs red. On drift it REGENERATES
+# and opens a PR carrying the re-vendored spec + types (2026-08-04: the issue-only flow
+# sat unactioned twice, 07-14→07-26 and 07-26→08-04 — thirteen versions of drift each
+# time). The PR body lists the remaining HUMAN steps (semver bump + CHANGELOG). Issue
+# creation remains as the fallback when the PR can't be opened.
 on:
   schedule:
     - cron: '17 6 * * *'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   issues: write
+  pull-requests: write
 
 jobs:
   staleness:
@@ -26,8 +29,31 @@ jobs:
       - id: check
         run: npm run check:staleness
         continue-on-error: true
-      - name: Open issue on drift
+      - name: Regenerate on drift
         if: steps.check.outcome == 'failure'
+        run: |
+          npm run spec:vendor
+          npm run generate
+      - name: Open regen PR on drift
+        id: regen_pr
+        if: steps.check.outcome == 'failure'
+        continue-on-error: true
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/spec-drift-auto-regen
+          commit-message: 'chore(spec): auto-regen — upstream openapi.json changed'
+          title: 'chore(spec): auto-regen — upstream openapi.json changed'
+          labels: spec-drift
+          body: |
+            Automated regen from the nightly staleness check: the live crate spec drifted from
+            the vendored copy. This PR carries the re-vendored `spec/openapi.json` + regenerated
+            types + `spec/meta.json` (the offline CI gate enforces byte-equality).
+
+            **Human steps before merge** (judgment, deliberately not automated):
+            - [ ] semver bump (`package.json` + `src/index.ts` VERSION) sized to the upstream changes
+            - [ ] CHANGELOG entry (the contract test requires one per version)
+      - name: Open issue on drift (fallback — PR could not be created)
+        if: steps.check.outcome == 'failure' && steps.regen_pr.outcome == 'failure'
         uses: actions/github-script@v7
         with:
           script: |
