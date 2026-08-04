@@ -4,6 +4,19 @@ All notable changes to `@hosaka-fm/crate` are documented here. The format follow
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.0] - 2026-08-04
+
+### Changed
+
+- Re-vendored the live spec: `/api/v2` **2.34.0 → 2.47.0** (thirteen contract versions). Regenerated
+  types now cover: the structured track resolver (`POST /tracks/resolve`, `GET /track`),
+  `semantics/dictionary.json`, the `market_vs_flow_divergence` + `artist_press_mentions` registry
+  surfaces (44 rows; the latter with a mixed-order keyset), and the artist dossier's season of
+  cluster-native facets — `authorship`, `lineage`, one-call profile (`listen_flow`/`arrival`/`aura`/
+  `dj_champion`/`radio_play`), `facts` names+portrait, `visibility` corrected badge cut,
+  `web_presence` DSP links, cluster-native `rights`/`credits` entries, and `journalism.signals.citedMentions[]`
+  (cited articles). See the crate CHANGELOG 2.35.0–2.47.0 for contract details.
+
 > **Stable from `1.0.0`.** The typed surface is regenerated from `spec/openapi.json`, so type
 > changes track the live crate API contract. Breaking API changes bump the major.
 
