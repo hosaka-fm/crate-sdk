@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "crate-api",
-    "version": "2.47.0",
+    "version": "2.57.0",
     "description": "# crate API (v2 — cluster-first)\n\ncrate is the **aggregation gateway** for a fleet of music-data producers. You ask it about an artist, a label, or a festival; it joins every signal the fleet can see about that entity and hands you back one composed picture — collector behavior, editorial coverage, live-circuit demand, breakout momentum, web presence — each piece labelled with where it came from and how fresh it is.\n\nTwo things make crate different from a typical catalogue API, and the rest of this doc exists to teach them:\n\n1. **Identity is a `cluster_id`, not a Discogs/MusicBrainz/Bandcamp id.** The same artist scattered across those platforms collapses to one canonical key. You resolve to it once, then key everything off it.\n2. **An empty answer is a first-class answer.** crate returns HTTP `200` and tells you plainly what it *can't* see (`present:false`, a null field, `state:\"honest_gap\"`) instead of `404`-ing or fabricating data. Only `4xx`/`5xx` are errors.\n\nv2 is **cluster-first**: the agent (artist / label / festival) is the prime resource, and sources (Bandcamp, Discogs) and releases **attach to it as dimensions** rather than being top-level nouns. If you do nothing else, internalize the cold-start recipe: **resolve a name or pasted link → `cluster_id` → dossier.** `GET /api/v2` returns this recipe live, and `GET /api/v2/resolve?q=<name>` is the front door.\n\n## Authentication\n\nThe API is keyed: every operation requires an `X-API-Key` header (`ck_(live|test)_<…>` format) **except** the two public front-door endpoints that opt out — `GET /api/v2` (the root index) and `GET /api/v2/openapi.json` (this spec). One family of endpoints uses a *different* credential entirely — see **beacons** below.\n\n## Concepts\n\n### `cluster_id` — the canonical artist identity\n\n`cluster_id` is crate's prime key for an artist: a `pe-norm-v1` hex string derived from the artist's name, designed so that the same artist's Discogs page, MusicBrainz entry, and Bandcamp profile all **collapse to one `cluster_id`**. Key *all* artist data off it.\n\n- It is an **opaque string** — pass it through verbatim. Never numericize it, parse it, or assume structure.\n- `cluster_id: null` is an **honest gap**, not an error: crate couldn't resolve a canonical identity for that lookup. Roughly half of the long-tail booking artists have neither a Discogs id nor an MBID, so `null` is normal.\n- You get one by calling `GET /api/v2/resolve` (from a name, a pasted link, or a foreign id). You then address the artist dossier directly as `GET /api/v2/artist/{key}`, where `{key}` is the 64-hex `cluster_id` **or** a human slug.\n- A 64-hex key resolves identity *directly* from the cluster — it deliberately skips the Discogs lookup so a hex address never silently re-anchors onto a same-name Discogs row. Foreign locators (`discogs:<id>`, `mbid:<uuid>`) are **not** canonical addresses: convert them via `/resolve` first, or `/artist/{key}` returns `400` (the response's `next` field is a ready-to-call `/resolve` URL).\n\n### dossier · grains — the composed per-entity picture\n\nA **dossier** is the full picture crate composes for one entity by joining every fleet signal. v2 has three agent **grains**:\n\n| grain | addressed by | what it is |\n|---|---|---|\n| `artist` | `GET /api/v2/artist/{key}` or `GET /api/v2/dossier/artist/{slug}` | identity + collector behavior + editorial + emergence + live presence + web + compositions + **discography** + **bandcamp** dimensions… |\n| `label` | `GET /api/v2/label/{key}` or `GET /api/v2/dossier/label/{slug}` | label identity + sublabel→parent lineage + collector behavior |\n| `festival` | `GET /api/v2/dossier/festival/{slug}` | de-fragmented festival identity + consolidated editions ⋈ lineup |\n\n**Releases are not a top-level grain in v2.** In the cluster-first model a release (a Discogs release-group, what a consumer calls a \"release\") **attaches to the artist** as the dossier's `discography` dimension, keyed by the artist's `cluster_id` — there is no standalone release resource. Likewise **Bandcamp is a dimension of the artist dossier** (`bandcamp_emergence` / `bandcamp_tastemaker`), not a top-level surface.\n\nEvery dossier facet carries a classified **`state`** (e.g. `present`, `empty`/absent, `honest_gap`) and the dossier ships a **provenance manifest** — an array where each entry names the `producer`, `sourceTable`, `refreshCadence`, `tier`, and `honestGapState` for a field. Read `GET /api/v2/dossier/manifest` (the data dictionary) to discover the entire field surface across grains — including grains that are deliberately *unavailable* (e.g. song, because the fleet has no track key; and the demoted master grain, whose detail now lives in the artist's `discography`) — without hitting every entity endpoint.\n\n### honest gap — empty is `200`, not `404`\n\nThis is crate's defining principle: **crate shows what it can see and is explicit about what it can't, rather than 404-ing or faking data.** An unresolved or empty lookup returns **HTTP `200`** with one of:\n\n- `present: false` (e.g. a dossier dimension with no match),\n- a `null` field (`cluster_id: null`, `identity: null`),\n- `state: \"honest_gap\"` on a dossier facet.\n\nBranch on the body, not the status, for \"did I get data?\". An unresolved artist slug returns `identity:null` at `200` — never `404`. Reserve your error handling for genuine **`4xx`/`5xx`**.\n\n### `resolved_via` · `resolved_from` — binding tier and match method\n\nWhen crate resolves an identity it tells you two orthogonal things:\n\n- **`resolved_via`** = the *binding tier*, i.e. how trustworthy the identity is:\n  - `'discogs'` — canonical, Discogs-bound (verified).\n  - `'cluster'` — **observed/unverified**: the identity came from the booking graph with no Discogs bind. Surface it flagged as unverified, never as canonical.\n  - `null` — did not resolve.\n- **`resolved_from`** = *how* you addressed it on `/resolve`: `'url'` (a pasted link), `'name'`, or `'locator'` (a foreign id). `matched_on` names the surface that matched; `note` explains a recognized-but-unresolved link (e.g. a Twitter URL crate recognizes but does not yet cross-reference).\n\nA 64-hex `cluster_id` address always yields `resolved_via: 'cluster'` (observed tier) by design.\n\n### the cube · `cube_quadrant` — the behavioral-signal model\n\nThe **cube** is crate's behavioral model of a release: a **3-bit code** (string, e.g. `\"101\"`) placing it on three independent behavioral axes — **who OWNS it (collector), who PLAYS it (DJ), who WRITES about it (critic)**. Each bit is `0`/`1`, so the eight quadrants run `\"000\"` (\"No signal\") through `\"111\"` (\"Full intersection\"): `\"100\"` = collector-only, `\"010\"` = DJ-only, `\"101\"` = collector + critic, and so on. The collector-vs-DJ split — *who owns it vs who plays it* — is the heart of the model. `cube_quadrant: null` means it isn't yet classified (an honest gap). You meet `cube_quadrant` (with companion `owner_count` / `dj_count` / `critic_count` magnitudes + a `link_to_cube` explorer deep-link) on the master-grain result rows of `GET /api/v2/search`.\n\n### tastemakers · breakouts — discovery surfaces\n\nTwo read-only discovery surfaces, served from offline-published snapshots (no DB checkout) and **fail-soft**: each returns a `state` of `present` / `empty` / `degraded`, where `degraded` is a `200` honest-gap (a read failure never `500`s), and `stale:true` flags a snapshot older than 7 days.\n\n- **tastemakers** (`GET /api/v2/tastemakers`, `…/ones-to-watch`) — influential curators and the richest artist-grain analytics crate has: rank, own-tier, brokerage score, corroborating axes, lead-times, Bandcamp demand. `?limit=` bounds each array (`1..200`).\n- **breakouts** (`GET /api/v2/breakouts`) — emerging artists on the rise (\"ones to watch\"): booking-momentum signal cross-validated against press. `?tier=breakout|rising` and `?corroboration=corroborated|booking_ahead` filter it; `?limit=` is clamped to `200`.\n\n### beacons — search-event telemetry (different credential)\n\n**Beacons** are client-side telemetry about search behavior: `POST /api/v2/search-events/observed` (a result was served from cache) and `…/refined` (the user changed facets). They are **not** authenticated with your `X-API-Key`. Each search response issues a **short-lived per-search JWT** bound to one `search_event_id`; send it as `Authorization: Bearer <token>`, and the token must match the body's `search_event_id`. Bodies are capped at 512 bytes and beacons are idempotent (a duplicate is a `204` no-op). Beacon `400`s carry a Zod *flattened* `details` object (not the array shape of normal validation errors), so they use a distinct error schema.\n\n### sparse fieldsets — `?fields=` (opt-out trim)\n\nThe artist dossier is **default-rich**: `GET /api/v2/artist/{key}` returns the whole dossier in one round-trip. If you want less, `?fields=identity,discography` **trims** to the named top-level facets (the envelope is always present). An unknown field returns `400 invalid_fields` with the exact valid set and a copy-pasteable `example` — so you never guess.\n\n### Bandcamp in v2 — analytical dimensions, and the link-only posture\n\nIn v2 Bandcamp is an **analytical dimension of the artist dossier**, not a release surface. Two facets carry it, both keyed by the artist's `cluster_id` and both **signals/metrics** (not per-release listings):\n\n- **`bandcamp_emergence`** — purchase-backed demand signals (emergence class, demand lead/ratio, owner reach, wishlist demand, distinct releases, earliest-wished date).\n- **`bandcamp_tastemaker`** — early-supporter quality scores (supporter-cohort size, aesthetic-quality scores, mean first-buyer earliness).\n\nPer-release Bandcamp listings — and the `bandcamp_item_id` / `track_url` per-release fields — are **not a v2 surface**; they belong to the v1 Bandcamp endpoints. (The discography dimension is the **Discogs** release-group attachment, keyed by `discogsMasterId` — distinct from Bandcamp.)\n\ncrate is **link-only** everywhere it does carry links: every artwork item is a hotlink `url` with `rehost:false` — crate never fetches or re-hosts bytes (a Cover Art Archive URL is best-effort and may `404` if no cover exists), and crate never stores Bandcamp audio streams (tokenized, expiring, out of ToS bounds).\n\n### Opaque ids — the universal rule\n\n`cluster_id` is **always a string, always opaque**. Round-trip it verbatim; do not parse, increment, numericize, or infer structure from it. (The same discipline applies to any id crate hands you.) This keeps your client correct across id-scheme changes.\n\n### Versioning\n\nThe **API major version lives in the URL path** (`/api/v2`). The spec's `info.version` (currently `2.33.0`) bumps on **every** spec change and is drift-guarded: the document is generated from code, so docs cannot drift from runtime behavior. Operations carry stable `operationId`s for codegen, and keyed `2xx` responses declare `X-RateLimit-Limit` / `X-RateLimit-Remaining` / `X-RateLimit-Reset` headers (back off on `429` using `retry_after_seconds` / `Retry-After`). v2 is the cluster-first stable major; the frozen v1 predecessor remains available during a time-boxed, announced deprecation — the route-by-route migration map is at `/docs/migration/v1-to-v2`.",
     "contact": {
       "name": "crate support",
@@ -5391,7 +5391,7 @@
           },
           "candidates": {
             "type": "array",
-            "description": "Disambiguation aid, emitted ONLY when a ?q= resolve ends clusterless (unresolved, or identity matched without a cluster bind): up to 5 OBSERVED-tier prefix matches from the booking graph. tier:'cluster' = unverified — surface as flagged, never as canonical truth. Absent otherwise.",
+            "description": "Disambiguation aid, emitted ONLY when a ?q= resolve ends clusterless (unresolved, or identity matched without a cluster bind): up to 5 OBSERVED-tier prefix matches from the booking graph. tier:'cluster' = unverified — surface as flagged, never as canonical truth. Absent otherwise. Suppressed when members[] is present (a decomposed credit already answers the question).",
             "items": {
               "type": "object",
               "properties": {
@@ -5411,6 +5411,38 @@
                 "distinct_events": {
                   "type": "integer",
                   "description": "Booking-graph support (k-anon floor 2) — a rough strength signal."
+                }
+              }
+            }
+          },
+          "members": {
+            "type": "array",
+            "description": "Compound-credit decomposition (matched_on:\"credit_split\"), emitted ONLY when a ?q= input reads as a collaboration credit (\"A, B\", \"A & B\", \"A feat. B\", \"NAME (A, B)\"), the WHOLE string resolved on no real tier, and at least one member name individually resolved to a REAL (non-minted) cluster. cluster_id on the envelope stays null — crate never guesses which member \"is\" the credit; query a member for its full resolution. Absent otherwise. A whole string that resolves as one act (e.g. \"Simon & Garfunkel\") is never split.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "cluster_id": {
+                  "type": "string",
+                  "description": "The member's canonical 64-hex cluster_id (real tier, never minted)."
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The member name as resolved (display form)."
+                },
+                "matched_on": {
+                  "type": "string",
+                  "enum": [
+                    "name"
+                  ]
+                },
+                "_links": {
+                  "type": "object",
+                  "properties": {
+                    "artist": {
+                      "type": "string",
+                      "description": "GET this for the member’s full dossier."
+                    }
+                  }
                 }
               }
             }
@@ -6281,6 +6313,1320 @@
           }
         },
         "operationId": "getArtistBandcampRelease"
+      }
+    },
+    "/api/v2/artist/{key}/similar": {
+      "get": {
+        "summary": "Composed adjacency evidence for one artist — movements, not scores",
+        "description": "cycle-112 + cycle-113 — one call returning adjacency EVIDENCE grouped per axis, for suggestion/recommendation consumers (the Public Office Listen shape). NO composite similarity score exists anywhere on this surface: each axis carries its substrate's own counts + recency VERBATIM and the consumer ranks; similar[] order is a deterministic presentation convention (axis breadth → most recent evidence → key), never a ranking. EIGHT axes. co_appearance (seen.artist_co_appearance public co-booking edges — the SAME substrate as the dossier's connections.related, so this endpoint gives one-call parity with related[] plus the other axes). radio_co_play (seen.radio_co_play — programmed adjacency within 5 positions in the same radio set, NOT whole-show membership; artists in >1000 sets carry no edges, the HUB_CAP). shared_dj_champions (seen.dj_champion 2-hop: DJs championing the subject who also champion the suggested artist; attribution-bounded per source — kexp 100% DJ names, skylab 0). lineage (mirror.cluster_derivation_edges_v1 — the MusicBrainz derivation graph at CLUSTER grain: samples/remixes/edits/dj-mixes/mashups at recording level, versions/adaptations/arrangements/medleys/quotations at composition level. Endpoints resolve at BILLING grain, so read as graph participation, never authorship — MB credits a remix to the ORIGINAL billed artist; direction 'derived' = the subject's work derives from the suggested artist's, 'source' = the reverse). session_credit (mirror.session_credit_edges_v1 — 5.86M undirected co-credit edges: shared recordings, shared works, and allowlisted direct MusicBrainz artist relations. COUNTS ONLY upstream; edgeWeight is the producer's own total support, NOT a similarity. relationTypes is empty and firstYear/lastYear are null on the current producer refresh). label_mates (mirror.artist_label_tenure_v1 — shared label rosters on the cluster spine, with each label's rosterSize served BECAUSE a large roster is a weak adjacency. ROSTER FAMILIES ONLY: the six '… position at' relations are label EMPLOYMENT and are excluded. Coverage is double-gated and reaches ~0.73% of clusters, so absence is the norm, not a claim. No label name — the identity surface is the artist spine and carries none). influence (mirror.influence_edges_v1 — Wikidata P737 'influenced by', DIRECT edges only; transitive depth-2 chains are excluded. A sparse crowd-curated canonical layer). attention_flow (mirror.attention_flow_edges_v1 — Wikimedia Clickstream navigation, direction FROM→TO and NOT symmetric; carries the upstream n>=10 suppression floor, so a missing edge means below-floor or not Wikipedia-resolvable, never zero navigation. Attention flows to band members and side projects first). CROSS-AXIS: cluster identity is keyed on the NORMALISED ARTIST NAME (pe-norm-v1), so an alias or legal name is a DIFFERENT cluster and can appear as its own adjacency; session_credit and lineage are CREDIT graphs, so engineers and producers appear wherever MusicBrainz credits them; the seen-sourced axes carry an ARRIVAL LATENCY of up to ~7 days for a newly observed artist (weekly Sunday cluster fill) even though existing rows refresh nightly. Per-axis cap 10; artists appearing on multiple axes are DEDUPED with all their axes[] listed. Fail-soft per axis: a failed leg degrades ONLY its axisState (response stays 200); state:'degraded' means ≥1 axis could not be read. {key} = 64-hex cluster_id (canonical) or a name slug; the endpoint is CLUSTER-KEYED — a subject resolving without a cluster anchor returns an honest empty with a /resolve pointer, never a guess. Member names hydrate from mirror.cluster_identity_v1; a member outside that surface keeps name:null. Keyed (X-API-Key); ONE crate_reader checkout.",
+        "tags": [
+          "Dossier"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "key",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Adjacency evidence grouped per axis (deduped artists, axes[] each), or an honest empty when the subject has no cluster anchor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "type": "string",
+                      "enum": [
+                        "artist.similar"
+                      ]
+                    },
+                    "subject": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "clusterId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "discogsArtistId": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "clusterId",
+                        "name"
+                      ]
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "degraded"
+                      ]
+                    },
+                    "axisStates": {
+                      "type": "object",
+                      "properties": {
+                        "co_appearance": {
+                          "type": "string",
+                          "enum": [
+                            "ok",
+                            "empty",
+                            "degraded"
+                          ]
+                        },
+                        "radio_co_play": {
+                          "type": "string",
+                          "enum": [
+                            "ok",
+                            "empty",
+                            "degraded"
+                          ]
+                        },
+                        "shared_dj_champions": {
+                          "type": "string",
+                          "enum": [
+                            "ok",
+                            "empty",
+                            "degraded"
+                          ]
+                        },
+                        "lineage": {
+                          "type": "string",
+                          "enum": [
+                            "ok",
+                            "empty",
+                            "degraded"
+                          ]
+                        },
+                        "session_credit": {
+                          "type": "string",
+                          "enum": [
+                            "ok",
+                            "empty",
+                            "degraded"
+                          ]
+                        },
+                        "label_mates": {
+                          "type": "string",
+                          "enum": [
+                            "ok",
+                            "empty",
+                            "degraded"
+                          ]
+                        },
+                        "influence": {
+                          "type": "string",
+                          "enum": [
+                            "ok",
+                            "empty",
+                            "degraded"
+                          ]
+                        },
+                        "attention_flow": {
+                          "type": "string",
+                          "enum": [
+                            "ok",
+                            "empty",
+                            "degraded"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "co_appearance",
+                        "radio_co_play",
+                        "shared_dj_champions",
+                        "lineage",
+                        "session_credit",
+                        "label_mates",
+                        "influence",
+                        "attention_flow"
+                      ]
+                    },
+                    "similar": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "clusterId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "name": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "axes": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "axis": {
+                                      "type": "string",
+                                      "enum": [
+                                        "co_appearance"
+                                      ]
+                                    },
+                                    "coEventCount": {
+                                      "type": "number"
+                                    },
+                                    "coVenueCount": {
+                                      "type": "number"
+                                    },
+                                    "lastCoAt": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "axis",
+                                    "coEventCount",
+                                    "coVenueCount",
+                                    "lastCoAt"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "axis": {
+                                      "type": "string",
+                                      "enum": [
+                                        "radio_co_play"
+                                      ]
+                                    },
+                                    "coPlayCount": {
+                                      "type": "number"
+                                    },
+                                    "distinctStations": {
+                                      "type": "number"
+                                    },
+                                    "firstCoPlayedAt": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "lastCoPlayedAt": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "axis",
+                                    "coPlayCount",
+                                    "distinctStations",
+                                    "firstCoPlayedAt",
+                                    "lastCoPlayedAt"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "axis": {
+                                      "type": "string",
+                                      "enum": [
+                                        "shared_dj_champions"
+                                      ]
+                                    },
+                                    "sharedChampionCount": {
+                                      "type": "number"
+                                    },
+                                    "champions": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "djClusterId": {
+                                            "type": "string"
+                                          },
+                                          "playCount": {
+                                            "type": "number"
+                                          },
+                                          "latestPlayedAt": {
+                                            "type": [
+                                              "string",
+                                              "null"
+                                            ]
+                                          }
+                                        },
+                                        "required": [
+                                          "djClusterId",
+                                          "playCount",
+                                          "latestPlayedAt"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "axis",
+                                    "sharedChampionCount",
+                                    "champions"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "axis": {
+                                      "type": "string",
+                                      "enum": [
+                                        "lineage"
+                                      ]
+                                    },
+                                    "edgeCount": {
+                                      "type": "number"
+                                    },
+                                    "entries": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "relType": {
+                                            "type": "string"
+                                          },
+                                          "direction": {
+                                            "type": "string",
+                                            "enum": [
+                                              "derived",
+                                              "source"
+                                            ]
+                                          },
+                                          "evidenceGrain": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "relType",
+                                          "direction",
+                                          "evidenceGrain"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "axis",
+                                    "edgeCount",
+                                    "entries"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "axis": {
+                                      "type": "string",
+                                      "enum": [
+                                        "session_credit"
+                                      ]
+                                    },
+                                    "edgeWeight": {
+                                      "type": "number"
+                                    },
+                                    "sharedRecordingCount": {
+                                      "type": "number"
+                                    },
+                                    "sharedWorkCount": {
+                                      "type": "number"
+                                    },
+                                    "directRelationCount": {
+                                      "type": "number"
+                                    },
+                                    "evidenceSources": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "relationTypes": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "firstYear": {
+                                      "type": [
+                                        "number",
+                                        "null"
+                                      ]
+                                    },
+                                    "lastYear": {
+                                      "type": [
+                                        "number",
+                                        "null"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "axis",
+                                    "edgeWeight",
+                                    "sharedRecordingCount",
+                                    "sharedWorkCount",
+                                    "directRelationCount",
+                                    "evidenceSources",
+                                    "relationTypes",
+                                    "firstYear",
+                                    "lastYear"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "axis": {
+                                      "type": "string",
+                                      "enum": [
+                                        "label_mates"
+                                      ]
+                                    },
+                                    "sharedLabelCount": {
+                                      "type": "number"
+                                    },
+                                    "labels": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "labelClusterId": {
+                                            "type": "string"
+                                          },
+                                          "rosterSize": {
+                                            "type": "number"
+                                          },
+                                          "relType": {
+                                            "type": "string"
+                                          },
+                                          "firstYear": {
+                                            "type": [
+                                              "number",
+                                              "null"
+                                            ]
+                                          },
+                                          "lastYear": {
+                                            "type": [
+                                              "number",
+                                              "null"
+                                            ]
+                                          },
+                                          "isCurrent": {
+                                            "type": "boolean"
+                                          }
+                                        },
+                                        "required": [
+                                          "labelClusterId",
+                                          "rosterSize",
+                                          "relType",
+                                          "firstYear",
+                                          "lastYear",
+                                          "isCurrent"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "axis",
+                                    "sharedLabelCount",
+                                    "labels"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "axis": {
+                                      "type": "string",
+                                      "enum": [
+                                        "influence"
+                                      ]
+                                    },
+                                    "direction": {
+                                      "type": "string",
+                                      "enum": [
+                                        "influenced_by",
+                                        "influenced"
+                                      ]
+                                    },
+                                    "edgeCount": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "axis",
+                                    "direction",
+                                    "edgeCount"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "axis": {
+                                      "type": "string",
+                                      "enum": [
+                                        "attention_flow"
+                                      ]
+                                    },
+                                    "direction": {
+                                      "type": "string",
+                                      "enum": [
+                                        "to",
+                                        "from"
+                                      ]
+                                    },
+                                    "totalWeight": {
+                                      "type": "number"
+                                    },
+                                    "months": {
+                                      "type": "number"
+                                    },
+                                    "lastMonth": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "langs": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "axis",
+                                    "direction",
+                                    "totalWeight",
+                                    "months",
+                                    "lastMonth",
+                                    "langs"
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          "_links": {
+                            "type": "object",
+                            "properties": {
+                              "artist": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "artist"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "clusterId",
+                          "name",
+                          "axes",
+                          "_links"
+                        ]
+                      }
+                    },
+                    "notes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "object",
+                    "subject",
+                    "state",
+                    "axisStates",
+                    "similar",
+                    "notes"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch (seconds) when the current window resets.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failure (invalid query, malformed body, bad facet name)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded — see Retry-After + X-RateLimit-* headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimited"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database pool exhausted — retry after 5s",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Request deadline (15s) or query timeout exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getArtistSimilar"
+      }
+    },
+    "/api/v2/artist/{key}/gigs": {
+      "get": {
+        "summary": "One artist's upcoming events, each with the full bill",
+        "description": "cycle-114 — upcoming events for one artist, with the support-act lane. A SUB-ROUTE rather than a dossier facet on purpose: at 0.07% coverage, folding it into the default-rich dossier would tax every /artist call for something empty 99.93% of the time (the same opt-in precedent as /similar and /bandcamp). {key} = 64-hex cluster_id (canonical) or a name slug; CLUSTER-KEYED, so a subject resolving without a cluster anchor returns an honest empty with a /resolve pointer, never a guess. An artist with no forward-dated event is 200 with gigs:[] — never 404, and never a claim that the artist is not touring. Cluster identity is keyed on the NORMALISED ARTIST NAME (pe-norm-v1), so an alias or legal name is a DIFFERENT cluster and may carry its own gigs. Keyed (X-API-Key); ONE crate_reader checkout; every hop index-served (measured 69.7 ms). FRESHNESS IS NOW READ LIVE (sprint-bug-148): `surface` carries the producer's own refreshed_at, event_count and orphan_artist_rate from mirror.mb_events_meta, and the import-cadence note is DERIVED from that stamp rather than frozen into copy. v2 2.53.0 shipped a probe observation hardcoded at ship time because that twin was not granted to crate_reader; a live pg_class.relacl diff found the gap on 2026-08-19 and mirror granted it the same day. The read is deliberately NOT memoized — it is a genuine singleton measured at 1.980 ms, unlike the journalism freshness read which needed a TTL cache at 315 ms. If the read fails the note is dropped rather than invented. COVERAGE IS NARROW AND SAID SO ON THE WIRE: 1,772 artist clusters of ~2,564,895 (0.07%) carry a forward-dated event, so an empty result means this surface has no event for the subject — NOT that nobody is playing. The source is mirror.mb_events (MusicBrainz volunteer editing): strong for touring and festival acts with active editors, absent for the long tail, and NOT a market feed — there is no on-sale, price, or ticketing state, and the import cadence (imported_at 2026-08-01 when probed) is right for 'upcoming' and wrong for 'on sale now'. begin_date is a MusicBrainz PARTIAL date held as text, so only full YYYY-MM-DD rows are served: 1,092 year-only and 584 year-month events are EXCLUDED and 18 malformed rows (which sort AFTER valid 2026 dates lexicographically) are filtered by a format guard. lineup[] is the reason this lane exists — mb_event_artists carries 46,331 `support act` and 713 `supporting DJ` links, making this the ONLY surface in the fleet that answers 'who is opening' (seen's festival_lineup_entries is headliners-only with zero forward-dated rows). link_type is served VERBATIM and NO billing order is implied, because MusicBrainz does not record one; lineup order is link_type, then name, then mbid. roles[] carries EVERY role the addressed cluster holds on a bill (MusicBrainz can credit one cluster under several link_types on one event, and a cluster can bind several mbids), and it is sourced from the same join that selected the event so it is never cut by the lineup bound; it is always empty on the city direction, which has no subject. A lineup longer than 30 sets lineupTruncated instead of silently dropping members. event_type is null on 17 forward-dated rows; venue is null when the event carries no place link (~4.3%). MusicBrainz can link an event to SEVERAL venues (404 events carry 2, 83 carry 3, up to 22 — genuinely multi-site festivals): venue carries one of them deterministically and venueCount says how many exist, so a multi-venue event is disclosed rather than presented as if it had one venue.",
+        "tags": [
+          "Dossier"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "key",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The artist's forward-dated events with their bills, or an honest empty",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "type": "string",
+                      "enum": [
+                        "artist.gigs"
+                      ]
+                    },
+                    "subject": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "clusterId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "discogsArtistId": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "clusterId",
+                        "name"
+                      ]
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "ok"
+                      ]
+                    },
+                    "gigs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "eventMbid": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "date": {
+                            "type": "string"
+                          },
+                          "time": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "eventType": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "venue": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "city": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "countryCode": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "city",
+                              "countryCode"
+                            ]
+                          },
+                          "venueCount": {
+                            "type": "number"
+                          },
+                          "roles": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "lineup": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "clusterId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "name": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "role": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "clusterId",
+                                "name",
+                                "role"
+                              ]
+                            }
+                          },
+                          "lineupTruncated": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "eventMbid",
+                          "name",
+                          "date",
+                          "time",
+                          "eventType",
+                          "venue",
+                          "venueCount",
+                          "roles",
+                          "lineup",
+                          "lineupTruncated"
+                        ]
+                      }
+                    },
+                    "surface": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "refreshedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "eventCount": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "orphanArtistRate": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "refreshedAt",
+                        "eventCount",
+                        "orphanArtistRate"
+                      ]
+                    },
+                    "notes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "object",
+                    "subject",
+                    "state",
+                    "gigs",
+                    "surface",
+                    "notes"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch (seconds) when the current window resets.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failure (invalid query, malformed body, bad facet name)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded — see Retry-After + X-RateLimit-* headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimited"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database pool exhausted — retry after 5s",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Request deadline (15s) or query timeout exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/gigs": {
+      "get": {
+        "summary": "Who's playing in a city, in a date window — with each full bill",
+        "description": "cycle-114 — the discovery direction of the gig lane, same event shape as /api/v2/artist/{key}/gigs. ?city= is EXACT FREE TEXT from mb_places.area_name: MusicBrainz has no controlled place vocabulary and there is no area_mbid on the place row, so 'Köln' ≠ 'Cologne'. That is the surface's real usability problem and it is answered at the point of failure — a city matching nothing returns 200 with availableCities[] (the values that currently carry forward-dated events, most first, capped at 50), so one wrong guess teaches the right value in a single call. ?from= and ?to= are YYYY-MM-DD and `to` is EXCLUSIVE; omit both for the next 90 days. A malformed window, or `to` not after `from`, is 400 invalid_gig_window with a copy-pasteable example; a missing city is 400 invalid_city. Results are capped at 100 events per call and there is no pagination — the busiest city currently carries 102 forward-dated events fleet-wide, so the cap is not yet a constraint. Keyed (X-API-Key); ONE crate_reader checkout. FRESHNESS IS NOW READ LIVE (sprint-bug-148): `surface` carries the producer's own refreshed_at, event_count and orphan_artist_rate from mirror.mb_events_meta, and the import-cadence note is DERIVED from that stamp rather than frozen into copy. v2 2.53.0 shipped a probe observation hardcoded at ship time because that twin was not granted to crate_reader; a live pg_class.relacl diff found the gap on 2026-08-19 and mirror granted it the same day. The read is deliberately NOT memoized — it is a genuine singleton measured at 1.980 ms, unlike the journalism freshness read which needed a TTL cache at 315 ms. If the read fails the note is dropped rather than invented. COVERAGE IS NARROW AND SAID SO ON THE WIRE: 1,772 artist clusters of ~2,564,895 (0.07%) carry a forward-dated event, so an empty result means this surface has no event for the subject — NOT that nobody is playing. The source is mirror.mb_events (MusicBrainz volunteer editing): strong for touring and festival acts with active editors, absent for the long tail, and NOT a market feed — there is no on-sale, price, or ticketing state, and the import cadence (imported_at 2026-08-01 when probed) is right for 'upcoming' and wrong for 'on sale now'. begin_date is a MusicBrainz PARTIAL date held as text, so only full YYYY-MM-DD rows are served: 1,092 year-only and 584 year-month events are EXCLUDED and 18 malformed rows (which sort AFTER valid 2026 dates lexicographically) are filtered by a format guard. lineup[] is the reason this lane exists — mb_event_artists carries 46,331 `support act` and 713 `supporting DJ` links, making this the ONLY surface in the fleet that answers 'who is opening' (seen's festival_lineup_entries is headliners-only with zero forward-dated rows). link_type is served VERBATIM and NO billing order is implied, because MusicBrainz does not record one; lineup order is link_type, then name, then mbid. roles[] carries EVERY role the addressed cluster holds on a bill (MusicBrainz can credit one cluster under several link_types on one event, and a cluster can bind several mbids), and it is sourced from the same join that selected the event so it is never cut by the lineup bound; it is always empty on the city direction, which has no subject. A lineup longer than 30 sets lineupTruncated instead of silently dropping members. event_type is null on 17 forward-dated rows; venue is null when the event carries no place link (~4.3%). MusicBrainz can link an event to SEVERAL venues (404 events carry 2, 83 carry 3, up to 22 — genuinely multi-site festivals): venue carries one of them deterministically and venueCount says how many exist, so a multi-venue event is disclosed rather than presented as if it had one venue.",
+        "tags": [
+          "Discovery"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "city",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Forward-dated events in that city with their bills; when nothing matched, availableCities[] teaches the exact spellings that do",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "type": "string",
+                      "enum": [
+                        "gigs.city"
+                      ]
+                    },
+                    "query": {
+                      "type": "object",
+                      "properties": {
+                        "city": {
+                          "type": "string"
+                        },
+                        "from": {
+                          "type": "string"
+                        },
+                        "to": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "city",
+                        "from",
+                        "to"
+                      ]
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "ok"
+                      ]
+                    },
+                    "gigs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "eventMbid": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "date": {
+                            "type": "string"
+                          },
+                          "time": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "eventType": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "venue": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "city": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "countryCode": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "city",
+                              "countryCode"
+                            ]
+                          },
+                          "venueCount": {
+                            "type": "number"
+                          },
+                          "roles": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "lineup": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "clusterId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "name": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "role": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "clusterId",
+                                "name",
+                                "role"
+                              ]
+                            }
+                          },
+                          "lineupTruncated": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "eventMbid",
+                          "name",
+                          "date",
+                          "time",
+                          "eventType",
+                          "venue",
+                          "venueCount",
+                          "roles",
+                          "lineup",
+                          "lineupTruncated"
+                        ]
+                      }
+                    },
+                    "surface": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "refreshedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "eventCount": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "orphanArtistRate": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "refreshedAt",
+                        "eventCount",
+                        "orphanArtistRate"
+                      ]
+                    },
+                    "availableCities": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "city": {
+                            "type": "string"
+                          },
+                          "events": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "city",
+                          "events"
+                        ]
+                      }
+                    },
+                    "notes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "object",
+                    "query",
+                    "state",
+                    "gigs",
+                    "surface",
+                    "notes"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests allowed in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch (seconds) when the current window resets.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failure (invalid query, malformed body, bad facet name)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded — see Retry-After + X-RateLimit-* headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimited"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database pool exhausted — retry after 5s",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Request deadline (15s) or query timeout exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v2/preview/artist": {
@@ -10071,7 +11417,7 @@
     "/api/v2/surface/{name}": {
       "get": {
         "summary": "Generic cluster-keyed surface read (by registry name)",
-        "description": "The generic read behind every row in GET /api/v2/surface: one operation serves all 44 registered surfaces (public.spine_artist_temporal_profile, seen.radio_play_v1, seen.dj_champion, seen.radio_co_play, seen.song_station_journey, mirror.wantlist_demand_by_cluster_v1, seen.master_propagation_timeline_cluster, seen.dj_tastemaker_score, seen.performing_entity, seen.artist_dossier, seen.artist_momentum, seen.artist_network_position, seen.artist_tier_presence, seen.artist_festival_co_appearance, seen.artist_cross_tier_network, seen.artist_brokerage, seen.artist_emergence_narrative_public, seen.artist_airplay_first_appearance, seen.artist_djset_first_appearance, seen.artist_emergence_lead_time, seen.artist_dated_appearance, seen.artist_primary_geography, seen.artist_identity_bridge, seen.live_demand, seen.bandcamp_artist_gravity, seen.bandcamp_artist_tastemaker_quality, seen.artist_djset_scout_signal, seen.label_djset_momentum, seen.artist_signal_passport, seen.artist_sc_rights_rollup_v1, archive_api_v1.artist_mention_daily, public.spine_artist_name_published_view, archive_api_v1.artist_press_mentions, seen.artist_signal_known_since, mirror.cluster_authority_ids_v1, sync.placement_claim_by_cluster_v1, deadwax.pressing_provenance_depth_by_cluster_v1, mirror.listen_flow_by_cluster_v1, mirror.cluster_alias_v1, wintermute.cluster_arrival_ledger_v1, seen.radar_only_artists_v1, sync.placement_arrival_by_cluster_v1, wintermute.cluster_arrival_wide_v1, mirror.market_vs_flow_divergence_v1). {name} is the schema-qualified registry key — GET /api/v2/surface for the live list + each name's shape. ?cluster= is the 64-hex identity key in THAT surface's registered keyspace (a key from the wrong keyspace fails soft as an empty honest_gap, not an error — see the index for which keyspace {name} expects). cluster-row grain surfaces (cap 1/1) ignore ?after/?limit and answer with 0 or 1 rows; cluster-multirow/cluster-edge-list grains keyset-paginate via the opaque ?after cursor from a prior page's next_after (never OFFSET — pass it back verbatim, never construct or decode it). ?limit clamps to the surface's registered cap. Unknown {name} → 400 with a hint listing every valid name + doc_url + next (the index call). A per-row crate-side kill (registry enabled:false) → 404; the master kill (env CRATE_SURFACE_ENABLED=false) → 503. state:'degraded' (still HTTP 200, rows:[]) means the dedicated crate_surface_reader read pool is unconfigured or not yet granted on the replica — fail-closed: the code ships ahead of the DB role landing. Cursor durability: cursors are page-iteration handles, NOT bookmarks — some surfaces build them from producer-internal columns that can change across producer re-crawls (seen.radio_play_v1's play_key today), so a stored cursor may silently skip or repeat rows after a re-crawl; re-start from the first page for a fresh read (each surface's coverage_note in GET /api/v2/surface carries the current specifics).",
+        "description": "The generic read behind every row in GET /api/v2/surface: one operation serves all 46 registered surfaces (public.spine_artist_temporal_profile, seen.radio_play_v1, seen.dj_champion, seen.radio_co_play, seen.song_station_journey, mirror.wantlist_demand_by_cluster_v1, seen.master_propagation_timeline_cluster, seen.dj_tastemaker_score, seen.performing_entity, seen.artist_dossier, seen.artist_momentum, seen.artist_network_position, seen.artist_tier_presence, seen.artist_festival_co_appearance, seen.artist_cross_tier_network, seen.artist_brokerage, seen.artist_emergence_narrative_public, seen.artist_airplay_first_appearance, seen.artist_djset_first_appearance, seen.artist_emergence_lead_time, seen.artist_dated_appearance, seen.artist_primary_geography, seen.artist_identity_bridge, seen.live_demand, seen.bandcamp_artist_gravity, seen.bandcamp_artist_tastemaker_quality, seen.artist_djset_scout_signal, seen.label_djset_momentum, seen.artist_signal_passport, seen.artist_sc_rights_rollup_v1, archive_api_v1.artist_mention_daily, public.spine_artist_name_published_view, archive_api_v1.artist_press_mentions, seen.artist_signal_known_since, mirror.cluster_authority_ids_v1, sync.placement_claim_by_cluster_v1, deadwax.pressing_provenance_depth_by_cluster_v1, mirror.listen_flow_by_cluster_v1, mirror.cluster_alias_v1, wintermute.cluster_arrival_ledger_v1, seen.radar_only_artists_v1, sync.placement_arrival_by_cluster_v1, wintermute.cluster_arrival_wide_v1, mirror.market_vs_flow_divergence_v1, seen.sc_crossing_v1, mirror.cluster_identity_v1). {name} is the schema-qualified registry key — GET /api/v2/surface for the live list + each name's shape. ?cluster= is the 64-hex identity key in THAT surface's registered keyspace (a key from the wrong keyspace fails soft as an empty honest_gap, not an error — see the index for which keyspace {name} expects). cluster-row grain surfaces (cap 1/1) ignore ?after/?limit and answer with 0 or 1 rows; cluster-multirow/cluster-edge-list grains keyset-paginate via the opaque ?after cursor from a prior page's next_after (never OFFSET — pass it back verbatim, never construct or decode it). ?limit clamps to the surface's registered cap. Unknown {name} → 400 with a hint listing every valid name + doc_url + next (the index call). A per-row crate-side kill (registry enabled:false) → 404; the master kill (env CRATE_SURFACE_ENABLED=false) → 503. state:'degraded' (still HTTP 200, rows:[]) means the dedicated crate_surface_reader read pool is unconfigured or not yet granted on the replica — fail-closed: the code ships ahead of the DB role landing. Cursor durability: cursors are page-iteration handles, NOT bookmarks — some surfaces build them from producer-internal columns that can change across producer re-crawls (seen.radio_play_v1's play_key today), so a stored cursor may silently skip or repeat rows after a re-crawl; re-start from the first page for a fresh read (each surface's coverage_note in GET /api/v2/surface carries the current specifics).",
         "tags": [
           "Surface Registry"
         ],
@@ -10128,7 +11474,9 @@
                 "seen.radar_only_artists_v1",
                 "sync.placement_arrival_by_cluster_v1",
                 "wintermute.cluster_arrival_wide_v1",
-                "mirror.market_vs_flow_divergence_v1"
+                "mirror.market_vs_flow_divergence_v1",
+                "seen.sc_crossing_v1",
+                "mirror.cluster_identity_v1"
               ],
               "description": "The schema-qualified registry key, e.g. seen.radio_play_v1. GET /api/v2/surface lists every valid name."
             },
@@ -13294,9 +14642,6 @@
                                   "number",
                                   "null"
                                 ]
-                              },
-                              "is_quarantined": {
-                                "type": "boolean"
                               }
                             },
                             "required": [
@@ -13304,8 +14649,7 @@
                               "source_kind",
                               "first_appearance_date",
                               "latest_appearance_date",
-                              "appearance_count",
-                              "is_quarantined"
+                              "appearance_count"
                             ]
                           }
                         },
