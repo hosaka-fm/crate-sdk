@@ -24,6 +24,318 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/artist/{key}/similar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Composed adjacency evidence for one artist — movements, not scores
+         * @description cycle-112 + cycle-113 — one call returning adjacency EVIDENCE grouped per axis, for suggestion/recommendation consumers (the Public Office Listen shape). NO composite similarity score exists anywhere on this surface: each axis carries its substrate's own counts + recency VERBATIM and the consumer ranks; similar[] order is a deterministic presentation convention (axis breadth → most recent evidence → key), never a ranking. EIGHT axes. co_appearance (seen.artist_co_appearance public co-booking edges — the SAME substrate as the dossier's connections.related, so this endpoint gives one-call parity with related[] plus the other axes). radio_co_play (seen.radio_co_play — programmed adjacency within 5 positions in the same radio set, NOT whole-show membership; artists in >1000 sets carry no edges, the HUB_CAP). shared_dj_champions (seen.dj_champion 2-hop: DJs championing the subject who also champion the suggested artist; attribution-bounded per source — kexp 100% DJ names, skylab 0). lineage (mirror.cluster_derivation_edges_v1 — the MusicBrainz derivation graph at CLUSTER grain: samples/remixes/edits/dj-mixes/mashups at recording level, versions/adaptations/arrangements/medleys/quotations at composition level. Endpoints resolve at BILLING grain, so read as graph participation, never authorship — MB credits a remix to the ORIGINAL billed artist; direction 'derived' = the subject's work derives from the suggested artist's, 'source' = the reverse). session_credit (mirror.session_credit_edges_v1 — 5.86M undirected co-credit edges: shared recordings, shared works, and allowlisted direct MusicBrainz artist relations. COUNTS ONLY upstream; edgeWeight is the producer's own total support, NOT a similarity. relationTypes is empty and firstYear/lastYear are null on the current producer refresh). label_mates (mirror.artist_label_tenure_v1 — shared label rosters on the cluster spine, with each label's rosterSize served BECAUSE a large roster is a weak adjacency. ROSTER FAMILIES ONLY: the six '… position at' relations are label EMPLOYMENT and are excluded. Coverage is double-gated and reaches ~0.73% of clusters, so absence is the norm, not a claim. No label name — the identity surface is the artist spine and carries none). influence (mirror.influence_edges_v1 — Wikidata P737 'influenced by', DIRECT edges only; transitive depth-2 chains are excluded. A sparse crowd-curated canonical layer). attention_flow (mirror.attention_flow_edges_v1 — Wikimedia Clickstream navigation, direction FROM→TO and NOT symmetric; carries the upstream n>=10 suppression floor, so a missing edge means below-floor or not Wikipedia-resolvable, never zero navigation. Attention flows to band members and side projects first). CROSS-AXIS: cluster identity is keyed on the NORMALISED ARTIST NAME (pe-norm-v1), so an alias or legal name is a DIFFERENT cluster and can appear as its own adjacency; session_credit and lineage are CREDIT graphs, so engineers and producers appear wherever MusicBrainz credits them; the seen-sourced axes carry an ARRIVAL LATENCY of up to ~7 days for a newly observed artist (weekly Sunday cluster fill) even though existing rows refresh nightly. Per-axis cap 10; artists appearing on multiple axes are DEDUPED with all their axes[] listed. Fail-soft per axis: a failed leg degrades ONLY its axisState (response stays 200); state:'degraded' means ≥1 axis could not be read. {key} = 64-hex cluster_id (canonical) or a name slug; the endpoint is CLUSTER-KEYED — a subject resolving without a cluster anchor returns an honest empty with a /resolve pointer, never a guess. Member names hydrate from mirror.cluster_identity_v1; a member outside that surface keeps name:null. Keyed (X-API-Key); ONE crate_reader checkout.
+         */
+        get: operations["getArtistSimilar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/artist/{key}/gigs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One artist's upcoming events, each with the full bill
+         * @description cycle-114 — upcoming events for one artist, with the support-act lane. A SUB-ROUTE rather than a dossier facet on purpose: at 0.07% coverage, folding it into the default-rich dossier would tax every /artist call for something empty 99.93% of the time (the same opt-in precedent as /similar and /bandcamp). {key} = 64-hex cluster_id (canonical) or a name slug; CLUSTER-KEYED, so a subject resolving without a cluster anchor returns an honest empty with a /resolve pointer, never a guess. An artist with no forward-dated event is 200 with gigs:[] — never 404, and never a claim that the artist is not touring. Cluster identity is keyed on the NORMALISED ARTIST NAME (pe-norm-v1), so an alias or legal name is a DIFFERENT cluster and may carry its own gigs. Keyed (X-API-Key); ONE crate_reader checkout; every hop index-served (measured 69.7 ms). FRESHNESS IS NOW READ LIVE (sprint-bug-148): `surface` carries the producer's own refreshed_at, event_count and orphan_artist_rate from mirror.mb_events_meta, and the import-cadence note is DERIVED from that stamp rather than frozen into copy. v2 2.53.0 shipped a probe observation hardcoded at ship time because that twin was not granted to crate_reader; a live pg_class.relacl diff found the gap on 2026-08-19 and mirror granted it the same day. The read is deliberately NOT memoized — it is a genuine singleton measured at 1.980 ms, unlike the journalism freshness read which needed a TTL cache at 315 ms. If the read fails the note is dropped rather than invented. COVERAGE IS NARROW AND SAID SO ON THE WIRE: 1,772 artist clusters of ~2,564,895 (0.07%) carry a forward-dated event, so an empty result means this surface has no event for the subject — NOT that nobody is playing. The source is mirror.mb_events (MusicBrainz volunteer editing): strong for touring and festival acts with active editors, absent for the long tail, and NOT a market feed — there is no on-sale, price, or ticketing state, and the import cadence (imported_at 2026-08-01 when probed) is right for 'upcoming' and wrong for 'on sale now'. begin_date is a MusicBrainz PARTIAL date held as text, so only full YYYY-MM-DD rows are served: 1,092 year-only and 584 year-month events are EXCLUDED and 18 malformed rows (which sort AFTER valid 2026 dates lexicographically) are filtered by a format guard. lineup[] is the reason this lane exists — mb_event_artists carries 46,331 `support act` and 713 `supporting DJ` links, making this the ONLY surface in the fleet that answers 'who is opening' (seen's festival_lineup_entries is headliners-only with zero forward-dated rows). link_type is served VERBATIM and NO billing order is implied, because MusicBrainz does not record one; lineup order is link_type, then name, then mbid. roles[] carries EVERY role the addressed cluster holds on a bill (MusicBrainz can credit one cluster under several link_types on one event, and a cluster can bind several mbids), and it is sourced from the same join that selected the event so it is never cut by the lineup bound; it is always empty on the city direction, which has no subject. A lineup longer than 30 sets lineupTruncated instead of silently dropping members. event_type is null on 17 forward-dated rows; venue is null when the event carries no place link (~4.3%). MusicBrainz can link an event to SEVERAL venues (404 events carry 2, 83 carry 3, up to 22 — genuinely multi-site festivals): venue carries one of them deterministically and venueCount says how many exist, so a multi-venue event is disclosed rather than presented as if it had one venue.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    key: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The artist's forward-dated events with their bills, or an honest empty */
+                200: {
+                    headers: {
+                        /** @description Requests allowed in the current window. */
+                        "X-RateLimit-Limit"?: number;
+                        /** @description Requests remaining in the current window. */
+                        "X-RateLimit-Remaining"?: number;
+                        /** @description Unix epoch (seconds) when the current window resets. */
+                        "X-RateLimit-Reset"?: number;
+                        /** @description The tier's included monthly 2xx allowance. */
+                        "X-Quota-Limit"?: number;
+                        /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                        "X-Quota-Remaining"?: number;
+                        /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                        "X-Quota-Reset"?: number;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            object: "artist.gigs";
+                            subject: {
+                                clusterId: string | null;
+                                name: string | null;
+                                discogsArtistId?: number | null;
+                            } | null;
+                            /** @enum {string} */
+                            state: "ok";
+                            gigs: {
+                                eventMbid: string;
+                                name: string | null;
+                                date: string;
+                                time: string | null;
+                                eventType: string | null;
+                                venue: {
+                                    name: string | null;
+                                    city: string | null;
+                                    countryCode: string | null;
+                                } | null;
+                                venueCount: number;
+                                roles: string[];
+                                lineup: {
+                                    clusterId: string | null;
+                                    name: string | null;
+                                    role: string;
+                                }[];
+                                lineupTruncated: boolean;
+                            }[];
+                            surface: {
+                                refreshedAt: string | null;
+                                eventCount: number | null;
+                                orphanArtistRate: number | null;
+                            } | null;
+                            notes: string[];
+                        };
+                    };
+                };
+                /** @description Validation failure (invalid query, malformed body, bad facet name) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Authentication failure */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RateLimited"];
+                    };
+                };
+                /** @description Internal server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Database pool exhausted — retry after 5s */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Request deadline (15s) or query timeout exceeded */
+                504: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/gigs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who's playing in a city, in a date window — with each full bill
+         * @description cycle-114 — the discovery direction of the gig lane, same event shape as /api/v2/artist/{key}/gigs. ?city= is EXACT FREE TEXT from mb_places.area_name: MusicBrainz has no controlled place vocabulary and there is no area_mbid on the place row, so 'Köln' ≠ 'Cologne'. That is the surface's real usability problem and it is answered at the point of failure — a city matching nothing returns 200 with availableCities[] (the values that currently carry forward-dated events, most first, capped at 50), so one wrong guess teaches the right value in a single call. ?from= and ?to= are YYYY-MM-DD and `to` is EXCLUSIVE; omit both for the next 90 days. A malformed window, or `to` not after `from`, is 400 invalid_gig_window with a copy-pasteable example; a missing city is 400 invalid_city. Results are capped at 100 events per call and there is no pagination — the busiest city currently carries 102 forward-dated events fleet-wide, so the cap is not yet a constraint. Keyed (X-API-Key); ONE crate_reader checkout. FRESHNESS IS NOW READ LIVE (sprint-bug-148): `surface` carries the producer's own refreshed_at, event_count and orphan_artist_rate from mirror.mb_events_meta, and the import-cadence note is DERIVED from that stamp rather than frozen into copy. v2 2.53.0 shipped a probe observation hardcoded at ship time because that twin was not granted to crate_reader; a live pg_class.relacl diff found the gap on 2026-08-19 and mirror granted it the same day. The read is deliberately NOT memoized — it is a genuine singleton measured at 1.980 ms, unlike the journalism freshness read which needed a TTL cache at 315 ms. If the read fails the note is dropped rather than invented. COVERAGE IS NARROW AND SAID SO ON THE WIRE: 1,772 artist clusters of ~2,564,895 (0.07%) carry a forward-dated event, so an empty result means this surface has no event for the subject — NOT that nobody is playing. The source is mirror.mb_events (MusicBrainz volunteer editing): strong for touring and festival acts with active editors, absent for the long tail, and NOT a market feed — there is no on-sale, price, or ticketing state, and the import cadence (imported_at 2026-08-01 when probed) is right for 'upcoming' and wrong for 'on sale now'. begin_date is a MusicBrainz PARTIAL date held as text, so only full YYYY-MM-DD rows are served: 1,092 year-only and 584 year-month events are EXCLUDED and 18 malformed rows (which sort AFTER valid 2026 dates lexicographically) are filtered by a format guard. lineup[] is the reason this lane exists — mb_event_artists carries 46,331 `support act` and 713 `supporting DJ` links, making this the ONLY surface in the fleet that answers 'who is opening' (seen's festival_lineup_entries is headliners-only with zero forward-dated rows). link_type is served VERBATIM and NO billing order is implied, because MusicBrainz does not record one; lineup order is link_type, then name, then mbid. roles[] carries EVERY role the addressed cluster holds on a bill (MusicBrainz can credit one cluster under several link_types on one event, and a cluster can bind several mbids), and it is sourced from the same join that selected the event so it is never cut by the lineup bound; it is always empty on the city direction, which has no subject. A lineup longer than 30 sets lineupTruncated instead of silently dropping members. event_type is null on 17 forward-dated rows; venue is null when the event carries no place link (~4.3%). MusicBrainz can link an event to SEVERAL venues (404 events carry 2, 83 carry 3, up to 22 — genuinely multi-site festivals): venue carries one of them deterministically and venueCount says how many exist, so a multi-venue event is disclosed rather than presented as if it had one venue.
+         */
+        get: {
+            parameters: {
+                query: {
+                    city: string;
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Forward-dated events in that city with their bills; when nothing matched, availableCities[] teaches the exact spellings that do */
+                200: {
+                    headers: {
+                        /** @description Requests allowed in the current window. */
+                        "X-RateLimit-Limit"?: number;
+                        /** @description Requests remaining in the current window. */
+                        "X-RateLimit-Remaining"?: number;
+                        /** @description Unix epoch (seconds) when the current window resets. */
+                        "X-RateLimit-Reset"?: number;
+                        /** @description The tier's included monthly 2xx allowance. */
+                        "X-Quota-Limit"?: number;
+                        /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                        "X-Quota-Remaining"?: number;
+                        /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                        "X-Quota-Reset"?: number;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            object: "gigs.city";
+                            query: {
+                                city: string;
+                                from: string;
+                                to: string;
+                            };
+                            /** @enum {string} */
+                            state: "ok";
+                            gigs: {
+                                eventMbid: string;
+                                name: string | null;
+                                date: string;
+                                time: string | null;
+                                eventType: string | null;
+                                venue: {
+                                    name: string | null;
+                                    city: string | null;
+                                    countryCode: string | null;
+                                } | null;
+                                venueCount: number;
+                                roles: string[];
+                                lineup: {
+                                    clusterId: string | null;
+                                    name: string | null;
+                                    role: string;
+                                }[];
+                                lineupTruncated: boolean;
+                            }[];
+                            surface: {
+                                refreshedAt: string | null;
+                                eventCount: number | null;
+                                orphanArtistRate: number | null;
+                            } | null;
+                            availableCities?: {
+                                city: string;
+                                events: number;
+                            }[];
+                            notes: string[];
+                        };
+                    };
+                };
+                /** @description Validation failure (invalid query, malformed body, bad facet name) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Authentication failure */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RateLimited"];
+                    };
+                };
+                /** @description Internal server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Database pool exhausted — retry after 5s */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Request deadline (15s) or query timeout exceeded */
+                504: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/preview/artist": {
         parameters: {
             query?: never;
@@ -218,6 +530,12 @@ export interface paths {
                         "X-RateLimit-Remaining"?: number;
                         /** @description Unix epoch (seconds) when the current window resets. */
                         "X-RateLimit-Reset"?: number;
+                        /** @description The tier's included monthly 2xx allowance. */
+                        "X-Quota-Limit"?: number;
+                        /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                        "X-Quota-Remaining"?: number;
+                        /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                        "X-Quota-Reset"?: number;
                         [name: string]: unknown;
                     };
                     content: {
@@ -369,6 +687,12 @@ export interface paths {
                         "X-RateLimit-Remaining"?: number;
                         /** @description Unix epoch (seconds) when the current window resets. */
                         "X-RateLimit-Reset"?: number;
+                        /** @description The tier's included monthly 2xx allowance. */
+                        "X-Quota-Limit"?: number;
+                        /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                        "X-Quota-Remaining"?: number;
+                        /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                        "X-Quota-Reset"?: number;
                         [name: string]: unknown;
                     };
                     content: {
@@ -499,6 +823,12 @@ export interface paths {
                         "X-RateLimit-Remaining"?: number;
                         /** @description Unix epoch (seconds) when the current window resets. */
                         "X-RateLimit-Reset"?: number;
+                        /** @description The tier's included monthly 2xx allowance. */
+                        "X-Quota-Limit"?: number;
+                        /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                        "X-Quota-Remaining"?: number;
+                        /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                        "X-Quota-Reset"?: number;
                         [name: string]: unknown;
                     };
                     content: {
@@ -675,6 +1005,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/me/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-day, per-key usage breakdown for the calling customer
+         * @description Your usage broken down by UTC day and by API key (key_prefix), from the nightly 2xx-authoritative rollup (usage_daily, 01:00Z; today and sometimes yesterday are not here yet — lag_hours_max 25 is stated in the body). billable_2xx is what the bill is made of; requests counts every gated response. Default range = current month to date; from/to are inclusive ISO days; span ≤ 62 days (page by month). Metered like every v2 route (one billable 2xx). For LIVE headroom read the X-Quota-* headers every keyed response carries.
+         */
+        get: operations["getMeUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/surface": {
         parameters: {
             query?: never;
@@ -724,6 +1074,12 @@ export interface paths {
                         "X-RateLimit-Remaining"?: number;
                         /** @description Unix epoch (seconds) when the current window resets. */
                         "X-RateLimit-Reset"?: number;
+                        /** @description The tier's included monthly 2xx allowance. */
+                        "X-Quota-Limit"?: number;
+                        /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                        "X-Quota-Remaining"?: number;
+                        /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                        "X-Quota-Reset"?: number;
                         [name: string]: unknown;
                     };
                     content: {
@@ -819,6 +1175,12 @@ export interface paths {
                         "X-RateLimit-Remaining"?: number;
                         /** @description Unix epoch (seconds) when the current window resets. */
                         "X-RateLimit-Reset"?: number;
+                        /** @description The tier's included monthly 2xx allowance. */
+                        "X-Quota-Limit"?: number;
+                        /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                        "X-Quota-Remaining"?: number;
+                        /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                        "X-Quota-Reset"?: number;
                         [name: string]: unknown;
                     };
                     content: {
@@ -910,7 +1272,7 @@ export interface paths {
         };
         /**
          * Generic cluster-keyed surface read (by registry name)
-         * @description The generic read behind every row in GET /api/v2/surface: one operation serves all 44 registered surfaces (public.spine_artist_temporal_profile, seen.radio_play_v1, seen.dj_champion, seen.radio_co_play, seen.song_station_journey, mirror.wantlist_demand_by_cluster_v1, seen.master_propagation_timeline_cluster, seen.dj_tastemaker_score, seen.performing_entity, seen.artist_dossier, seen.artist_momentum, seen.artist_network_position, seen.artist_tier_presence, seen.artist_festival_co_appearance, seen.artist_cross_tier_network, seen.artist_brokerage, seen.artist_emergence_narrative_public, seen.artist_airplay_first_appearance, seen.artist_djset_first_appearance, seen.artist_emergence_lead_time, seen.artist_dated_appearance, seen.artist_primary_geography, seen.artist_identity_bridge, seen.live_demand, seen.bandcamp_artist_gravity, seen.bandcamp_artist_tastemaker_quality, seen.artist_djset_scout_signal, seen.label_djset_momentum, seen.artist_signal_passport, seen.artist_sc_rights_rollup_v1, archive_api_v1.artist_mention_daily, public.spine_artist_name_published_view, archive_api_v1.artist_press_mentions, seen.artist_signal_known_since, mirror.cluster_authority_ids_v1, sync.placement_claim_by_cluster_v1, deadwax.pressing_provenance_depth_by_cluster_v1, mirror.listen_flow_by_cluster_v1, mirror.cluster_alias_v1, wintermute.cluster_arrival_ledger_v1, seen.radar_only_artists_v1, sync.placement_arrival_by_cluster_v1, wintermute.cluster_arrival_wide_v1, mirror.market_vs_flow_divergence_v1). {name} is the schema-qualified registry key — GET /api/v2/surface for the live list + each name's shape. ?cluster= is the 64-hex identity key in THAT surface's registered keyspace (a key from the wrong keyspace fails soft as an empty honest_gap, not an error — see the index for which keyspace {name} expects). cluster-row grain surfaces (cap 1/1) ignore ?after/?limit and answer with 0 or 1 rows; cluster-multirow/cluster-edge-list grains keyset-paginate via the opaque ?after cursor from a prior page's next_after (never OFFSET — pass it back verbatim, never construct or decode it). ?limit clamps to the surface's registered cap. Unknown {name} → 400 with a hint listing every valid name + doc_url + next (the index call). A per-row crate-side kill (registry enabled:false) → 404; the master kill (env CRATE_SURFACE_ENABLED=false) → 503. state:'degraded' (still HTTP 200, rows:[]) means the dedicated crate_surface_reader read pool is unconfigured or not yet granted on the replica — fail-closed: the code ships ahead of the DB role landing. Cursor durability: cursors are page-iteration handles, NOT bookmarks — some surfaces build them from producer-internal columns that can change across producer re-crawls (seen.radio_play_v1's play_key today), so a stored cursor may silently skip or repeat rows after a re-crawl; re-start from the first page for a fresh read (each surface's coverage_note in GET /api/v2/surface carries the current specifics).
+         * @description The generic read behind every row in GET /api/v2/surface: one operation serves all 46 registered surfaces (public.spine_artist_temporal_profile, seen.radio_play_v1, seen.dj_champion, seen.radio_co_play, seen.song_station_journey, mirror.wantlist_demand_by_cluster_v1, seen.master_propagation_timeline_cluster, seen.dj_tastemaker_score, seen.performing_entity, seen.artist_dossier, seen.artist_momentum, seen.artist_network_position, seen.artist_tier_presence, seen.artist_festival_co_appearance, seen.artist_cross_tier_network, seen.artist_brokerage, seen.artist_emergence_narrative_public, seen.artist_airplay_first_appearance, seen.artist_djset_first_appearance, seen.artist_emergence_lead_time, seen.artist_dated_appearance, seen.artist_primary_geography, seen.artist_identity_bridge, seen.live_demand, seen.bandcamp_artist_gravity, seen.bandcamp_artist_tastemaker_quality, seen.artist_djset_scout_signal, seen.label_djset_momentum, seen.artist_signal_passport, seen.artist_sc_rights_rollup_v1, archive_api_v1.artist_mention_daily, public.spine_artist_name_published_view, archive_api_v1.artist_press_mentions, seen.artist_signal_known_since, mirror.cluster_authority_ids_v1, sync.placement_claim_by_cluster_v1, deadwax.pressing_provenance_depth_by_cluster_v1, mirror.listen_flow_by_cluster_v1, mirror.cluster_alias_v1, wintermute.cluster_arrival_ledger_v1, seen.radar_only_artists_v1, sync.placement_arrival_by_cluster_v1, wintermute.cluster_arrival_wide_v1, mirror.market_vs_flow_divergence_v1, seen.sc_crossing_v1, mirror.cluster_identity_v1). {name} is the schema-qualified registry key — GET /api/v2/surface for the live list + each name's shape. ?cluster= is the 64-hex identity key in THAT surface's registered keyspace (a key from the wrong keyspace fails soft as an empty honest_gap, not an error — see the index for which keyspace {name} expects). cluster-row grain surfaces (cap 1/1) ignore ?after/?limit and answer with 0 or 1 rows; cluster-multirow/cluster-edge-list grains keyset-paginate via the opaque ?after cursor from a prior page's next_after (never OFFSET — pass it back verbatim, never construct or decode it). ?limit clamps to the surface's registered cap. Unknown {name} → 400 with a hint listing every valid name + doc_url + next (the index call). A per-row crate-side kill (registry enabled:false) → 404; the master kill (env CRATE_SURFACE_ENABLED=false) → 503. state:'degraded' (still HTTP 200, rows:[]) means the dedicated crate_surface_reader read pool is unconfigured or not yet granted on the replica — fail-closed: the code ships ahead of the DB role landing. Cursor durability: cursors are page-iteration handles, NOT bookmarks — some surfaces build them from producer-internal columns that can change across producer re-crawls (seen.radio_play_v1's play_key today), so a stored cursor may silently skip or repeat rows after a re-crawl; re-start from the first page for a fresh read (each surface's coverage_note in GET /api/v2/surface carries the current specifics).
          */
         get: operations["getSurfaceRows"];
         put?: never;
@@ -1118,7 +1480,9 @@ export interface components {
          *     | `invalid_locator` | 400 | a `/resolve` locator is malformed for its type | fix the format, or fall back to `?q=<name>` |
          *     | `invalid_query` | 400 | `/search` `?q=` missing/empty, or any Zod validation failure (`details[]` attached) | pass `?q=<text>`; fix each `details` entry |
          *     | `invalid_facet` | 400 | an unknown facet filter name was supplied | `GET /api/v2/facets` for valid names + values |
-         *     | `rate_limited` | 429 | an IP/key/tier rate or concurrency cap was exceeded (`retry_after_seconds` + `Retry-After` + `X-RateLimit-*` set) | back off `retry_after_seconds` (or until `X-RateLimit-Reset`), then retry |
+         *     | `invalid_range` | 400 | `/me/usage` `?from`/`?to` is not an ISO day (YYYY-MM-DD), `to` is before `from`, or the span exceeds 62 days | omit both for the current month to date, or page one calendar month per call (the `hint` names the exact fix) |
+         *     | `invalid_cursor` | 400 | `/search` `?after=` is malformed, tampered, or was minted for a different query (q/filters changed) | pass `pagination.next_cursor` from the previous page of the SAME query unchanged; drop `after` to restart |
+         *     | `rate_limited` | 429 | an IP/key/tier rate, monthly quota, or concurrency cap was exceeded (`retry_after_seconds` + `Retry-After` + `X-RateLimit-*` set; a monthly-quota stop also carries `X-Quota-Remaining: 0` + `X-Quota-Reset`) | back off `retry_after_seconds` (or until `X-RateLimit-Reset`), then retry |
          */
         Error: {
             /**
@@ -1196,11 +1560,14 @@ export interface components {
                 }[];
             };
             pagination: {
-                page: number;
+                /** @description 1-based page in offset mode; null in cursor mode (?after=). */
+                page: number | null;
                 total_pages: number | null;
                 total_results: number;
                 /** @enum {string} */
                 total_results_mode: "exact" | "approximate_50k_sample" | "lower_bound";
+                /** @description Present ONLY in cursor mode (?after=start, then ?after=<this value>): the opaque cursor for the next page, or null when this page was the last (fewer rows than limit) or the 10,000-row walk bound is reached. Bound to this exact query (q + filters) — a changed query must restart with after=start. Cursor mode skips the count probe: total_pages is null and total_results is a lower bound (the page size). */
+                next_cursor?: string | null;
             };
             facets: {
                 [key: string]: unknown;
@@ -1380,7 +1747,40 @@ export interface components {
             contract_version: string;
             generated_at: string;
             unavailable_grains: unknown[];
-            grains: unknown[];
+            /** @description One entry per v2 dossier grain (artist/label/festival). Every field carries its provenance AND its licence/redistribution block. */
+            grains: {
+                /** @enum {string} */
+                grain?: "artist" | "label" | "festival";
+                contract_endpoint?: string;
+                explorer?: string;
+                fields?: {
+                    field?: string;
+                    producer?: string;
+                    sourceTable?: string;
+                    refreshCadence?: string;
+                    tier?: string;
+                    honestGapState?: string;
+                    detailAnchor?: string;
+                    /**
+                     * @description Licence class of the facet's SOURCE material. hosaka-own = computed by the fleet from its own observations.
+                     * @enum {string}
+                     */
+                    licence?: "hosaka-own" | "CC0-1.0" | "CC-BY-4.0" | "CC-BY-NC-SA-3.0" | "link-only" | "copyright-third-party" | "mixed";
+                    /**
+                     * @description What a consumer may do with the facet downstream (crate ToS §2/§5, per-facet ruling). scalar-facts-with-attribution: carry the values as facts with the attribution line, including through a host model. summary-or-link-out: summarise or link; never redistribute raw rows.
+                     * @enum {string}
+                     */
+                    redistribution?: "scalar-facts-with-attribution" | "summary-or-link-out" | "no-redistribution";
+                    /** @description The exact credit line a redistributing consumer (incl. a host model) must carry. */
+                    attribution?: string;
+                    /** @description May the facet be surfaced verbatim through a host model (ChatGPT/Claude)? */
+                    host_model?: boolean;
+                    /** @description True until counsel confirms the classification (carrefour#156 R13); hosaka-own rows are never provisional. */
+                    provisional?: boolean;
+                    /** @description One line: why this classification. */
+                    basis?: string;
+                }[];
+            }[];
         };
         MasterDossierContract: {
             contract_version: string;
@@ -2430,7 +2830,7 @@ export interface components {
                 artist?: string;
                 artist_dossier_by_slug?: string;
             };
-            /** @description Disambiguation aid, emitted ONLY when a ?q= resolve ends clusterless (unresolved, or identity matched without a cluster bind): up to 5 OBSERVED-tier prefix matches from the booking graph. tier:'cluster' = unverified — surface as flagged, never as canonical truth. Absent otherwise. */
+            /** @description Disambiguation aid, emitted ONLY when a ?q= resolve ends clusterless (unresolved, or identity matched without a cluster bind): up to 5 OBSERVED-tier prefix matches from the booking graph. tier:'cluster' = unverified — surface as flagged, never as canonical truth. Absent otherwise. Suppressed when members[] is present (a decomposed credit already answers the question). */
             candidates?: {
                 /** @description The candidate 64-hex cluster_id (observed tier). */
                 cluster_id?: string;
@@ -2439,6 +2839,33 @@ export interface components {
                 tier?: "cluster";
                 /** @description Booking-graph support (k-anon floor 2) — a rough strength signal. */
                 distinct_events?: number;
+            }[];
+            /** @description Compound-credit decomposition (matched_on:"credit_split"), emitted ONLY when a ?q= input reads as a collaboration credit ("A, B", "A & B", "A feat. B", "NAME (A, B)"), the WHOLE string resolved on no real tier, and at least one member name individually resolved to a REAL (non-minted) cluster. cluster_id on the envelope stays null — crate never guesses which member "is" the credit; query a member for its full resolution. Absent otherwise. A whole string that resolves as one act (e.g. "Simon & Garfunkel") is never split. */
+            members?: {
+                /** @description The member's canonical 64-hex cluster_id (real tier, never minted). */
+                cluster_id?: string;
+                /** @description The member name as resolved (display form). */
+                name?: string;
+                /** @enum {string} */
+                matched_on?: "name";
+                _links?: {
+                    /** @description GET this for the member’s full dossier. */
+                    artist?: string;
+                };
+            }[];
+            /** @description Homonym siblings, emitted ONLY when a ?q= resolve BOUND a cluster and other clusters carry the same name — exact, lower-cased, including Discogs' " (2)"…" (9)" disambiguation suffixes ("Burial" and "Burial (2)" are one family): up to 5, ordered canonical tier first, then booking-graph support, then cluster_id. These are disambiguation HINTS — crate has already bound cluster_id by its tier rules (Discogs-wins) and never re-binds on a hint. Present on neither a single-cluster name nor a clusterless/minted resolve (those get candidates[]). */
+            same_name_clusters?: {
+                /** @description The sibling cluster_id (64-hex). */
+                cluster_id?: string;
+                /** @description The sibling name as stored on its tier (display form). */
+                name?: string;
+                /**
+                 * @description Which tier the sibling was seen on. Today always 'discogs_bound' (a same-named Discogs artist that binds to a cluster); 'observed_booking_graph' is reserved for cluster-only booking-graph identities and lands once that leg is index-served upstream — code for both now.
+                 * @enum {string}
+                 */
+                hint?: "discogs_bound" | "observed_booking_graph";
+                /** @description Booking-graph support (distinct events) — a rough strength signal; null when the substrate carries none. */
+                distinct_events?: number | null;
             }[];
         };
         TastemakersResponse: {
@@ -2597,6 +3024,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2612,6 +3045,201 @@ export interface operations {
                         /** @enum {boolean} */
                         present: false;
                         note: string;
+                    };
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication failure */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Database pool exhausted — retry after 5s */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request deadline (15s) or query timeout exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getArtistSimilar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Adjacency evidence grouped per axis (deduped artists, axes[] each), or an honest empty when the subject has no cluster anchor */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        object: "artist.similar";
+                        subject: {
+                            clusterId: string | null;
+                            name: string | null;
+                            discogsArtistId?: number | null;
+                        } | null;
+                        /** @enum {string} */
+                        state: "ok" | "degraded";
+                        axisStates: {
+                            /** @enum {string} */
+                            co_appearance: "ok" | "empty" | "degraded";
+                            /** @enum {string} */
+                            radio_co_play: "ok" | "empty" | "degraded";
+                            /** @enum {string} */
+                            shared_dj_champions: "ok" | "empty" | "degraded";
+                            /** @enum {string} */
+                            lineage: "ok" | "empty" | "degraded";
+                            /** @enum {string} */
+                            session_credit: "ok" | "empty" | "degraded";
+                            /** @enum {string} */
+                            label_mates: "ok" | "empty" | "degraded";
+                            /** @enum {string} */
+                            influence: "ok" | "empty" | "degraded";
+                            /** @enum {string} */
+                            attention_flow: "ok" | "empty" | "degraded";
+                        };
+                        similar: {
+                            clusterId: string | null;
+                            name: string | null;
+                            axes: ({
+                                /** @enum {string} */
+                                axis: "co_appearance";
+                                coEventCount: number;
+                                coVenueCount: number;
+                                lastCoAt: string | null;
+                            } | {
+                                /** @enum {string} */
+                                axis: "radio_co_play";
+                                coPlayCount: number;
+                                distinctStations: number;
+                                firstCoPlayedAt: string | null;
+                                lastCoPlayedAt: string | null;
+                            } | {
+                                /** @enum {string} */
+                                axis: "shared_dj_champions";
+                                sharedChampionCount: number;
+                                champions: {
+                                    djClusterId: string;
+                                    playCount: number;
+                                    latestPlayedAt: string | null;
+                                }[];
+                            } | {
+                                /** @enum {string} */
+                                axis: "lineage";
+                                edgeCount: number;
+                                entries: {
+                                    relType: string;
+                                    /** @enum {string} */
+                                    direction: "derived" | "source";
+                                    evidenceGrain: string;
+                                }[];
+                            } | {
+                                /** @enum {string} */
+                                axis: "session_credit";
+                                edgeWeight: number;
+                                sharedRecordingCount: number;
+                                sharedWorkCount: number;
+                                directRelationCount: number;
+                                evidenceSources: string[];
+                                relationTypes: string[];
+                                firstYear: number | null;
+                                lastYear: number | null;
+                            } | {
+                                /** @enum {string} */
+                                axis: "label_mates";
+                                sharedLabelCount: number;
+                                labels: {
+                                    labelClusterId: string;
+                                    rosterSize: number;
+                                    relType: string;
+                                    firstYear: number | null;
+                                    lastYear: number | null;
+                                    isCurrent: boolean;
+                                }[];
+                            } | {
+                                /** @enum {string} */
+                                axis: "influence";
+                                /** @enum {string} */
+                                direction: "influenced_by" | "influenced";
+                                edgeCount: number;
+                            } | {
+                                /** @enum {string} */
+                                axis: "attention_flow";
+                                /** @enum {string} */
+                                direction: "to" | "from";
+                                totalWeight: number;
+                                months: number;
+                                lastMonth: string | null;
+                                langs: string[];
+                            })[];
+                            _links: {
+                                artist: string | null;
+                            };
+                        }[];
+                        notes: string[];
                     };
                 };
             };
@@ -2785,6 +3413,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2887,6 +3521,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3085,6 +3725,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3165,6 +3811,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3240,6 +3892,8 @@ export interface operations {
                 dj_count_min?: number | null;
                 exclude_artist?: string | string[];
                 exclude_label?: string | string[];
+                /** @description Keyset paging. after=start opens a walk (first page in cursor mode); then pass the previous page's pagination.next_cursor unchanged (same q + filters). Cursor mode is stable — never skips or repeats a row; page/total_pages are null, total_results is a lower bound, offset is ignored. Malformed or foreign (other-query) cursors → 400 invalid_cursor. The cursor is opaque and HMAC-signed — an edited or foreign cursor is 400 invalid_cursor. A walk hands out at most 10,000 rows (the same bound offset paging has) — next_cursor is null at the bound; narrow the query to go deeper. Not combinable with nl=true (cursor walks are lexical; re-issue the derived facets explicitly). Without after, offset paging is unchanged. */
+                after?: string;
             };
             header?: never;
             path?: never;
@@ -3256,6 +3910,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3333,6 +3993,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3426,6 +4092,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3499,6 +4171,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3614,6 +4292,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3689,6 +4373,122 @@ export interface operations {
             };
         };
     };
+    getMeUsage: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The per-day / per-key breakdown (days with no traffic are absent, not zero) */
+            200: {
+                headers: {
+                    /** @description Requests allowed in the current window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description Requests remaining in the current window. */
+                    "X-RateLimit-Remaining"?: number;
+                    /** @description Unix epoch (seconds) when the current window resets. */
+                    "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tier: string;
+                        /** @description YYYY-MM of the current UTC month (the /usage convention). */
+                        month: string;
+                        /** @description The tier's included monthly 2xx allowance. */
+                        included_monthly: number;
+                        /** @description Billable 2xx so far this UTC month (rollup-fresh) — the same number the monthly usage snapshot reports, by construction. */
+                        billable_2xx_mtd: number;
+                        range: {
+                            from: string;
+                            to: string;
+                        };
+                        requests_in_range: number;
+                        billable_2xx_in_range: number;
+                        days: {
+                            /** @description UTC calendar day (YYYY-MM-DD). */
+                            day: string;
+                            /** @description Every gated response that day (2xx + 4xx + 5xx). */
+                            requests: number;
+                            billable_2xx: number;
+                            by_key: {
+                                /** @description The key's display prefix (ck_live_xxxxxxxx), never the key. */
+                                key_prefix: string;
+                                requests: number;
+                                billable_2xx: number;
+                            }[];
+                        }[];
+                        freshness: {
+                            /** @enum {string} */
+                            source: "usage_daily";
+                            /** @enum {string} */
+                            rollup: "01:00Z daily";
+                            /** @enum {number} */
+                            lag_hours_max: 25;
+                        };
+                        note: string;
+                    };
+                };
+            };
+            /** @description Validation failure (invalid query, malformed body, bad facet name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Authentication failure */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Payment required (past_due customer or suspended key) */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limit exceeded — see Retry-After + X-RateLimit-* headers */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimited"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     getSurfaceIndex: {
         parameters: {
             query?: never;
@@ -3707,6 +4507,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3814,7 +4620,7 @@ export interface operations {
             };
             header?: never;
             path: {
-                name: "public.spine_artist_temporal_profile" | "seen.radio_play_v1" | "seen.dj_champion" | "seen.radio_co_play" | "seen.song_station_journey" | "mirror.wantlist_demand_by_cluster_v1" | "seen.master_propagation_timeline_cluster" | "seen.dj_tastemaker_score" | "seen.performing_entity" | "seen.artist_dossier" | "seen.artist_momentum" | "seen.artist_network_position" | "seen.artist_tier_presence" | "seen.artist_festival_co_appearance" | "seen.artist_cross_tier_network" | "seen.artist_brokerage" | "seen.artist_emergence_narrative_public" | "seen.artist_airplay_first_appearance" | "seen.artist_djset_first_appearance" | "seen.artist_emergence_lead_time" | "seen.artist_dated_appearance" | "seen.artist_primary_geography" | "seen.artist_identity_bridge" | "seen.live_demand" | "seen.bandcamp_artist_gravity" | "seen.bandcamp_artist_tastemaker_quality" | "seen.artist_djset_scout_signal" | "seen.label_djset_momentum" | "seen.artist_signal_passport" | "seen.artist_sc_rights_rollup_v1" | "archive_api_v1.artist_mention_daily" | "public.spine_artist_name_published_view" | "archive_api_v1.artist_press_mentions" | "seen.artist_signal_known_since" | "mirror.cluster_authority_ids_v1" | "sync.placement_claim_by_cluster_v1" | "deadwax.pressing_provenance_depth_by_cluster_v1" | "mirror.listen_flow_by_cluster_v1" | "mirror.cluster_alias_v1" | "wintermute.cluster_arrival_ledger_v1" | "seen.radar_only_artists_v1" | "sync.placement_arrival_by_cluster_v1" | "wintermute.cluster_arrival_wide_v1" | "mirror.market_vs_flow_divergence_v1";
+                name: "public.spine_artist_temporal_profile" | "seen.radio_play_v1" | "seen.dj_champion" | "seen.radio_co_play" | "seen.song_station_journey" | "mirror.wantlist_demand_by_cluster_v1" | "seen.master_propagation_timeline_cluster" | "seen.dj_tastemaker_score" | "seen.performing_entity" | "seen.artist_dossier" | "seen.artist_momentum" | "seen.artist_network_position" | "seen.artist_tier_presence" | "seen.artist_festival_co_appearance" | "seen.artist_cross_tier_network" | "seen.artist_brokerage" | "seen.artist_emergence_narrative_public" | "seen.artist_airplay_first_appearance" | "seen.artist_djset_first_appearance" | "seen.artist_emergence_lead_time" | "seen.artist_dated_appearance" | "seen.artist_primary_geography" | "seen.artist_identity_bridge" | "seen.live_demand" | "seen.bandcamp_artist_gravity" | "seen.bandcamp_artist_tastemaker_quality" | "seen.artist_djset_scout_signal" | "seen.label_djset_momentum" | "seen.artist_signal_passport" | "seen.artist_sc_rights_rollup_v1" | "archive_api_v1.artist_mention_daily" | "public.spine_artist_name_published_view" | "archive_api_v1.artist_press_mentions" | "seen.artist_signal_known_since" | "mirror.cluster_authority_ids_v1" | "sync.placement_claim_by_cluster_v1" | "deadwax.pressing_provenance_depth_by_cluster_v1" | "mirror.listen_flow_by_cluster_v1" | "mirror.cluster_alias_v1" | "wintermute.cluster_arrival_ledger_v1" | "seen.radar_only_artists_v1" | "sync.placement_arrival_by_cluster_v1" | "wintermute.cluster_arrival_wide_v1" | "mirror.market_vs_flow_divergence_v1" | "seen.sc_crossing_v1" | "mirror.cluster_identity_v1";
             };
             cookie?: never;
         };
@@ -3829,6 +4635,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4435,7 +5247,6 @@ export interface operations {
                             first_appearance_date: string | null;
                             latest_appearance_date: string | null;
                             appearance_count: number | null;
-                            is_quarantined: boolean;
                         }[];
                         next_after: string | null;
                         coverage_note: string;
@@ -5182,6 +5993,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5255,6 +6072,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5328,6 +6151,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5403,6 +6232,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5476,6 +6311,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5549,6 +6390,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5620,6 +6467,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5668,6 +6521,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -5723,6 +6582,12 @@ export interface operations {
                     "X-RateLimit-Remaining"?: number;
                     /** @description Unix epoch (seconds) when the current window resets. */
                     "X-RateLimit-Reset"?: number;
+                    /** @description The tier's included monthly 2xx allowance. */
+                    "X-Quota-Limit"?: number;
+                    /** @description Included allowance minus the requests gated this month — an UPPER BOUND on billable 2xx (errors are counted at the gate but never billed; /api/v2/me/usage is the billable truth). 0 once the included bucket is spent (overage, where enabled, is flagged by X-Overage). */
+                    "X-Quota-Remaining"?: number;
+                    /** @description Unix epoch (seconds) of the next UTC month start, when the monthly counter resets. */
+                    "X-Quota-Reset"?: number;
                     [name: string]: unknown;
                 };
                 content?: never;
