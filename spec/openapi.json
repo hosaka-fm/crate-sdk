@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "crate-api",
-    "version": "2.66.0",
+    "version": "2.67.0",
     "description": "# crate API (v2 — cluster-first)\n\ncrate is the **aggregation gateway** for a fleet of music-data producers. You ask it about an artist, a label, or a festival; it joins every signal the fleet can see about that entity and hands you back one composed picture — collector behavior, editorial coverage, live-circuit demand, breakout momentum, web presence — each piece labelled with where it came from and how fresh it is.\n\nTwo things make crate different from a typical catalogue API, and the rest of this doc exists to teach them:\n\n1. **Identity is a `cluster_id`, not a Discogs/MusicBrainz/Bandcamp id.** The same artist scattered across those platforms collapses to one canonical key. You resolve to it once, then key everything off it.\n2. **An empty answer is a first-class answer.** crate returns HTTP `200` and tells you plainly what it *can't* see (`present:false`, a null field, `state:\"honest_gap\"`) instead of `404`-ing or fabricating data. Only `4xx`/`5xx` are errors.\n\nv2 is **cluster-first**: the agent (artist / label / festival) is the prime resource, and sources (Bandcamp, Discogs) and releases **attach to it as dimensions** rather than being top-level nouns. If you do nothing else, internalize the cold-start recipe: **resolve a name or pasted link → `cluster_id` → dossier.** `GET /api/v2` returns this recipe live, and `GET /api/v2/resolve?q=<name>` is the front door.\n\n## Authentication\n\nThe API is keyed: every operation requires an `X-API-Key` header (`ck_(live|test)_<…>` format) **except** the two public front-door endpoints that opt out — `GET /api/v2` (the root index) and `GET /api/v2/openapi.json` (this spec). One family of endpoints uses a *different* credential entirely — see **beacons** below.\n\n**On behalf of an end user.** A partner fronting many end users with one key may add `X-On-Behalf-Of: <profile_id>` (1–128 chars of `[A-Za-z0-9._:@-]`, opaque to crate). The key stays the customer; the profile becomes a metering dimension — usage is rolled up per profile (`GET /me/usage?profile=<id>`), per-profile caps apply under the key's own limits (`429 rate_limited` with `reason: \"profile_cap\"`), and `DELETE /me/profiles/{profile_id}` forgets a profile's history. crate stores only a salted hash of the id — never the id itself.\n\n## Concepts\n\n### `cluster_id` — the canonical artist identity\n\n`cluster_id` is crate's prime key for an artist: a `pe-norm-v1` hex string derived from the artist's name, designed so that the same artist's Discogs page, MusicBrainz entry, and Bandcamp profile all **collapse to one `cluster_id`**. Key *all* artist data off it.\n\n- It is an **opaque string** — pass it through verbatim. Never numericize it, parse it, or assume structure.\n- `cluster_id: null` is an **honest gap**, not an error: crate couldn't resolve a canonical identity for that lookup. Roughly half of the long-tail booking artists have neither a Discogs id nor an MBID, so `null` is normal.\n- You get one by calling `GET /api/v2/resolve` (from a name, a pasted link, or a foreign id). You then address the artist dossier directly as `GET /api/v2/artist/{key}`, where `{key}` is the 64-hex `cluster_id` **or** a human slug.\n- A 64-hex key resolves identity *directly* from the cluster — it deliberately skips the Discogs lookup so a hex address never silently re-anchors onto a same-name Discogs row. Foreign locators (`discogs:<id>`, `mbid:<uuid>`) are **not** canonical addresses: convert them via `/resolve` first, or `/artist/{key}` returns `400` (the response's `next` field is a ready-to-call `/resolve` URL).\n\n### dossier · grains — the composed per-entity picture\n\nA **dossier** is the full picture crate composes for one entity by joining every fleet signal. v2 has three agent **grains**:\n\n| grain | addressed by | what it is |\n|---|---|---|\n| `artist` | `GET /api/v2/artist/{key}` or `GET /api/v2/dossier/artist/{slug}` | identity + collector behavior + editorial + emergence + live presence + web + compositions + **discography** + **bandcamp** dimensions… |\n| `label` | `GET /api/v2/label/{key}` or `GET /api/v2/dossier/label/{slug}` | label identity + sublabel→parent lineage + collector behavior |\n| `festival` | `GET /api/v2/dossier/festival/{slug}` | de-fragmented festival identity + consolidated editions ⋈ lineup |\n\n**Releases are not a top-level grain in v2.** In the cluster-first model a release (a Discogs release-group, what a consumer calls a \"release\") **attaches to the artist** as the dossier's `discography` dimension, keyed by the artist's `cluster_id` — there is no standalone release resource. Likewise **Bandcamp is a dimension of the artist dossier** (`bandcamp_emergence` / `bandcamp_tastemaker`), not a top-level surface.\n\nEvery dossier facet carries a classified **`state`** (e.g. `present`, `empty`/absent, `honest_gap`) and the dossier ships a **provenance manifest** — an array where each entry names the `producer`, `sourceTable`, `refreshCadence`, `tier`, and `honestGapState` for a field. Read `GET /api/v2/dossier/manifest` (the data dictionary) to discover the entire field surface across grains — including grains that are deliberately *unavailable* (e.g. song, because the fleet has no track key; and the demoted master grain, whose detail now lives in the artist's `discography`) — without hitting every entity endpoint.\n\n### honest gap — empty is `200`, not `404`\n\nThis is crate's defining principle: **crate shows what it can see and is explicit about what it can't, rather than 404-ing or faking data.** An unresolved or empty lookup returns **HTTP `200`** with one of:\n\n- `present: false` (e.g. a dossier dimension with no match),\n- a `null` field (`cluster_id: null`, `identity: null`),\n- `state: \"honest_gap\"` on a dossier facet.\n\nBranch on the body, not the status, for \"did I get data?\". An unresolved artist slug returns `identity:null` at `200` — never `404`. Reserve your error handling for genuine **`4xx`/`5xx`**.\n\n### `resolved_via` · `resolved_from` — binding tier and match method\n\nWhen crate resolves an identity it tells you two orthogonal things:\n\n- **`resolved_via`** = the *binding tier*, i.e. how trustworthy the identity is:\n  - `'discogs'` — canonical, Discogs-bound (verified).\n  - `'cluster'` — **observed/unverified**: the identity came from the booking graph with no Discogs bind. Surface it flagged as unverified, never as canonical.\n  - `null` — did not resolve.\n- **`resolved_from`** = *how* you addressed it on `/resolve`: `'url'` (a pasted link), `'name'`, or `'locator'` (a foreign id). `matched_on` names the surface that matched; `note` explains a recognized-but-unresolved link (e.g. a Twitter URL crate recognizes but does not yet cross-reference).\n\nA 64-hex `cluster_id` address always yields `resolved_via: 'cluster'` (observed tier) by design.\n\n### the cube · `cube_quadrant` — the behavioral-signal model\n\nThe **cube** is crate's behavioral model of a release: a **3-bit code** (string, e.g. `\"101\"`) placing it on three independent behavioral axes — **who OWNS it (collector), who PLAYS it (DJ), who WRITES about it (critic)**. Each bit is `0`/`1`, so the eight quadrants run `\"000\"` (\"No signal\") through `\"111\"` (\"Full intersection\"): `\"100\"` = collector-only, `\"010\"` = DJ-only, `\"101\"` = collector + critic, and so on. The collector-vs-DJ split — *who owns it vs who plays it* — is the heart of the model. `cube_quadrant: null` means it isn't yet classified (an honest gap). You meet `cube_quadrant` (with companion `owner_count` / `dj_count` / `critic_count` magnitudes + a `link_to_cube` explorer deep-link) on the master-grain result rows of `GET /api/v2/search`.\n\n### tastemakers · breakouts — discovery surfaces\n\nTwo read-only discovery surfaces, served from offline-published snapshots (no DB checkout) and **fail-soft**: each returns a `state` of `present` / `empty` / `degraded`, where `degraded` is a `200` honest-gap (a read failure never `500`s), and `stale:true` flags a snapshot older than 7 days.\n\n- **tastemakers** (`GET /api/v2/tastemakers`, `…/ones-to-watch`) — influential curators and the richest artist-grain analytics crate has: rank, own-tier, brokerage score, corroborating axes, lead-times, Bandcamp demand. `?limit=` bounds each array (`1..200`).\n- **breakouts** (`GET /api/v2/breakouts`) — emerging artists on the rise (\"ones to watch\"): booking-momentum signal cross-validated against press. `?tier=breakout|rising` and `?corroboration=corroborated|booking_ahead` filter it; `?limit=` is clamped to `200`.\n\n### beacons — search-event telemetry (different credential)\n\n**Beacons** are client-side telemetry about search behavior: `POST /api/v2/search-events/observed` (a result was served from cache) and `…/refined` (the user changed facets). They are **not** authenticated with your `X-API-Key`. Each search response issues a **short-lived per-search JWT** bound to one `search_event_id`; send it as `Authorization: Bearer <token>`, and the token must match the body's `search_event_id`. Bodies are capped at 512 bytes and beacons are idempotent (a duplicate is a `204` no-op). Beacon `400`s carry a Zod *flattened* `details` object (not the array shape of normal validation errors), so they use a distinct error schema.\n\n### sparse fieldsets — `?fields=` (opt-out trim)\n\nThe artist dossier is **default-rich**: `GET /api/v2/artist/{key}` returns the whole dossier in one round-trip. If you want less, `?fields=identity,discography` **trims** to the named top-level facets (the envelope is always present). An unknown field returns `400 invalid_fields` with the exact valid set and a copy-pasteable `example` — so you never guess.\n\n### Bandcamp in v2 — analytical dimensions, and the link-only posture\n\nIn v2 Bandcamp is an **analytical dimension of the artist dossier**, not a release surface. Two facets carry it, both keyed by the artist's `cluster_id` and both **signals/metrics** (not per-release listings):\n\n- **`bandcamp_emergence`** — purchase-backed demand signals (emergence class, demand lead/ratio, owner reach, wishlist demand, distinct releases, earliest-wished date).\n- **`bandcamp_tastemaker`** — early-supporter quality scores (supporter-cohort size, aesthetic-quality scores, mean first-buyer earliness).\n\nPer-release Bandcamp listings — and the `bandcamp_item_id` / `track_url` per-release fields — are **not a v2 surface**; they belong to the v1 Bandcamp endpoints. (The discography dimension is the **Discogs** release-group attachment, keyed by `discogsMasterId` — distinct from Bandcamp.)\n\ncrate is **link-only** everywhere it does carry links: every artwork item is a hotlink `url` with `rehost:false` — crate never fetches or re-hosts bytes (a Cover Art Archive URL is best-effort and may `404` if no cover exists), and crate never stores Bandcamp audio streams (tokenized, expiring, out of ToS bounds).\n\n### Opaque ids — the universal rule\n\n`cluster_id` is **always a string, always opaque**. Round-trip it verbatim; do not parse, increment, numericize, or infer structure from it. (The same discipline applies to any id crate hands you.) This keeps your client correct across id-scheme changes.\n\n### Quota headroom (sprint-153)\n\nEvery keyed response carries the monthly headroom beside the per-minute `X-RateLimit-*` trio: `X-Quota-Limit` (the tier's included monthly 2xx), `X-Quota-Remaining` (limit minus the requests gated so far this UTC month — an **upper bound** on billable 2xx, because errors are counted at the gate but never billed) and `X-Quota-Reset` (epoch seconds of the next UTC month start). They cost no extra I/O, so poll nothing: read them off the calls you already make. The billable truth — per day and per key — is `GET /api/v2/me/usage` (nightly rollup, ≤ 25 h lag, stated in its body).\n\n### Versioning\n\nThe **API major version lives in the URL path** (`/api/v2`). The spec's `info.version` (currently `2.33.0`) bumps on **every** spec change and is drift-guarded: the document is generated from code, so docs cannot drift from runtime behavior. Operations carry stable `operationId`s for codegen, and keyed `2xx` responses declare `X-RateLimit-Limit` / `X-RateLimit-Remaining` / `X-RateLimit-Reset` headers (back off on `429` using `retry_after_seconds` / `Retry-After`). v2 is the cluster-first stable major; the frozen v1 predecessor remains available during a time-boxed, announced deprecation — the route-by-route migration map is at `/docs/migration/v1-to-v2`.",
     "contact": {
       "name": "crate support",
@@ -166,7 +166,7 @@
         "required": [
           "error"
         ],
-        "description": "The error envelope for all 4xx/5xx responses. `error` is the only guaranteed field — branch on it, never on HTTP status alone. An unresolved/empty lookup is NOT an error: it returns HTTP 200 with `present:false` / a null field / `state:\"honest_gap\"`.\n\n| code | HTTP | when thrown | fix |\n|---|---|---|---|\n| `invalid_artist_key` | 400 | `/artist/{key}` key is not a 64-hex cluster_id, `discogs:<id>`, or `mbid:<uuid>` | resolve by name first: `GET /api/v2/resolve?q=<name>`, then call `/artist/{cluster_id}` |\n| `use_resolve_for_locator` | 400 | `/artist/{key}` given a `discogs:`/`mbid:` locator (not a canonical address) | `GET /api/v2/resolve?discogs=<id>` (or `?mbid=`), then use the returned cluster_id (the response `next` field is the ready-to-call URL) |\n| `invalid_label_key` | 400 | `/label/{key}` key is not a 64-hex `label_cluster_id` or name-slug (e.g. a `discogs:`/`mbid:` locator — not resolvable for labels yet) | address a label by its 64-hex `label_cluster_id` or its name-slug (e.g. `/api/v2/label/warp`) |\n| `invalid_fields` | 400 | `/artist/{key}?fields=` lists a facet that is not a valid top-level dossier field | use only the fields in the response `valid` set; omit `?fields=` entirely for the full dossier (see the `example` field) |\n| `missing_locator` | 400 | `/resolve` called with none of q/cluster/discogs/mbid | pass exactly one locator |\n| `invalid_locator` | 400 | a `/resolve` locator is malformed for its type | fix the format, or fall back to `?q=<name>` |\n| `invalid_query` | 400 | `/search` `?q=` missing/empty, or any Zod validation failure (`details[]` attached) | pass `?q=<text>`; fix each `details` entry |\n| `invalid_facet` | 400 | an unknown facet filter name was supplied | `GET /api/v2/facets` for valid names + values |\n| `invalid_range` | 400 | `/me/usage` `?from`/`?to` is not an ISO day (YYYY-MM-DD), `to` is before `from`, or the span exceeds 62 days | omit both for the current month to date, or page one calendar month per call (the `hint` names the exact fix) |\n| `invalid_on_behalf_of` | 400 | `X-On-Behalf-Of` (or `/me/usage?profile=`, `/me/profiles/{profile_id}`) is not 1–128 chars of `[A-Za-z0-9._:@-]` | fix the id, or omit the header to meter the key as one principal |\n| `invalid_cursor` | 400 | `/search` `?after=` is malformed, tampered, or was minted for a different query (q/filters changed) | pass `pagination.next_cursor` from the previous page of the SAME query unchanged; drop `after` to restart |\n| `rate_limited` | 429 | an IP/key/tier rate, monthly quota, or concurrency cap was exceeded (`retry_after_seconds` + `Retry-After` + `X-RateLimit-*` set; a monthly-quota stop also carries `X-Quota-Remaining: 0` + `X-Quota-Reset`) | back off `retry_after_seconds` (or until `X-RateLimit-Reset`), then retry |\n| `pool_exhausted` | 503 | the database pool could not hand out a connection within the acquire timeout (`Retry-After: 5`) | retry after 5 s |\n| `query_timeout` | 503 | a statement was cancelled by crate's own budget (`statement_timeout`; `Retry-After: 30`) — capacity, not a gateway timeout; during the upstream database's daily 04–07Z stall this is transient, for very broad `/search` `?q=` (single common words) it recurs | retry after 30 s; narrow a broad `?q=` with filters |\n| `request_aborted` | 504 | the 15 s request deadline passed before the response was assembled (a statement the deadline cancelled mid-flight answers this code, not `query_timeout`) | retry later; on the artist dossier, request fewer `?fields=` |\n| `internal` | 500 | an unexpected error (logged server-side) | retry once; report if it persists |"
+        "description": "The error envelope for all 4xx/5xx responses. `error` is the only guaranteed field — branch on it, never on HTTP status alone. An unresolved/empty lookup is NOT an error: it returns HTTP 200 with `present:false` / a null field / `state:\"honest_gap\"`.\n\n| code | HTTP | when thrown | fix |\n|---|---|---|---|\n| `invalid_artist_key` | 400 | `/artist/{key}` key is not a 64-hex cluster_id, `discogs:<id>`, or `mbid:<uuid>` | resolve by name first: `GET /api/v2/resolve?q=<name>`, then call `/artist/{cluster_id}` |\n| `use_resolve_for_locator` | 400 | `/artist/{key}` given a `discogs:`/`mbid:` locator (not a canonical address) | `GET /api/v2/resolve?discogs=<id>` (or `?mbid=`), then use the returned cluster_id (the response `next` field is the ready-to-call URL) |\n| `invalid_label_key` | 400 | `/label/{key}` key is not a 64-hex `label_cluster_id` or name-slug (e.g. a `discogs:`/`mbid:` locator — not resolvable for labels yet) | address a label by its 64-hex `label_cluster_id` or its name-slug (e.g. `/api/v2/label/warp`) |\n| `invalid_fields` | 400 | `/artist/{key}?fields=` lists a facet that is not a valid top-level dossier field | use only the fields in the response `valid` set; omit `?fields=` entirely for the full dossier (see the `example` field) |\n| `missing_locator` | 400 | `/resolve` called with none of q/cluster/discogs/mbid | pass exactly one locator |\n| `invalid_locator` | 400 | a `/resolve` locator is malformed for its type | fix the format, or fall back to `?q=<name>` |\n| `invalid_query` | 400 | `/search` `?q=` missing/empty, or any Zod validation failure (`details[]` attached) | pass `?q=<text>`; fix each `details` entry |\n| `invalid_facet` | 400 | an unknown facet filter name was supplied | `GET /api/v2/facets` for valid names + values |\n| `invalid_range` | 400 | `/me/usage` `?from`/`?to` is not an ISO day (YYYY-MM-DD), `to` is before `from`, or the span exceeds 62 days | omit both for the current month to date, or page one calendar month per call (the `hint` names the exact fix) |\n| `invalid_on_behalf_of` | 400 | `X-On-Behalf-Of` (or `/me/usage?profile=`, `/me/profiles/{profile_id}`) is not 1–128 chars of `[A-Za-z0-9._:@-]` | fix the id, or omit the header to meter the key as one principal |\n| `invalid_cursor` | 400 | `/search` `?after=` is malformed, tampered, or was minted for a different query (q/filters changed) | pass `pagination.next_cursor` from the previous page of the SAME query unchanged; drop `after` to restart |\n| `rate_limited` | 429 | an IP/key/tier rate, monthly quota, or concurrency cap was exceeded (`retry_after_seconds` + `Retry-After` + `X-RateLimit-*` set; a monthly-quota stop also carries `X-Quota-Remaining: 0` + `X-Quota-Reset`) | back off `retry_after_seconds` (or until `X-RateLimit-Reset`), then retry |\n| `pool_exhausted` | 503 | the database pool could not hand out a connection within the acquire timeout (`Retry-After: 5`) | retry after 5 s |\n| `query_timeout` | 503 | a statement was cancelled by crate's own budget (`statement_timeout`; `Retry-After: 30`) — capacity, not a gateway timeout; during the upstream database's daily 04–07Z stall this is transient, for very broad `/search` `?q=` (single common words) it recurs | retry after 30 s; narrow a broad `?q=` with filters |\n| `service_overloaded` | 503 | the request was shed before it was served: crate's aggregate database-capacity breaker sheds anonymous and free-tier traffic (paid tiers are protected), and a request without a valid key of its own (no key or a malformed one) is refused while the rate limiter cannot decide (`Retry-After: 30`, body `retry_after_seconds: 30`) | retry after 30 s; a paid key is not shed |\n| `service_unavailable` | 503 | an infrastructure read failed, never a verdict on your key: the API-key lookup, or the `X-On-Behalf-Of` salt (any keyed route; `Retry-After: 3`); `/me/usage?profile=` / `/me/profiles/{profile_id}` salt read, or the `/preview/artist` rate limiter for a keyed caller (`Retry-After: 5`) | retry after the `Retry-After` seconds; the key is not revoked |\n| `surface_disabled` | 503 | `/surface` and `/surface/{name}` only: the generic surface-registry API is switched off operator-side (`Retry-After: 5`) | retry later; the dedicated dossier routes are unaffected |\n| `request_aborted` | 504 | the 15 s request deadline passed before the response was assembled (a statement the deadline cancelled mid-flight answers this code, not `query_timeout`) | retry later; on the artist dossier, request fewer `?fields=` |\n| `internal` | 500 | an unexpected error (logged server-side) | retry once; report if it persists |"
       },
       "RateLimited": {
         "type": "object",
@@ -2518,7 +2518,8 @@
             "required": [
               "state",
               "signals"
-            ]
+            ],
+            "description": "Radio reach (seen.artist_airplay_first_appearance via cluster_id; ~31% dated coverage; refreshed daily). Producer caveat (seen bbd3dae4): ARRIVAL LATENCY IS WEEKLY, REFRESH IS DAILY — existing rows refresh daily, but a newly-played artist gets no cluster_id until seen's weekly cluster backfill runs. The effect is COMPLETENESS, not correctness: a late-arriving cluster still carries its true earliest play once present, so firstAirplayDate is never wrong — the surface is only missing the newest ~7 days of newly-clustered artists; earliness comparisons over the trailing week should expect that gap."
           },
           "brokerage": {
             "type": "object",
@@ -3251,7 +3252,7 @@
           },
           "bandcamp_releases": {
             "type": "object",
-            "description": "Per-artist Bandcamp release list (cluster-first re-entry of the release grain demoted in the v2 cut). Populated whenever the artist resolves to a cluster identity (64-hex entry, or a slug that falls back to the booking-graph cluster); honest_gap otherwise. Summary rows only — fetch the full tracklist+durations+artwork+economics at GET /api/v2/artist/{key}/bandcamp/{item}.",
+            "description": "Per-artist Bandcamp release list (cluster-first re-entry of the release grain demoted in the v2 cut). Populated whenever the artist resolves to a cluster identity (64-hex entry, or a slug that falls back to the booking-graph cluster); honest_gap otherwise. Summary rows only — fetch the full tracklist+durations+artwork+economics at GET /api/v2/artist/{key}/bandcamp/{item}. At most 100 rows, newest `release_date` first (undated releases last) — the list carries no `total` and no truncation flag, so exactly 100 rows means the artist may hold more. Coverage is the producer's (mirror.bandcamp_release_v1): only releases mirror has actually fetched appear — mirror's index, not a census of Bandcamp; release_date is the source-asserted date (it may be a preorder date or, on a reissue, the original work's date).",
             "required": [
               "state",
               "releases"
@@ -6673,7 +6674,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -7347,7 +7348,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -7699,7 +7700,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -8075,7 +8076,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -8281,7 +8282,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -8501,7 +8502,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -8831,7 +8832,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -9213,7 +9214,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -9408,7 +9409,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -9858,7 +9859,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -10148,7 +10149,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -10448,7 +10449,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -10735,7 +10736,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -10974,7 +10975,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -11137,7 +11138,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -11415,7 +11416,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -11633,7 +11634,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -11975,7 +11976,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -12105,7 +12106,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -12385,7 +12386,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -12545,7 +12546,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -12762,7 +12763,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -19694,7 +19695,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -19833,7 +19834,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -19972,7 +19973,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -20106,7 +20107,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -20249,7 +20250,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -20382,7 +20383,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
@@ -20515,7 +20516,7 @@
             }
           },
           "503": {
-            "description": "Capacity — `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`) or `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`); honour `Retry-After`",
+            "description": "Capacity or a transient infrastructure failure — branch on `error`: `pool_exhausted` (no connection within the acquire timeout; `Retry-After: 5`), `query_timeout` (the statement was cancelled by crate's own statement budget; `Retry-After: 30`), `service_overloaded` (the capacity breaker shed anonymous / free-tier traffic, or a request with no key or a malformed one arrived while the rate limiter could not decide; `Retry-After: 30`), `service_unavailable` (the key lookup or another infrastructure read failed — never a verdict on the key; `Retry-After: 3` from the gate, 5 elsewhere) or, on `/surface` routes, `surface_disabled` (`Retry-After: 5`); honour `Retry-After`",
             "content": {
               "application/json": {
                 "schema": {
