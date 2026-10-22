@@ -4,6 +4,33 @@ All notable changes to `@hosaka-fm/crate` are documented here. The format follow
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.0] - 2026-10-22
+
+### Changed
+
+- Re-vendored the live spec: `/api/v2` **2.47.0 → 2.66.0** (nineteen contract versions). See the crate
+  CHANGELOG 2.48.0–2.66.0 for contract details.
+- **Error semantics (2.65.0):** the generated per-operation response docs now say `503` carries
+  `pool_exhausted` (`Retry-After: 5`) **or `query_timeout`** (a statement cancelled by crate's own budget,
+  `Retry-After: 30`), and `504` is **`request_aborted`** (the 15 s request deadline). The 2.47.0 types
+  described `504` as "request deadline or query timeout", which was wrong after 2.65.0. Runtime behaviour
+  is unchanged: `503` and `504` were already retryable and `Retry-After` is already honoured.
+- New typed operations: `GET /api/v2/artist/{key}/similar` (eight adjacency axes, 2.51.0–2.52.0),
+  `GET /api/v2/artist/{key}/gigs` + `GET /api/v2/gigs?city=` (the gig lane, 2.53.0), `GET /api/v2/me/usage`
+  (with the `credit` block, 2.61.0) and `DELETE /api/v2/me/profiles/{profile_id}` (on-behalf-of profiles,
+  2.60.0). These are typed in `src/generated/` only; no new client methods in this release.
+- Dossier and resolve types gain: the `genre` facet (2.54.0, declared on `ArtistDossierContract` in 2.66.0),
+  `journalism` freshness fields (2.55.0), compound-credit `members[]` (2.49.0), `same_name_clusters` (2.58.0),
+  per-field `licence` + `redistribution` on the dossier manifest (2.59.0), and registry rows 45–46 (2.48.0).
+
+### Type-level notes
+
+- `BreakoutsResponse.items[].discogsArtistId` is now `number | null` (unsigned acts are included since 2.64.0).
+  Code that assumed a number should handle `null` and key on `clusterId`.
+- Offset-paginated `pagination.page` is now `number | null` (`null` in cursor mode, `?after=`).
+- The `seen.artist_dated_appearance` surface no longer carries per-row `is_quarantined` (2.50.0,
+  producer-mandated).
+
 ## [1.17.0] - 2026-08-04
 
 ### Changed
